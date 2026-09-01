@@ -133,6 +133,17 @@ export default {
   "auth.websitePlaceholder": "https://example.com",
   "auth.passwordRequirementPlaceholder": "At least 8 characters",
   "auth.confirmPasswordPlaceholder": "Re-enter your password",
+  "auth.checkingResetLink": "Checking reset link…",
+  "auth.checkingResetLinkHelp": "Please wait while we verify your secure link.",
+  "auth.resetLinkUnavailable": "Reset link unavailable",
+  "auth.resetLinkInvalid": "This password reset link is invalid or has expired.",
+  "auth.requestAnotherResetLink": "Request another reset link",
+  "auth.chooseNewPassword": "Choose a new password",
+  "auth.newPassword": "New password",
+  "auth.newPasswordHelp": "Use at least 8 characters for your new password.",
+  "auth.setNewPassword": "Set new password",
+  "auth.updatingPassword": "Updating password…",
+  "auth.passwordResetFailed": "Failed to reset password. Please try again.",
 
   // Booking & Directory
   "booking.bookNow": "Book Now",
