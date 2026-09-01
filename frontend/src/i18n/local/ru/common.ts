@@ -133,6 +133,17 @@ export default {
   "auth.websitePlaceholder": "https://example.com",
   "auth.passwordRequirementPlaceholder": "Минимум 8 символов",
   "auth.confirmPasswordPlaceholder": "Повторите пароль",
+  "auth.checkingResetLink": "Проверяем ссылку…",
+  "auth.checkingResetLinkHelp": "Подождите, пока мы проверим безопасную ссылку.",
+  "auth.resetLinkUnavailable": "Ссылка недоступна",
+  "auth.resetLinkInvalid": "Ссылка для сброса пароля недействительна или истекла.",
+  "auth.requestAnotherResetLink": "Запросить новую ссылку",
+  "auth.chooseNewPassword": "Придумайте новый пароль",
+  "auth.newPassword": "Новый пароль",
+  "auth.newPasswordHelp": "Используйте не менее 8 символов.",
+  "auth.setNewPassword": "Установить новый пароль",
+  "auth.updatingPassword": "Обновляем пароль…",
+  "auth.passwordResetFailed": "Не удалось сбросить пароль. Попробуйте ещё раз.",
 
   // Booking & Directory
   "booking.bookNow": "Забронировать",
