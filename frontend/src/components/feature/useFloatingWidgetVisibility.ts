@@ -37,7 +37,20 @@ export function useFloatingWidgetVisibility(): boolean {
     const observed = new Set<Element>();
     const canObserveIntersections = typeof IntersectionObserver !== "undefined";
 
+    const pruneStaleIntersections = () => {
+      intersecting.forEach((element) => {
+        if (
+          !element.isConnected ||
+          !element.matches(BLOCKING_SELECTOR) ||
+          element.closest("[data-floating-widget]")
+        ) {
+          intersecting.delete(element);
+        }
+      });
+    };
+
     const update = () => {
+      pruneStaleIntersections();
       const hasOpenDialog = Array.from(
         document.querySelectorAll('[role="dialog"][aria-modal="true"]'),
       ).some(isOpenDialog);
