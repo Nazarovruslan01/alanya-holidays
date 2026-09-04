@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { getForumSubcategoryLabel } from "@/i18n/display-labels";
 import "@/i18n";
 
 interface SubcategorySidebarProps {
@@ -27,7 +28,7 @@ export default function SubcategorySidebar({
           onClick={() => setCollapsed(!collapsed)}
         >
           <span className="text-sm font-semibold text-foreground-900">
-            {activeSubcategory || t("public.allTopics")}
+            {activeSubcategory ? getForumSubcategoryLabel(activeSubcategory, t) : t("public.allTopics")}
           </span>
           <i
             className={`ri-arrow-down-s-line text-foreground-500 transition-transform ${
@@ -76,7 +77,7 @@ export default function SubcategorySidebar({
                 >
                   <div className="flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-current opacity-50 shrink-0"></span>
-                    <span className="truncate">{sub}</span>
+                    <span className="truncate">{getForumSubcategoryLabel(sub, t)}</span>
                   </div>
                 </button>
               ))}

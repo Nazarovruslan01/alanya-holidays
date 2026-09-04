@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { forumService, type Category } from "@/api-services/forum.service";
 import { logger } from "@/lib/logger";
 import { useTranslation } from "react-i18next";
+import { getForumCategoryLabel } from "@/i18n/display-labels";
+import "@/i18n";
 
 const categoryImageFallback = "/images/categories/placeholder.jpg";
 
@@ -68,7 +70,7 @@ export default function CategoriesGrid() {
                 >
                   <img
                     src={category.image}
-                    alt={category.name}
+                    alt={getForumCategoryLabel(category, t)}
                     onError={handleCategoryImageError}
                     className="absolute inset-0 h-full w-full object-cover opacity-100 transition-transform duration-500 group-hover:scale-105"
                   />
@@ -78,10 +80,10 @@ export default function CategoriesGrid() {
                       <i className={`${category.icon} text-white text-lg`}></i>
                     </div>
                     <h3 className="font-heading text-lg text-white mb-2 leading-tight">
-                      {category.name}
+                      {getForumCategoryLabel(category, t)}
                     </h3>
                     <p className="text-white/50 text-xs">
-                      {category.threadCount.toLocaleString()} discussions
+                      {t("public.discussionCount", { count: category.threadCount })}
                     </p>
                   </div>
                   <div className="absolute bottom-0 right-0 w-24 h-24 opacity-10">
@@ -101,7 +103,7 @@ export default function CategoriesGrid() {
                 >
                   <img
                     src={category.image}
-                    alt={category.name}
+                    alt={getForumCategoryLabel(category, t)}
                     onError={handleCategoryImageError}
                     className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
@@ -109,15 +111,15 @@ export default function CategoriesGrid() {
                   {/* Category Tag */}
                   <span className="absolute top-3 left-3 flex items-center gap-1 px-3 py-1 bg-black/50 text-white text-xs rounded-full backdrop-blur-sm">
                     <i className={`${category.icon}`}></i>
-                    {category.subcategories.length} topics
+                    {t("public.topicCount", { count: category.subcategories.length })}
                   </span>
                   {/* Content */}
                   <div className="absolute bottom-0 left-0 right-0 p-4">
                     <h3 className="font-heading text-lg text-white mb-1 leading-tight">
-                      {category.name}
+                      {getForumCategoryLabel(category, t)}
                     </h3>
                     <p className="text-white/70 text-xs">
-                      {category.threadCount.toLocaleString()} discussions
+                      {t("public.discussionCount", { count: category.threadCount })}
                     </p>
                   </div>
                 </Link>
@@ -133,10 +135,10 @@ export default function CategoriesGrid() {
               >
                 <div className="p-4 flex-1">
                   <h3 className="font-heading text-lg text-foreground-900 mb-2 leading-tight group-hover:text-primary-500 transition-colors">
-                    {category.name}
+                    {getForumCategoryLabel(category, t)}
                   </h3>
                   <p className="text-foreground-500 text-xs">
-                    {category.subcategories.length} topics
+                    {t("public.topicCount", { count: category.subcategories.length })}
                   </p>
                 </div>
                 <div className="h-20 overflow-hidden">

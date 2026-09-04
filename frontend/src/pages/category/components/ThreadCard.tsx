@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { forumService, type CategoryThread } from "@/api-services/forum.service";
 import { logger } from "@/lib/logger";
 import { useTranslation } from "react-i18next";
+import { getForumSubcategoryLabel } from "@/i18n/display-labels";
 import "@/i18n";
 
 interface ThreadCardProps {
@@ -84,7 +85,7 @@ export default function ThreadCard({ thread, onBookmarkToggle }: ThreadCardProps
             )}
             {thread.subcategory && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-background-100 text-foreground-500 text-xs rounded-full">
-                {thread.subcategory}
+                {getForumSubcategoryLabel(thread.subcategory, t)}
               </span>
             )}
           </div>

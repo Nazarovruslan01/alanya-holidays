@@ -14,6 +14,7 @@ import {
   type ProductCategory as Category,
 } from "@/api-services/products.service";
 import { useTranslation } from "react-i18next";
+import { getShopCategoryLabel, getShopCategoryTag, getShopVariantLabel } from "@/i18n/display-labels";
 import "@/i18n";
 
 export default function ShopPage() {
@@ -83,15 +84,7 @@ export default function ShopPage() {
   };
 
   const getCategoryTag = (product: ShopProduct) => {
-    const catName = product.product_categories?.name || "";
-    if (catName === "Food & Treats") return "Edible";
-    if (catName === "AlanyaHolidays Merch") return "Exclusive";
-    if (catName === "Books & Learning") return "Digital";
-    if (catName === "Travel Essentials") return "Popular";
-    if (catName === "Turkish Home & Decor") return "Handmade";
-    if (catName === "Turkish Textiles") return "Artisan";
-    if (catName === "Gift Cards") return "Gift";
-    return "New";
+    return getShopCategoryTag(product.product_categories?.name || "", t);
   };
 
   const getCategoryIcon = (product: ShopProduct) => {
@@ -187,7 +180,7 @@ export default function ShopPage() {
                         : "bg-white text-foreground-600 border border-background-200 hover:border-foreground-300 hover:text-foreground-900"
                     }`}
                   >
-                    {cat.name}
+                    {getShopCategoryLabel(cat.name, t)}
                   </button>
                 ))}
               </div>
@@ -251,7 +244,7 @@ export default function ShopPage() {
                         </span>
                         {product.variant_count && (
                           <span className="px-2 py-0.5 rounded-full bg-accent-500/90 text-white text-xs font-medium whitespace-nowrap shadow-sm backdrop-blur-sm">
-                            {product.variant_count} {getCategoryTag(product) === "Exclusive" ? "sizes" : getCategoryTag(product) === "Gift" ? "tiers" : "options"}
+                          {product.variant_count} {getShopVariantLabel(getCategoryTag(product), t)}
                           </span>
                         )}
                       </div>
@@ -260,7 +253,9 @@ export default function ShopPage() {
                     <div className="p-5 md:p-6 flex flex-col flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs text-foreground-400">
-                          {product.product_categories?.name || t("public.general")}
+                          {product.product_categories
+                            ? getShopCategoryLabel(product.product_categories.name, t)
+                            : t("public.general")}
                         </span>
                       </div>
                       <h3 className="font-heading text-base text-foreground-900 mb-2 leading-snug">
@@ -303,7 +298,7 @@ export default function ShopPage() {
                   className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-accent-500 text-white text-sm font-medium hover:bg-accent-600 transition-colors whitespace-nowrap cursor-pointer"
                 >
                   <i className="ri-search-eye-line text-sm"></i>
-                  Didn't find it? Let us source it for you
+                  {t("public.sourceItCta")}
                   <i className="ri-arrow-down-line text-sm"></i>
                 </a>
               </div>
