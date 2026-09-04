@@ -299,7 +299,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const resetPassword = useCallback(async (email: string) => {
     const redirectUrl =
       typeof window !== "undefined"
-        ? `${window.location.origin}/reset-password`
+        ? new URL(
+            `${__BASE_PATH__.replace(/\/+$/, "")}/reset-password`,
+            window.location.origin
+          ).toString()
         : undefined;
 
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {

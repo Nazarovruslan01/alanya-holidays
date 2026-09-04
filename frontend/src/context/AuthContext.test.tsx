@@ -155,6 +155,7 @@ describe('AuthContext', () => {
     vi.clearAllMocks();
     authStateHarness.initialRecoveryIntent = false;
     authStateHarness.callback = undefined;
+    vi.stubGlobal('__BASE_PATH__', process.env.BASE_PATH || '/');
     window.history.replaceState({}, '', '/');
     (supabase.auth.initialize as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       error: null,
@@ -296,7 +297,7 @@ describe('AuthContext', () => {
     });
   });
 
-  it('always sends password recovery emails back to the same-origin reset page', async () => {
+  it('sends password recovery emails to the reset page under the configured app base path', async () => {
     (supabase.auth.resetPasswordForEmail as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: {},
       error: null,
@@ -312,9 +313,17 @@ describe('AuthContext', () => {
       screen.getByText('Request reset').click();
     });
 
+    if (__BASE_PATH__ !== '/' && __BASE_PATH__ !== '/alanya/') {
+      throw new Error(`Unexpected BASE_PATH in password recovery test matrix: ${__BASE_PATH__}`);
+    }
+    const expectedRedirectTo =
+      __BASE_PATH__ === '/'
+        ? `${window.location.origin}/reset-password`
+        : `${window.location.origin}/alanya/reset-password`;
+
     expect(supabase.auth.resetPasswordForEmail).toHaveBeenCalledWith(
       'reset@example.com',
-      { redirectTo: `${window.location.origin}/reset-password` }
+      { redirectTo: expectedRedirectTo }
     );
   });
 
