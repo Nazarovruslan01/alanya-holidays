@@ -144,4 +144,53 @@ describe("WhatsAppFloatingButton Component", () => {
       expect(screen.queryByRole("link", { name: "Chat on WhatsApp" })).not.toBeInTheDocument();
     });
   });
+
+  it.each([
+    ["hidden BackToTop", "fixed bottom-24 right-6 opacity-0 pointer-events-none"],
+    ["visible BackToTop", "fixed bottom-24 right-6 opacity-100 pointer-events-auto"],
+  ])(
+    "does not hide behind a %s",
+    async (_state, className) => {
+      class VisibleIntersectionObserver implements IntersectionObserver {
+        readonly root = null;
+        readonly rootMargin = "0px";
+        readonly thresholds = [0];
+
+        constructor(private readonly callback: IntersectionObserverCallback) {}
+
+        observe(target: Element) {
+          this.callback(
+            [
+              {
+                boundingClientRect: target.getBoundingClientRect(),
+                intersectionRect: target.getBoundingClientRect(),
+                intersectionRatio: 1,
+                isIntersecting: true,
+                rootBounds: null,
+                target,
+                time: 0,
+              },
+            ],
+            this,
+          );
+        }
+
+        disconnect() {}
+        takeRecords() { return []; }
+        unobserve() {}
+      }
+
+      vi.stubGlobal("IntersectionObserver", VisibleIntersectionObserver);
+      render(
+        <MemoryRouter>
+          <button data-floating-widget="back-to-top" className={className} />
+          <WhatsAppFloatingButton />
+        </MemoryRouter>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole("link", { name: "Chat on WhatsApp" })).toBeInTheDocument();
+      });
+    },
+  );
 });

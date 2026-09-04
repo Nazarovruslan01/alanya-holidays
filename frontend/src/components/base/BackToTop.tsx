@@ -24,6 +24,7 @@ export default function BackToTop() {
           ? "opacity-100 translate-y-0 pointer-events-auto"
           : "opacity-0 translate-y-4 pointer-events-none"
       }`}
+      data-floating-widget="back-to-top"
       aria-label="Back to top"
     >
       <i className="ri-arrow-up-line text-lg"></i>
