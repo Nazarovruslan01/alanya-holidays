@@ -42,7 +42,8 @@ export function useFloatingWidgetVisibility(): boolean {
         if (
           !element.isConnected ||
           !element.matches(BLOCKING_SELECTOR) ||
-          element.closest("[data-floating-widget]")
+          element.closest("[data-floating-widget]") ||
+          (element.matches('[role="dialog"][aria-modal="true"]') && !isOpenDialog(element))
         ) {
           intersecting.delete(element);
         }
