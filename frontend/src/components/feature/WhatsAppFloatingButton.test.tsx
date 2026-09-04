@@ -145,6 +145,49 @@ describe("WhatsAppFloatingButton Component", () => {
     });
   });
 
+  it("stays visible when a closed dialog reports an intersection", async () => {
+    class ClosedDialogIntersectionObserver implements IntersectionObserver {
+      readonly root = null;
+      readonly rootMargin = "0px";
+      readonly thresholds = [0];
+
+      constructor(private readonly callback: IntersectionObserverCallback) {}
+
+      observe(target: Element) {
+        this.callback(
+          [
+            {
+              boundingClientRect: target.getBoundingClientRect(),
+              intersectionRatio: 0,
+              intersectionRect: target.getBoundingClientRect(),
+              isIntersecting: true,
+              rootBounds: null,
+              target,
+              time: 0,
+            },
+          ],
+          this,
+        );
+      }
+
+      disconnect() {}
+      takeRecords() { return []; }
+      unobserve() {}
+    }
+
+    vi.stubGlobal("IntersectionObserver", ClosedDialogIntersectionObserver);
+    render(
+      <MemoryRouter>
+        <div role="dialog" aria-modal="true" aria-hidden="true" />
+        <WhatsAppFloatingButton />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: "Chat on WhatsApp" })).toBeInTheDocument();
+    });
+  });
+
   it.each([
     ["hidden BackToTop", "fixed bottom-24 right-6 opacity-0 pointer-events-none"],
     ["visible BackToTop", "fixed bottom-24 right-6 opacity-100 pointer-events-auto"],
