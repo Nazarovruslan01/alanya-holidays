@@ -193,4 +193,52 @@ describe("WhatsAppFloatingButton Component", () => {
       });
     },
   );
+
+  it("shows again after an intersecting blocker is removed from the DOM", async () => {
+    class VisibleIntersectionObserver implements IntersectionObserver {
+      readonly root = null;
+      readonly rootMargin = "0px";
+      readonly thresholds = [0];
+
+      constructor(private readonly callback: IntersectionObserverCallback) {}
+
+      observe(target: Element) {
+        this.callback(
+          [
+            {
+              boundingClientRect: target.getBoundingClientRect(),
+              intersectionRect: target.getBoundingClientRect(),
+              intersectionRatio: 1,
+              isIntersecting: true,
+              rootBounds: null,
+              target,
+              time: 0,
+            },
+          ],
+          this,
+        );
+      }
+
+      disconnect() {}
+      takeRecords() { return []; }
+      unobserve() {}
+    }
+
+    const blocker = document.createElement("aside");
+    blocker.dataset.floatingCta = "true";
+    document.body.appendChild(blocker);
+    vi.stubGlobal("IntersectionObserver", VisibleIntersectionObserver);
+
+    renderButton();
+
+    await waitFor(() => {
+      expect(screen.queryByRole("link", { name: "Chat on WhatsApp" })).not.toBeInTheDocument();
+    });
+
+    blocker.remove();
+
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: "Chat on WhatsApp" })).toBeInTheDocument();
+    });
+  });
 });
