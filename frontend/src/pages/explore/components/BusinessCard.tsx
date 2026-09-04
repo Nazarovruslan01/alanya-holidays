@@ -4,6 +4,7 @@ import { useFavorites } from "@/hooks/useFavorites";
 import type { Business } from "@/api-services/directory.service";
 import TrustBadge from "@/components/common/TrustBadge";
 import { useTranslation } from "react-i18next";
+import { getBusinessCategoryLabel, getBusinessSubcategoryLabel } from "@/i18n/display-labels";
 import "@/i18n";
 
 export interface BusinessCardProps {
@@ -16,10 +17,10 @@ export interface BusinessCardProps {
   maxReached?: boolean;
 }
 
-const priceRangeLabel: Record<string, string> = {
-  "$": "Budget",
-  "$$": "Moderate",
-  "$$$": "Premium",
+const priceRangeKey: Record<string, string> = {
+  "$": "public.budget",
+  "$$": "public.moderate",
+  "$$$": "public.premium",
 };
 
 export default function BusinessCard({
@@ -131,14 +132,16 @@ export default function BusinessCard({
 
         {/* Price Range Pill */}
         <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-md text-foreground-800 text-xs font-semibold shadow-sm whitespace-nowrap z-10">
-          {priceRangeLabel[business.priceRange] || business.priceRange}
+          {priceRangeKey[business.priceRange] ? t(priceRangeKey[business.priceRange]) : business.priceRange}
         </div>
 
         {/* Category Badge */}
         <div className="absolute bottom-3 left-3 z-10">
           <span className="px-3 py-1 rounded-full bg-foreground-950/80 backdrop-blur-md text-white text-xs font-medium shadow-sm whitespace-nowrap flex items-center gap-1.5">
             <i className="ri-bookmark-3-fill text-[11px] text-primary-400" />
-            {business.subcategory || business.category}
+            {business.subcategory
+              ? getBusinessSubcategoryLabel(business.subcategory, t)
+              : getBusinessCategoryLabel(business.category, t, business.category)}
           </span>
         </div>
       </div>
@@ -201,7 +204,7 @@ export default function BusinessCard({
             className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-primary-500 text-white text-xs sm:text-sm font-semibold hover:bg-primary-600 transition-colors shadow-sm whitespace-nowrap cursor-pointer"
           >
             <i className="ri-phone-fill text-sm" />
-            Call
+            {t("public.call")}
           </a>
           <a
             href={business.website}
@@ -211,7 +214,7 @@ export default function BusinessCard({
             className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-foreground-200 text-foreground-700 text-xs sm:text-sm font-medium hover:bg-background-50 hover:text-foreground-900 transition-colors whitespace-nowrap cursor-pointer"
           >
             <i className="ri-external-link-line text-sm" />
-            Website
+            {t("public.website")}
           </a>
 
           {/* Claim Action Trigger */}
@@ -242,7 +245,7 @@ export default function BusinessCard({
                 ? "border-accent-300 bg-accent-50 text-accent-500 shadow-sm"
                 : "border-foreground-200 text-foreground-500 hover:text-accent-500 hover:border-accent-300 hover:bg-accent-50/40"
             }`}
-            title={favorited ? "Remove from favorites" : "Save to favorites"}
+            title={favorited ? t("public.removeFavorite") : t("public.saveFavorite")}
           >
             <i className={`${favorited ? "ri-heart-fill" : "ri-heart-line"} text-base`} />
           </button>

@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { forumService, type Category } from "@/api-services/forum.service";
 import { logger } from "@/lib/logger";
 import { useTranslation } from "react-i18next";
+import { getForumCategoryLabel } from "@/i18n/display-labels";
+import "@/i18n";
 import ErrorState from "@/components/base/ErrorState";
 
 const CATEGORY_LABEL_KEYS: Record<string, string> = {
@@ -81,7 +83,9 @@ export default function CategoriesGrid() {
             // Alternate card styles based on index
             const styleType = index % 3;
             const localizedNameKey = CATEGORY_LABEL_KEYS[category.slug || category.id];
-            const localizedName = localizedNameKey ? t(localizedNameKey) : category.name;
+            const localizedName = localizedNameKey
+              ? t(localizedNameKey, { defaultValue: getForumCategoryLabel(category, t) })
+              : getForumCategoryLabel(category, t);
 
             if (styleType === 0) {
               // Dark card with icon
@@ -106,7 +110,7 @@ export default function CategoriesGrid() {
                       {localizedName}
                     </h3>
                     <p className="text-white/50 text-xs">
-                      {t("home.discussionsCount", { count: category.threadCount.toLocaleString() })}
+                    {t("home.discussionsCount", { count: category.threadCount.toLocaleString() })}
                     </p>
                   </div>
                   <div className="absolute bottom-0 right-0 w-24 h-24 opacity-10">
@@ -142,7 +146,7 @@ export default function CategoriesGrid() {
                       {localizedName}
                     </h3>
                     <p className="text-white/70 text-xs">
-                      {t("home.discussionsCount", { count: category.threadCount.toLocaleString() })}
+                    {t("home.discussionsCount", { count: category.threadCount.toLocaleString() })}
                     </p>
                   </div>
                 </Link>

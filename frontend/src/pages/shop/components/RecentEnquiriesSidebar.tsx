@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import "@/i18n";
 import { productsService, type ConciergeEnquiryEntry as RecentEnquiry } from "@/api-services/products.service";
+import { getShopCategoryLabel } from "@/i18n/display-labels";
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, t: TFunction): string {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
   const diffMs = now - then;
@@ -11,13 +13,13 @@ function timeAgo(dateStr: string): string {
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffMins < 1) return "Just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return `${diffDays}d ago`;
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
-  return `${Math.floor(diffDays / 30)}mo ago`;
+  if (diffMins < 1) return t("shop.time.justNow");
+  if (diffMins < 60) return t("shop.time.minutesAgo", { count: diffMins });
+  if (diffHours < 24) return t("shop.time.hoursAgo", { count: diffHours });
+  if (diffDays === 1) return t("shop.time.yesterday");
+  if (diffDays < 7) return t("shop.time.daysAgo", { count: diffDays });
+  if (diffDays < 30) return t("shop.time.weeksAgo", { count: Math.floor(diffDays / 7) });
+  return t("shop.time.monthsAgo", { count: Math.floor(diffDays / 30) });
 }
 
 const CATEGORY_ICONS: Record<string, string> = {
@@ -84,7 +86,7 @@ export default function RecentEnquiriesSidebar() {
           </div>
           <div>
             <h3 className="text-sm font-semibold text-foreground-900">{t("shop.recentlySubmitted")}</h3>
-            <p className="text-xs text-foreground-400">{enquiries.length} recent enquiries</p>
+            <p className="text-xs text-foreground-400">{t("shop.recentEnquiriesCount", { count: enquiries.length })}</p>
           </div>
         </div>
 
@@ -103,13 +105,13 @@ export default function RecentEnquiriesSidebar() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium text-foreground-800 truncate">
-                      {enquiry.display_name}
+                      {t("shop.communityMember")}
                     </p>
                     <p className="text-xs text-foreground-500 truncate mt-0.5">
-                      {enquiry.category}
+                      {getShopCategoryLabel(enquiry.category, t)}
                     </p>
                     <p className="text-[11px] text-foreground-300 mt-1">
-                      {timeAgo(enquiry.submitted_at)}
+                      {timeAgo(enquiry.submitted_at, t)}
                     </p>
                   </div>
                 </div>
@@ -121,9 +123,9 @@ export default function RecentEnquiriesSidebar() {
         <div className="mt-4 pt-3 border-t border-background-100">
           <p className="text-[11px] text-foreground-400 leading-relaxed">
             <i className="ri-information-line text-foreground-300 mr-1"></i>
-            These are real requests from community members. Want your own personal shopper?{" "}
+            {t("shop.recentEnquiriesInfo")} {" "}
             <span className="text-accent-500 font-medium cursor-pointer">
-              Submit an enquiry above
+              {t("shop.submitEnquiryAbove")}
             </span>
             .
           </p>
