@@ -194,18 +194,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (event === "PASSWORD_RECOVERY" && newSession?.user) {
         passwordRecoveryUserIdRef.current = newSession.user.id;
         setPasswordRecoveryStatus("ready");
-      } else if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
-        passwordRecoveryUserIdRef.current = null;
-        setPasswordRecoveryStatus("invalid");
-      } else if (event === "INITIAL_SESSION") {
-        if (!passwordRecoveryUserIdRef.current) {
-          setPasswordRecoveryStatus("invalid");
-        }
       } else if (
-        passwordRecoveryUserIdRef.current &&
-        newSession?.user.id !== passwordRecoveryUserIdRef.current
+        event === "SIGNED_OUT" ||
+        (passwordRecoveryUserIdRef.current &&
+          newSession?.user.id !== passwordRecoveryUserIdRef.current)
       ) {
         passwordRecoveryUserIdRef.current = null;
+        setPasswordRecoveryStatus("invalid");
+      } else if (
+        (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
+        !passwordRecoveryUserIdRef.current
+      ) {
         setPasswordRecoveryStatus("invalid");
       }
 

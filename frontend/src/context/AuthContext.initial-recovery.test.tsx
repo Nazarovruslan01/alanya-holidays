@@ -1,97 +1,137 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-const harness = vi.hoisted(() => {
-  const recoveryUser = {
-    id: 'pre-client-recovery-user',
-    email: 'pre-client-recovery@example.com',
-    user_metadata: {},
-    app_metadata: {},
-    aud: 'authenticated',
-    created_at: '2026-09-02T00:00:00.000Z',
-  };
-  const recoverySession = {
-    access_token: 'test-session-access-token',
-    refresh_token: 'test-session-refresh-token',
-    expires_in: 3600,
-    token_type: 'bearer' as const,
-    user: recoveryUser,
-  };
-  const authStateCallback = {
-    current: undefined as
-      | ((event: string, session: typeof recoverySession | null) => void | Promise<void>)
-      | undefined,
-  };
-  const client = {
-    auth: {
-      initialize: vi.fn().mockResolvedValue({ error: null }),
-      getSession: vi.fn().mockResolvedValue({
-        data: { session: recoverySession },
-        error: null,
-      }),
-      onAuthStateChange: vi.fn((callback) => {
-        authStateCallback.current = callback;
-        return { data: { subscription: { unsubscribe: vi.fn() } } };
-      }),
-    },
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-        })),
-      })),
-    })),
-  };
-
-  return {
-    authStateCallback,
-    client,
-    createClient: vi.fn(() => {
-      window.history.replaceState({}, '', '/reset-password');
-      return client;
-    }),
-  };
-});
-
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: harness.createClient,
-}));
+import { fireEvent, render, screen } from '@testing-library/react';
+import { StrictMode } from 'react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../lib/api-client', () => ({
   apiClient: { post: vi.fn().mockResolvedValue({}) },
 }));
 
-describe('AuthProvider pre-client recovery capture', () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.clearAllMocks();
-    harness.authStateCallback.current = undefined;
-    vi.stubEnv('VITE_SUPABASE_URL', 'https://example.supabase.co');
-    vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'dummy');
+vi.mock('../components/base/PageHeroImage', () => ({
+  default: () => <div data-testid="hero-image" />,
+}));
+
+const recoveryUser = {
+  id: 'real-auth-js-recovery-user',
+  email: 'recovery@example.com',
+  user_metadata: {},
+  app_metadata: {},
+  aud: 'authenticated',
+  role: 'authenticated',
+  created_at: '2026-09-02T00:00:00.000Z',
+};
+
+function installSupabaseHttpStub() {
+  const requests: Array<{ method: string; pathname: string }> = [];
+  const fetchStub = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const requestUrl = new URL(
+      typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url
+    );
+    requests.push({
+      method: init?.method ?? (input instanceof Request ? input.method : 'GET'),
+      pathname: requestUrl.pathname,
+    });
+
+    if (requestUrl.pathname === '/auth/v1/user') {
+      return new Response(JSON.stringify(recoveryUser), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (requestUrl.pathname === '/rest/v1/profiles') {
+      return new Response('[]', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (requestUrl.pathname === '/auth/v1/logout') {
+      return new Response(null, { status: 204 });
+    }
+
+    throw new Error(`Unexpected Supabase request: ${requestUrl.pathname}`);
   });
 
-  it('restores readiness after createClient clears the callback before React subscribes', async () => {
+  vi.stubGlobal('fetch', fetchStub);
+  return requests;
+}
+
+describe('AuthProvider with the real auth-js callback lifecycle', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://example.supabase.co');
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'test-anon-key');
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps the password form usable when auth-js re-emits SIGNED_IN for the recovery session', async () => {
+    const requests = installSupabaseHttpStub();
+    let visibilityState: DocumentVisibilityState = 'visible';
+    vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibilityState);
     window.history.replaceState(
       {},
       '',
-      '/reset-password#type=recovery&access_token=placeholder&refresh_token=placeholder&expires_in=3600&token_type=bearer'
+      '/reset-password#type=recovery&access_token=test-access-token&refresh_token=test-refresh-token&expires_in=3600&token_type=bearer'
     );
 
-    const { AuthProvider, useAuth } = await import('./AuthContext');
+    const supabaseModule = await import('../lib/supabase');
+    expect(supabaseModule.initialPasswordRecoveryIntent).toBe(true);
+
+    await supabaseModule.supabase.auth.initialize();
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(window.location.hash).toBe('');
 
-    function RecoveryState() {
-      return <div>{useAuth().passwordRecoveryStatus}</div>;
-    }
+    const { AuthProvider } = await import('./AuthContext');
+    const { default: ResetPasswordPage } = await import('../pages/reset-password/page');
 
     render(
-      <AuthProvider>
-        <RecoveryState />
-      </AuthProvider>
+      <StrictMode>
+        <MemoryRouter initialEntries={['/reset-password']}>
+          <AuthProvider>
+            <Routes>
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/login" element={<div>Sign-in destination</div>} />
+            </Routes>
+          </AuthProvider>
+        </MemoryRouter>
+      </StrictMode>
     );
 
-    await waitFor(() => expect(screen.getByText('ready')).toBeInTheDocument());
-    expect(harness.createClient).toHaveBeenCalledTimes(1);
-    expect(harness.authStateCallback.current).toBeDefined();
+    expect(await screen.findByLabelText('New password')).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByLabelText('New password')).toBeInTheDocument();
+
+    visibilityState = 'hidden';
+    window.dispatchEvent(new Event('visibilitychange'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    visibilityState = 'visible';
+    window.dispatchEvent(new Event('visibilitychange'));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(screen.getByLabelText('New password')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('New password'), {
+      target: { value: 'new-secure-password' },
+    });
+    fireEvent.change(screen.getByLabelText('Confirm password'), {
+      target: { value: 'new-secure-password' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Set new password' }));
+
+    expect(await screen.findByText('Sign-in destination')).toBeInTheDocument();
+    expect(requests).toContainEqual({ method: 'PUT', pathname: '/auth/v1/user' });
+    expect(requests).toContainEqual({ method: 'POST', pathname: '/auth/v1/logout' });
+
+    await supabaseModule.supabase.auth.stopAutoRefresh();
   });
 });
