@@ -5,9 +5,36 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import CheckoutPage from "./page";
 import { ordersService } from "@/api-services/orders.service";
+import i18n from "@/i18n";
+
+vi.mock("@/api-services/orders.service", () => ({
+  ordersService: {
+    createOrder: vi.fn(),
+  },
+}));
+
+vi.mock("@/hooks/useToast", () => ({
+  useToast: () => ({
+    showToast: vi.fn(),
+    ToastContainer: () => null,
+  }),
+}));
+
+vi.mock("@/pages/home/components/Navbar", () => ({ default: () => <nav /> }));
+vi.mock("@/pages/home/components/Footer", () => ({ default: () => <footer /> }));
+vi.mock("@/components/base/PageHeroImage", () => ({ default: () => null }));
 
 const mockClearCart = vi.fn();
-let mockCartItems = [
+type MockCartItem = {
+  id: string;
+  productName: string;
+  price: string;
+  quantity: number;
+  icon: string;
+  imageUrl?: string;
+};
+
+let mockCartItems: MockCartItem[] = [
   {
     id: "prod-1",
     productName: "Luxury Yacht Voucher",
@@ -44,8 +71,9 @@ vi.mock("react-router-dom", async () => {
 });
 
 describe("CheckoutPage Component", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+    vi.clearAllMocks();
     mockClearCart.mockClear();
     mockNavigate.mockClear();
     mockCartItems = [
@@ -59,8 +87,9 @@ describe("CheckoutPage Component", () => {
     ];
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  afterEach(async () => {
+    vi.clearAllMocks();
+    await i18n.changeLanguage("en");
   });
 
   it("should render order summary and form fields when cart has items", () => {
@@ -80,7 +109,21 @@ describe("CheckoutPage Component", () => {
     expect(screen.getByLabelText(/Your Email/i)).toBeInTheDocument();
   });
 
-  it("should redirect to /shop if cart is empty and not completed", () => {
+  it("should render a product image in the order summary when available", () => {
+    mockCartItems[0].imageUrl = "https://example.com/yacht-voucher.jpg";
+
+    render(
+      <MemoryRouter>
+        <CheckoutPage />
+      </MemoryRouter>
+    );
+
+    expect(
+      screen.getByRole("img", { name: "Luxury Yacht Voucher" }),
+    ).toHaveAttribute("src", "https://example.com/yacht-voucher.jpg");
+  });
+
+  it("shows an actionable empty-cart state instead of silently redirecting", () => {
     mockCartItems = [];
     render(
       <MemoryRouter>
@@ -88,11 +131,29 @@ describe("CheckoutPage Component", () => {
       </MemoryRouter>
     );
 
-    expect(mockNavigate).toHaveBeenCalledWith("/shop", { replace: true });
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: "Your cart is empty" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Browse the shop" })).toHaveAttribute("href", "/shop");
+  });
+
+  it("localizes checkout labels and actions in Russian", async () => {
+    await i18n.changeLanguage("ru");
+
+    render(
+      <MemoryRouter>
+        <CheckoutPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByLabelText("Имя получателя *")).toBeInTheDocument();
+    expect(screen.getByLabelText("Email получателя *")).toBeInTheDocument();
+    expect(screen.getByLabelText("Телефон получателя *")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Отправить подарок — 350.00 EUR" })).toBeInTheDocument();
+    expect(screen.queryByText("Back to Shop")).not.toBeInTheDocument();
   });
 
   it("should submit order via ordersService.createOrder and show order confirmation", async () => {
-    const createOrderSpy = vi.spyOn(ordersService, "createOrder").mockResolvedValueOnce({
+    const createOrderSpy = vi.mocked(ordersService.createOrder).mockResolvedValueOnce({
       success: true,
       orderId: 98765,
     });
@@ -150,12 +211,12 @@ describe("CheckoutPage Component", () => {
     await waitFor(() => {
       expect(mockClearCart).toHaveBeenCalled();
       expect(screen.getByText("Order Confirmed!")).toBeInTheDocument();
-      expect(screen.getByText("#98765")).toBeInTheDocument();
+      expect(screen.getByText("Your order #98765 has been placed successfully.")).toBeInTheDocument();
     });
   });
 
   it("should display error message when order creation fails", async () => {
-    vi.spyOn(ordersService, "createOrder").mockRejectedValueOnce(
+    vi.mocked(ordersService.createOrder).mockRejectedValueOnce(
       new Error("Payment service unavailable")
     );
 
