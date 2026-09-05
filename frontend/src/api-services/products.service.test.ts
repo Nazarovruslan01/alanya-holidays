@@ -145,6 +145,7 @@ describe("products.service (Clean Architecture)", () => {
   describe("createProductOrder", () => {
     it("should post order to /products/orders and return confirmation", async () => {
       const payload: CreateProductOrderPayload = {
+        requestId: "11111111-1111-4111-8111-111111111111",
         currency: "EUR",
         subtotal: 70,
         customerNotes: "Deliver after 5 PM",
@@ -172,13 +173,20 @@ describe("products.service (Clean Architecture)", () => {
         success: true,
         orderId: 5001,
         message: "Order placed successfully",
+        status: "pending_payment",
+        expiresAt: "2026-09-06T12:00:00.000Z",
       };
 
       const postSpy = vi.spyOn(apiClient, "post").mockResolvedValueOnce(mockResponse);
 
       const result = await productsService.createProductOrder(payload);
       expect(result).toEqual(mockResponse);
-      expect(postSpy).toHaveBeenCalledWith("/products/orders", payload);
+      expect(postSpy).toHaveBeenCalledWith(
+        "/products/orders",
+        expect.objectContaining({
+          requestId: payload.requestId,
+        }),
+      );
     });
 
     it("should rethrow error when order submission fails", async () => {

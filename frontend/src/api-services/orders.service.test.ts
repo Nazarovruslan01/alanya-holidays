@@ -22,9 +22,12 @@ describe("orders.service (Clean Architecture)", () => {
 
   describe("createOrder", () => {
     const payload: CreateOrderPayload = {
+      requestId: "11111111-1111-4111-8111-111111111111",
       recipientName: "Fatma Demir",
       recipientEmail: "fatma@example.com",
       recipientPhone: "+905551234567",
+      recipientAddress: "10 Harbour Road",
+      guestAccessToken: "a".repeat(43),
       senderName: "Ahmet Yilmaz",
       senderEmail: "ahmet@example.com",
       giftMessage: "Enjoy your luxury experience!",
@@ -32,6 +35,7 @@ describe("orders.service (Clean Architecture)", () => {
       currency: "EUR",
       items: [
         {
+          productId: 101,
           productName: "Traditional Hammam Spa Voucher",
           quantity: 2,
           price: "€125",
@@ -44,6 +48,8 @@ describe("orders.service (Clean Architecture)", () => {
         success: true,
         orderId: 78901,
         message: "Order placed successfully",
+        status: "pending_payment",
+        expiresAt: "2026-09-06T12:00:00.000Z",
       };
 
       const postSpy = vi.spyOn(apiClient, "post").mockResolvedValueOnce(mockApiResponse);
@@ -54,12 +60,14 @@ describe("orders.service (Clean Architecture)", () => {
         "/products/orders",
         expect.objectContaining({
           currency: "EUR",
+          requestId: "11111111-1111-4111-8111-111111111111",
           subtotal: 250,
           customerNotes: "From: Ahmet Yilmaz (ahmet@example.com) - Message: Enjoy your luxury experience!",
           recipient: expect.objectContaining({
             name: "Fatma Demir",
             email: "fatma@example.com",
             phone: "+905551234567",
+            address: "10 Harbour Road",
             contact_method: "email",
           }),
           items: expect.arrayContaining([
@@ -77,7 +85,38 @@ describe("orders.service (Clean Architecture)", () => {
         success: true,
         orderId: 78901,
         message: "Order placed successfully",
+        status: "pending_payment",
+        expiresAt: "2026-09-06T12:00:00.000Z",
       });
+    });
+
+    it("rejects an item without canonical product identity instead of fabricating one", async () => {
+      const postSpy = vi.spyOn(apiClient, "post");
+      const invalidPayload: CreateOrderPayload = {
+        ...payload,
+        items: payload.items.map(({ productId: _productId, ...item }) => item),
+      };
+
+      await expect(ordersService.createOrder(invalidPayload)).rejects.toThrow(
+        "Product identity is missing",
+      );
+      expect(postSpy).not.toHaveBeenCalled();
+    });
+
+    it("rejects a nonnumeric SKU instead of silently submitting it without a SKU", async () => {
+      const postSpy = vi.spyOn(apiClient, "post");
+      const invalidPayload: CreateOrderPayload = {
+        ...payload,
+        items: payload.items.map((item) => ({
+          ...item,
+          skuId: "sweet-treat",
+        })),
+      };
+
+      await expect(ordersService.createOrder(invalidPayload)).rejects.toThrow(
+        "Product identity is missing or invalid",
+      );
+      expect(postSpy).not.toHaveBeenCalled();
     });
 
     it("should handle alternative id/order_id response fields", async () => {
@@ -135,7 +174,7 @@ describe("orders.service (Clean Architecture)", () => {
 
       const result = await ordersService.getOrder(1001);
 
-      expect(getSpy).toHaveBeenCalledWith("/products/orders/1001");
+      expect(getSpy).toHaveBeenCalledWith("/products/orders/1001", undefined);
       expect(result).toEqual(mockOrder);
     });
 
@@ -147,6 +186,17 @@ describe("orders.service (Clean Architecture)", () => {
 
       expect(result).toBeNull();
       expect(warnSpy).toHaveBeenCalled();
+    });
+
+    it("sends the guest capability only in the private request header", async () => {
+      const token = "z".repeat(43);
+      const getSpy = vi.spyOn(apiClient, "get").mockResolvedValueOnce({ id: 1001 });
+
+      await ordersService.getOrder(1001, token);
+
+      expect(getSpy).toHaveBeenCalledWith("/products/orders/1001", {
+        headers: { "x-order-access-token": token },
+      });
     });
   });
 

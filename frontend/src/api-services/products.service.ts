@@ -50,6 +50,8 @@ export interface ProductDetail extends ShopProduct {
 }
 
 export interface CreateProductOrderPayload {
+  requestId?: string;
+  guestAccessToken?: string;
   currency: string;
   subtotal: number;
   customerNotes?: string | null;
@@ -57,6 +59,7 @@ export interface CreateProductOrderPayload {
     name: string;
     email: string;
     phone: string;
+    address?: string;
     contact_method: "whatsapp" | "phone_call" | "email";
   };
   items: Array<{
@@ -75,6 +78,9 @@ export interface CreateProductOrderResult {
   success: boolean;
   orderId: number | string;
   message?: string;
+  status?: string;
+  expiresAt?: string;
+  guestAccessToken?: string;
 }
 
 export interface ConciergeEnquiryEntry {
@@ -212,6 +218,7 @@ class ProductsService {
    */
   async createProductOrder(payload: CreateProductOrderPayload): Promise<CreateProductOrderResult> {
     return ordersService.createOrder({
+      requestId: payload.requestId,
       currency: payload.currency,
       subtotal: payload.subtotal,
       customerNotes: payload.customerNotes ?? undefined,

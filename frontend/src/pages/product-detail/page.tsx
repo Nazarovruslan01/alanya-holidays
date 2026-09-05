@@ -10,8 +10,14 @@ import {
   type ProductDetail,
   type ProductVariant,
   type ProductSku,
+  type CreateProductOrderPayload,
 } from "@/api-services/products.service";
-import { isAbortError } from "@/lib/api-client";
+import { ApiError, isAbortError } from "@/lib/api-client";
+import {
+  getOrderRequestAttempt,
+  type OrderRequestAttempt,
+} from "@/lib/order-request-attempt";
+import { useAuth } from "@/context/AuthContext";
 import {
   COFFEE_TOUR_CAFES,
   COFFEE_TOUR_PRODUCT_ID,
@@ -24,6 +30,7 @@ import { CoffeeTourSection } from "./components/CoffeeTourSection";
 import { SendToPhoneModal } from "./components/SendToPhoneModal";
 import { useTranslation } from "react-i18next";
 import "@/i18n";
+import { saveGuestOrderAccess } from "@/lib/guest-order-access";
 
 export default function ProductDetailPage() {
   const { productId } = useParams<{ productId: string }>();
@@ -32,6 +39,7 @@ export default function ProductDetailPage() {
   const { addToCart } = useCart();
   const { isFavorite, toggleFavorite, favorites } = useFavorites();
   const { showToast, ToastContainer } = useToast();
+  const { user } = useAuth();
 
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
@@ -48,6 +56,8 @@ export default function ProductDetailPage() {
   const [preferredContact, setPreferredContact] = useState("whatsapp");
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
+  const [checkoutStatus, setCheckoutStatus] = useState("pending_payment");
+  const [checkoutOrderId, setCheckoutOrderId] = useState<number | string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   // Send to Phone modal state
@@ -57,6 +67,8 @@ export default function ProductDetailPage() {
   const [sendMethod, setSendMethod] = useState<"whatsapp" | "sms">("whatsapp");
 
   const formRef = useRef<HTMLFormElement>(null);
+  const requestAttemptRef = useRef<OrderRequestAttempt | null>(null);
+  const checkoutInFlightRef = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -78,6 +90,13 @@ export default function ProductDetailPage() {
           return;
         }
 
+        if (fetchedProduct.product_categories?.name === "Gift Cards") {
+          if (!controller.signal.aborted) {
+            setError(t("public.giftCardSalesPaused"));
+          }
+          return;
+        }
+
         if (!controller.signal.aborted) {
           setProduct(fetchedProduct);
           setVariants(fetchedVariants);
@@ -90,7 +109,17 @@ export default function ProductDetailPage() {
         }
       } catch (err: unknown) {
         if (isAbortError(err)) return;
-        setError(err instanceof Error ? err.message : t("product.loadFailed"));
+        const isPausedGiftCardError =
+          err instanceof ApiError &&
+          err.status === 400 &&
+          err.message === "Gift card sales are temporarily unavailable";
+        setError(
+          isPausedGiftCardError
+            ? t("public.giftCardSalesPaused")
+            : err instanceof Error
+              ? err.message
+              : t("product.loadFailed"),
+        );
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -146,9 +175,12 @@ export default function ProductDetailPage() {
     const displayVariant = label ? ` - ${label}` : "";
     addToCart({
       name: product.name,
+      productId: product.id,
       price: formatPrice(price),
       icon: getCategoryIcon(),
       variantLabel: label,
+      skuId: selectedSku?.id ?? null,
+      skuLabel: label ?? null,
     });
     showToast(
       t("product.addedToCart"),
@@ -298,7 +330,7 @@ export default function ProductDetailPage() {
   const handleCheckoutSubmit = useCallback(
     async (e: FormEvent<HTMLFormElement>) => {
       e.preventDefault();
-      if (!product) return;
+      if (checkoutInFlightRef.current || !product) return;
 
       const form = e.currentTarget;
       const formData = new FormData(form);
@@ -314,6 +346,7 @@ export default function ProductDetailPage() {
       const fullName = ((formData.get("name") as string) || "").trim();
       const email = ((formData.get("email") as string) || "").trim();
       const phoneRaw = ((formData.get("phone") as string) || "").trim();
+      const address = ((formData.get("address") as string) || "").trim();
       const notes = ((formData.get("notes") as string) || "").trim();
       const phone = `${countryCode}.${phoneRaw}`;
 
@@ -325,47 +358,79 @@ export default function ProductDetailPage() {
         setCheckoutError(t("product.emailRequired"));
         return;
       }
+      if (!phoneRaw || !address) {
+        setCheckoutError(t("checkout.deliveryContactRequired"));
+        return;
+      }
 
+      const finalPrice = currentPrice;
+      const subtotal = finalPrice * quantity;
+      const orderPayload: CreateProductOrderPayload = {
+        currency: product.currency,
+        subtotal,
+        customerNotes: notes || null,
+        recipient: {
+          name: fullName,
+          email,
+          phone,
+          address,
+          contact_method:
+            preferredContact === "phone"
+              ? "phone_call"
+              : (preferredContact as "whatsapp" | "email"),
+        },
+        items: [
+          {
+            productId: product.id,
+            productName: selectedSku
+              ? `${product.name} - ${selectedSku.label}`
+              : product.name,
+            skuId: selectedSku ? String(selectedSku.id) : null,
+            skuLabel: selectedSku ? selectedSku.label : null,
+            quantity,
+            unitPrice: product.price,
+            finalPrice,
+            subtotal,
+          },
+        ],
+      };
+
+      checkoutInFlightRef.current = true;
       setCheckoutSubmitting(true);
       setCheckoutError(null);
-
       try {
-        const finalPrice = currentPrice;
-        const subtotal = finalPrice * quantity;
-
-        await productsService.createProductOrder({
-          currency: product.currency,
-          subtotal,
-          customerNotes: notes || null,
-          recipient: {
-            name: fullName,
-            email,
-            phone,
-            contact_method: preferredContact as "whatsapp" | "phone_call" | "email",
-          },
-          items: [
-            {
-              productId: product.id,
-              productName: selectedSku ? `${product.name} - ${selectedSku.label}` : product.name,
-              skuId: selectedSku ? String(selectedSku.id) : null,
-              skuLabel: selectedSku ? selectedSku.label : null,
-              quantity,
-              unitPrice: product.price,
-              finalPrice,
-              subtotal,
-            },
-          ],
+        const attempt = getOrderRequestAttempt(
+          requestAttemptRef.current,
+          user?.id,
+          orderPayload,
+        );
+        requestAttemptRef.current = attempt;
+        const result = await productsService.createProductOrder({
+          ...orderPayload,
+          requestId: attempt.requestId,
+          guestAccessToken: user ? undefined : attempt.guestAccessToken,
         });
+        if (!result.success) throw new Error(t("product.genericError"));
 
+        const resultStatus = result.status || "pending_payment";
+        const resultStatusLabel = t(`checkout.status.${resultStatus}`, {
+          defaultValue: resultStatus.replaceAll("_", " "),
+        });
+        requestAttemptRef.current = null;
         setCheckoutSuccess(true);
+        setCheckoutStatus(resultStatus);
+        setCheckoutOrderId(result.orderId);
+        if (!user && result.guestAccessToken) {
+          saveGuestOrderAccess(result.orderId, result.guestAccessToken);
+        }
         setCheckoutError(null);
         showToast(
-          "Order placed!",
-          preferredContact === "whatsapp"
-            ? t("product.confirmWhatsApp")
-            : preferredContact === "phone"
-              ? "We'll call you shortly to confirm."
-              : "We'll email you shortly to confirm.",
+          t("checkout.orderPlaced"),
+          `${t("checkout.orderStatus", { status: resultStatusLabel })}${
+            resultStatus === "pending_payment"
+              ? ` ${t("checkout.pendingPaymentDetails")}`
+              : ""
+          }`,
           "success"
         );
       } catch (err: unknown) {
@@ -373,10 +438,11 @@ export default function ProductDetailPage() {
         setCheckoutError(msg);
         showToast(t("product.orderFailed"), msg, "error");
       } finally {
+        checkoutInFlightRef.current = false;
         setCheckoutSubmitting(false);
       }
     },
-    [product, quantity, countryCode, preferredContact, currentPrice, selectedSku, showToast, t]
+    [product, quantity, countryCode, preferredContact, currentPrice, selectedSku, showToast, t, user]
   );
 
   if (loading) {
@@ -479,9 +545,12 @@ export default function ProductDetailPage() {
             onSetPreferredContact={setPreferredContact}
             checkoutSubmitting={checkoutSubmitting}
             checkoutSuccess={checkoutSuccess}
+            checkoutStatus={checkoutStatus}
+            checkoutOrderId={checkoutOrderId}
             checkoutError={checkoutError}
             onResetCheckout={() => {
               setCheckoutSuccess(false);
+              setCheckoutStatus("pending_payment");
               setShowCheckout(false);
             }}
             onSubmit={handleCheckoutSubmit}

@@ -20,6 +20,8 @@ export default {
   "home.viewAllEvents": "View All Events",
   "home.upcoming": "upcoming",
   "home.thisWeeksEvents": "This Week's Events",
+  "home.noEventsThisWeek": "No events scheduled this week",
+  "home.noEventsThisWeekHint": "Check the full calendar for newly added community events.",
   "home.viewAll": "View All",
   "home.full": "Full",
   "home.spots": "spots",

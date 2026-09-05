@@ -45,8 +45,11 @@ export class ItinerariesController {
 
   @Get(':id')
   @UseGuards(OptionalAuthGuard)
-  async getItineraryById(@Param('id') id: string) {
-    return this.itinerariesService.getItineraryById(id);
+  async getItineraryById(
+    @Param('id') id: string,
+    @CurrentUser() user?: AuthUser,
+  ) {
+    return this.itinerariesService.getItineraryById(id, user?.id);
   }
 
   @Put(':id')

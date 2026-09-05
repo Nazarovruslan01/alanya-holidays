@@ -4,6 +4,7 @@ import {
   MaxLength,
   IsObject,
   IsArray,
+  IsBoolean,
 } from 'class-validator';
 
 export class UpdateItineraryDto {
@@ -19,4 +20,8 @@ export class UpdateItineraryDto {
   @IsOptional()
   @IsArray()
   itinerary?: unknown[];
+
+  @IsOptional()
+  @IsBoolean()
+  is_public?: boolean;
 }

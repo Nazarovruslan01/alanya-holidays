@@ -6,7 +6,7 @@ describe('ProductsRepository pagination', () => {
 
   const builder = (terminal: Record<string, unknown>) => {
     const query: Record<string, jest.Mock> = {};
-    for (const method of ['select', 'eq', 'order']) {
+    for (const method of ['select', 'eq', 'or', 'order']) {
       query[method] = jest.fn().mockReturnValue(query);
     }
     query.range = jest.fn().mockResolvedValue(terminal);
@@ -143,6 +143,120 @@ describe('ProductsRepository pagination', () => {
     ]);
   });
 
+  it('excludes the authoritative gift-card category before catalog pagination', async () => {
+    const products = builder({
+      data: [
+        { id: 21, category_id: null },
+        { id: 22, category_id: 7 },
+      ],
+      error: null,
+    });
+    const categories = builder({
+      data: [
+        { id: 7, name: 'Souvenirs', sort_order: 1 },
+        { id: 9, name: 'Gift Cards', sort_order: 2 },
+      ],
+      error: null,
+    });
+    categories.order.mockResolvedValue({
+      data: [
+        { id: 7, name: 'Souvenirs', sort_order: 1 },
+        { id: 9, name: 'Gift Cards', sort_order: 2 },
+      ],
+      error: null,
+    });
+    const skus = builder({ data: [], error: null });
+    const client = {
+      from: jest.fn((table: string) => {
+        if (table === 'product_items') return products;
+        if (table === 'product_categories') return categories;
+        return skus;
+      }),
+    };
+    const repository = new ProductsRepository({
+      getClient: () => client,
+    } as unknown as SupabaseService);
+
+    const result = await repository.getShopCatalog({ page: 2, limit: 10 });
+
+    expect(products.or).toHaveBeenCalledWith(
+      'category_id.is.null,category_id.neq.9',
+    );
+    expect(products.or.mock.invocationCallOrder[0]).toBeLessThan(
+      products.range.mock.invocationCallOrder[0],
+    );
+    expect(products.range).toHaveBeenCalledWith(10, 19);
+    expect(result.products.map((product) => product.id)).toEqual([21, 22]);
+  });
+
+  it('excludes the gift-card category before applying the featured limit', async () => {
+    const products = builder({
+      data: [{ id: 7, category_id: null }],
+      error: null,
+    });
+    products.limit = jest.fn().mockReturnValue(products);
+    products.order.mockResolvedValue({
+      data: [{ id: 7, category_id: null }],
+      error: null,
+    });
+    const categories = builder({ data: [], error: null });
+    categories.order.mockResolvedValue({
+      data: [{ id: 9, name: 'Gift Cards', sort_order: 2 }],
+      error: null,
+    });
+    const client = {
+      from: jest.fn((table: string) =>
+        table === 'product_items' ? products : categories,
+      ),
+    };
+    const repository = new ProductsRepository({
+      getClient: () => client,
+    } as unknown as SupabaseService);
+
+    await expect(repository.getFeaturedProducts(6)).resolves.toEqual([
+      { id: 7, category_id: null },
+    ]);
+
+    expect(products.or).toHaveBeenCalledWith(
+      'category_id.is.null,category_id.neq.9',
+    );
+    expect(products.limit).toHaveBeenCalledWith(6);
+  });
+
+  it('returns authoritative categories with orderable products', async () => {
+    const query = {
+      select: jest.fn(),
+      in: jest.fn(),
+      eq: jest.fn().mockResolvedValue({
+        data: [
+          {
+            id: 9,
+            name: 'Gift Voucher',
+            price: 50,
+            currency: 'EUR',
+            stock: 3,
+            status: 'active',
+            product_categories: { name: 'Gift Cards' },
+          },
+        ],
+        error: null,
+      }),
+    };
+    query.select.mockReturnValue(query);
+    query.in.mockReturnValue(query);
+    const client = { from: jest.fn().mockReturnValue(query) };
+    const repository = new ProductsRepository({
+      getClient: () => client,
+    } as unknown as SupabaseService);
+
+    const result = await repository.getOrderableProductsByIds([9], []);
+
+    expect(query.select).toHaveBeenCalledWith(
+      expect.stringContaining('product_categories(name)'),
+    );
+    expect(result[0]?.product_categories).toEqual({ name: 'Gift Cards' });
+  });
+
   it('loads numeric catalog item details without querying UUID product variants', async () => {
     const product = {
       select: jest.fn(),
@@ -184,5 +298,50 @@ describe('ProductsRepository pagination', () => {
       variants: [],
       skus: [{ id: 10, product_id: 1, label: 'Standard' }],
     });
+  });
+
+  it('constructs an inner-embedded seller order query without private header fields', async () => {
+    const query: Record<string, jest.Mock> = {};
+    for (const method of ['select', 'in', 'order']) {
+      query[method] = jest.fn().mockReturnValue(query);
+    }
+    query.limit = jest.fn().mockResolvedValue({ data: [], error: null });
+    const client = { from: jest.fn().mockReturnValue(query) };
+    const repository = new ProductsRepository({
+      getClient: () => client,
+    } as unknown as SupabaseService);
+
+    await repository.getOrdersContainingCatalogItems([3, 5]);
+
+    const select = String(query.select.mock.calls[0][0]);
+    expect(select).toContain('items:order_items!inner');
+    expect(select).not.toMatch(
+      /payment_provider|subtotal_items|customer_notes|customer_id/,
+    );
+    expect(query.in).toHaveBeenCalledWith('items.product_id', ['3', '5']);
+  });
+
+  it('requires ownership of every distinct catalog item in an order', async () => {
+    const query: Record<string, jest.Mock> = {};
+    for (const method of ['select', 'in', 'eq']) {
+      query[method] = jest.fn().mockReturnValue(query);
+    }
+    query.limit = jest
+      .fn()
+      .mockResolvedValueOnce({ data: [{ id: 3 }], error: null })
+      .mockResolvedValueOnce({ data: [{ id: 3 }, { id: 5 }], error: null });
+    const client = { from: jest.fn().mockReturnValue(query) };
+    const repository = new ProductsRepository({
+      getClient: () => client,
+    } as unknown as SupabaseService);
+
+    await expect(
+      repository.sellerOwnsAllCatalogItems(['3', '3', '5'], uuid),
+    ).resolves.toBe(false);
+    await expect(
+      repository.sellerOwnsAllCatalogItems(['3', '3', '5'], uuid),
+    ).resolves.toBe(true);
+    expect(query.in).toHaveBeenLastCalledWith('id', [3, 5]);
+    expect(query.limit).toHaveBeenLastCalledWith(2);
   });
 });

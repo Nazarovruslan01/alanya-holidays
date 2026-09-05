@@ -10,6 +10,8 @@ import { AddonWebhookHandler } from './handlers/addon-webhook.handler';
 import { SubscriptionWebhookHandler } from './handlers/subscription-webhook.handler';
 import { BookingWebhookHandler } from './handlers/booking-webhook.handler';
 import { ProcessedStripeEventsRepository } from './processed-stripe-events.repository';
+import { ProductOrderWebhookHandler } from './handlers/product-order-webhook.handler';
+import { ProductOrderPaymentsRepository } from './product-order-payments.repository';
 
 @Module({
   imports: [SupabaseModule, BookingsModule, NotificationsModule],
@@ -22,6 +24,8 @@ import { ProcessedStripeEventsRepository } from './processed-stripe-events.repos
     AddonWebhookHandler,
     SubscriptionWebhookHandler,
     BookingWebhookHandler,
+    ProductOrderWebhookHandler,
+    ProductOrderPaymentsRepository,
     ProcessedStripeEventsRepository,
     StripeWebhookService,
   ],

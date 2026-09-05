@@ -40,6 +40,7 @@ const PhotographyExcursionsPage = lazy(() => import("../pages/photography-excurs
 const BookingConfirmationPage = lazy(() => import("../pages/booking-confirmation/page"));
 const AdminDashboardPage = lazy(() => import("../pages/admin/page"));
 const CheckoutPage = lazy(() => import("../pages/checkout/page"));
+const OrderPage = lazy(() => import("../pages/order/page"));
 const GolfVacationsPage = lazy(() => import("../pages/golf-vacations/page"));
 const PrivateJetsPage = lazy(() => import("../pages/private-jets/page"));
 const PersonalChefsPage = lazy(() => import("../pages/personal-chefs/page"));
@@ -146,6 +147,10 @@ const routes: RouteObject[] = [
   {
     path: "/checkout",
     element: <CheckoutPage />,
+  },
+  {
+    path: "/orders/:orderId",
+    element: <OrderPage />,
   },
   {
     path: "/search",

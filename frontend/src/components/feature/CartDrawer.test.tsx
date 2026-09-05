@@ -27,9 +27,23 @@ function CartWithItem({ open, onClose }: { open: boolean; onClose: () => void })
   return <CartDrawer open={open} onClose={onClose} />;
 }
 
+function ControlledCartDrawer() {
+  const [open, setOpen] = React.useState(false);
+
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)}>
+        Open cart
+      </button>
+      <CartDrawer open={open} onClose={() => setOpen(false)} />
+    </>
+  );
+}
+
 describe("CartDrawer Component", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     document.body.style.overflow = "";
   });
 
@@ -131,5 +145,72 @@ describe("CartDrawer Component", () => {
 
     fireEvent.keyDown(window, { key: "Escape" });
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("conditionally unmounts while closed and restores focus after Escape", () => {
+    render(
+      <BrowserRouter>
+        <CartProvider>
+          <ControlledCartDrawer />
+        </CartProvider>
+      </BrowserRouter>
+    );
+
+    const opener = screen.getByRole("button", { name: "Open cart" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    opener.focus();
+    fireEvent.click(opener);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /close/i })).toHaveFocus();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("traps Tab and Shift+Tab within the drawer", () => {
+    render(
+      <BrowserRouter>
+        <CartProvider>
+          <ControlledCartDrawer />
+        </CartProvider>
+      </BrowserRouter>
+    );
+
+    const opener = screen.getByRole("button", { name: "Open cart" });
+    opener.focus();
+    fireEvent.click(opener);
+    const closeButton = screen.getByRole("button", { name: /close/i });
+    const browseButton = screen.getByRole("button", { name: /browse shop/i });
+
+    fireEvent.keyDown(closeButton, { key: "Tab" });
+    expect(browseButton).toHaveFocus();
+
+    fireEvent.keyDown(browseButton, { key: "Tab" });
+    expect(closeButton).toHaveFocus();
+
+    fireEvent.keyDown(closeButton, { key: "Tab", shiftKey: true });
+    expect(browseButton).toHaveFocus();
+  });
+
+  it("restores focus to the opener when the backdrop is clicked", () => {
+    render(
+      <BrowserRouter>
+        <CartProvider>
+          <ControlledCartDrawer />
+        </CartProvider>
+      </BrowserRouter>
+    );
+
+    const opener = screen.getByRole("button", { name: "Open cart" });
+    opener.focus();
+    fireEvent.click(opener);
+    const backdrop = document.querySelector(".fixed.inset-0");
+    expect(backdrop).toBeInTheDocument();
+    if (backdrop) fireEvent.click(backdrop);
+
+    expect(opener).toHaveFocus();
   });
 });

@@ -6,9 +6,20 @@ import PageHeroImage from "@/components/base/PageHeroImage";
 import { useCart } from "@/hooks/useCart";
 import { useToast } from "@/hooks/useToast";
 import { Money } from "@/domain/money.vo";
-import { ordersService } from "@/api-services/orders.service";
+import {
+  hasValidOrderItemIdentity,
+  ordersService,
+} from "@/api-services/orders.service";
+import type { CreateOrderPayload } from "@/api-services/orders.service";
 import { checkoutSchema } from "@/lib/validation/checkout.schemas";
+import {
+  getOrderRequestAttempt,
+  type OrderRequestAttempt,
+} from "@/lib/order-request-attempt";
+import { ApiError } from "@/lib/api-client";
+import { useAuth } from "@/context/AuthContext";
 import { useTranslation } from "react-i18next";
+import { saveGuestOrderAccess } from "@/lib/guest-order-access";
 import "@/i18n";
 
 export default function CheckoutPage() {
@@ -16,21 +27,24 @@ export default function CheckoutPage() {
   const navigate = useNavigate();
   const { items, clearCart, totalItems, subtotalMoney } = useCart();
   const { showToast, ToastContainer } = useToast();
+  const { user } = useAuth();
 
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [successOrderId, setSuccessOrderId] = useState<number | string | null>(null);
+  const [successStatus, setSuccessStatus] = useState("pending_payment");
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   const [recipientName, setRecipientName] = useState("");
   const [recipientEmail, setRecipientEmail] = useState("");
   const [recipientPhone, setRecipientPhone] = useState("");
-  const [senderName, setSenderName] = useState("");
-  const [senderEmail, setSenderEmail] = useState("");
-  const [giftMessage, setGiftMessage] = useState("");
+  const [recipientAddress, setRecipientAddress] = useState("");
+  const [orderNotes, setOrderNotes] = useState("");
   const [companyAlt, setCompanyAlt] = useState("");
 
   const formRef = useRef<HTMLFormElement>(null);
+  const requestAttemptRef = useRef<OrderRequestAttempt | null>(null);
+  const submittingRef = useRef(false);
 
   // Compute subtotal via Money VO
   const computedSubtotalMoney = useMemo(() => {
@@ -44,6 +58,10 @@ export default function CheckoutPage() {
   }, [items, subtotalMoney]);
 
   const subtotal = computedSubtotalMoney.toDatabaseDecimal();
+  const hasUnverifiableCartItems = useMemo(
+    () => items.some((item) => !hasValidOrderItemIdentity(item)),
+    [items],
+  );
 
   // Redirect if cart is empty (unless success state is showing)
   useEffect(() => {
@@ -55,7 +73,13 @@ export default function CheckoutPage() {
   const handleSubmit = useCallback(
     async (e: FormEvent<HTMLFormElement>) => {
       e.preventDefault();
-      if (items.length === 0) return;
+      if (
+        submittingRef.current ||
+        items.length === 0 ||
+        hasUnverifiableCartItems
+      ) {
+        return;
+      }
 
       const form = e.currentTarget;
       const getVal = (name: string, stateFallback: string): string => {
@@ -87,17 +111,14 @@ export default function CheckoutPage() {
       const recName = getVal("recipient_name", recipientName);
       const recEmail = getVal("recipient_email", recipientEmail);
       const recPhone = getVal("recipient_phone", recipientPhone);
-      const sndName = getVal("sender_name", senderName);
-      const sndEmail = getVal("email", senderEmail);
-      const gftMessage = getVal("gift_message", giftMessage);
+      const recAddress = getVal("recipient_address", recipientAddress);
+      const notes = getVal("order_notes", orderNotes);
 
       const validationResult = checkoutSchema.safeParse({
         recipientName: recName,
         recipientEmail: recEmail,
         recipientPhone: recPhone,
-        senderName: sndName,
-        senderEmail: sndEmail,
-        giftMessage: gftMessage,
+        recipientAddress: recAddress,
       });
 
       if (!validationResult.success) {
@@ -106,54 +127,90 @@ export default function CheckoutPage() {
         return;
       }
 
+      const orderPayload: CreateOrderPayload = {
+        recipientName: recName,
+        recipientEmail: recEmail,
+        recipientPhone: recPhone,
+        recipientAddress: recAddress,
+        contactMethod: "email",
+        customerNotes: notes || undefined,
+        subtotal,
+        currency: computedSubtotalMoney.currency,
+        items: items.map((item) => {
+          const itemMoney =
+            item.moneyPrice || Money.parse(item.price, computedSubtotalMoney.currency);
+          return {
+            productId: item.productId,
+            productName: item.productName,
+            skuId: item.skuId,
+            skuLabel: item.skuLabel,
+            quantity: item.quantity,
+            price: item.price,
+            unitPrice: itemMoney.toDatabaseDecimal(),
+            finalPrice: itemMoney.toDatabaseDecimal(),
+            subtotal: itemMoney.multiply(item.quantity).toDatabaseDecimal(),
+          };
+        }),
+      };
+
+      submittingRef.current = true;
       setSubmitting(true);
       setCheckoutError(null);
-
       try {
+        const attempt = getOrderRequestAttempt(
+          requestAttemptRef.current,
+          user?.id,
+          orderPayload,
+        );
+        requestAttemptRef.current = attempt;
         const orderResult = await ordersService.createOrder({
-          recipientName: recName,
-          recipientEmail: recEmail,
-          recipientPhone: recPhone,
-          contactMethod: "email",
-          senderName: sndName,
-          senderEmail: sndEmail,
-          giftMessage: gftMessage || undefined,
-          subtotal,
-          currency: computedSubtotalMoney.currency,
-          items: items.map((item, idx) => {
-            const itemMoney = item.moneyPrice || Money.parse(item.price, computedSubtotalMoney.currency);
-            return {
-              productId: item.productId || item.id || `gift-item-${idx + 1}`,
-              productName: item.productName,
-              skuId: item.skuId,
-              skuLabel: item.skuLabel,
-              quantity: item.quantity,
-              price: item.price,
-              unitPrice: itemMoney.toDatabaseDecimal(),
-              finalPrice: itemMoney.toDatabaseDecimal(),
-              subtotal: itemMoney.multiply(item.quantity).toDatabaseDecimal(),
-            };
-          }),
+          ...orderPayload,
+          requestId: attempt.requestId,
+          guestAccessToken: user ? undefined : attempt.guestAccessToken,
         });
 
         if (orderResult.success) {
+          const resultStatus = orderResult.status || "pending_payment";
+          const resultStatusLabel = t(`checkout.status.${resultStatus}`, {
+            defaultValue: resultStatus.replaceAll("_", " "),
+          });
+          requestAttemptRef.current = null;
           setSuccess(true);
           setSuccessOrderId(orderResult.orderId);
+          setSuccessStatus(resultStatus);
+          if (!user && orderResult.guestAccessToken) {
+            saveGuestOrderAccess(orderResult.orderId, orderResult.guestAccessToken);
+          }
           setCheckoutError(null);
           clearCart();
           showToast(
-            "Order placed!",
-            `Your gift will be sent to ${recName}. We'll email ${sndEmail} with confirmation.`,
+            t("checkout.orderPlaced"),
+            `${t("checkout.orderStatus", { status: resultStatusLabel })}${
+              resultStatus === "pending_payment"
+                ? ` ${t("checkout.pendingPaymentDetails")}`
+                : ""
+            }`,
             "success",
           );
         } else {
           throw new Error("Failed to place order. Please try again.");
         }
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Something went wrong. Please try again.";
+        const isPausedGiftCardError =
+          err instanceof ApiError &&
+          err.status === 400 &&
+          err.message === "Gift card sales are temporarily unavailable";
+        const msg = isPausedGiftCardError
+          ? t("public.giftCardSalesPaused") +
+            " " +
+            t("checkout.unverifiableCartItems")
+          : err instanceof Error
+            ? err.message
+            : "Something went wrong. Please try again.";
         setCheckoutError(msg);
         showToast("Order failed", msg, "error");
       } finally {
+        submittingRef.current = false;
         setSubmitting(false);
       }
     },
@@ -166,12 +223,18 @@ export default function CheckoutPage() {
       recipientName,
       recipientEmail,
       recipientPhone,
-      senderName,
-      senderEmail,
-      giftMessage,
+      recipientAddress,
+      orderNotes,
       companyAlt,
+      hasUnverifiableCartItems,
+      user,
+      t,
     ],
   );
+
+  const successStatusLabel = t(`checkout.status.${successStatus}`, {
+    defaultValue: successStatus.replaceAll("_", " "),
+  });
 
   if (items.length === 0 && !success) {
     return null; // will redirect
@@ -221,14 +284,24 @@ export default function CheckoutPage() {
               <div className="w-20 h-20 flex items-center justify-center rounded-full bg-green-100 mx-auto mb-6">
                 <i className="ri-check-line text-green-600 text-3xl"></i>
               </div>
-              <h2 className="font-heading text-2xl md:text-3xl text-foreground-900 mb-3">{t("checkout.orderConfirmed")}</h2>
+              <h2 className="font-heading text-2xl md:text-3xl text-foreground-900 mb-3">{t("checkout.orderPlaced")}</h2>
               <p className="text-foreground-500 text-sm md:text-base max-w-md mx-auto mb-2">
-                Your order <strong>#{successOrderId}</strong> has been placed successfully.
+                {t("checkout.orderPlacedDetail", { orderId: successOrderId })}
               </p>
               <p className="text-foreground-400 text-sm mb-8">
-                We'll send confirmation and delivery details to your email shortly.
+                {t("checkout.orderStatus", { status: successStatusLabel })}
+                {successStatus === "pending_payment"
+                  ? ` ${t("checkout.pendingPaymentDetails")}`
+                  : ""}
               </p>
               <div className="flex items-center justify-center gap-3 flex-wrap">
+                <Link
+                  to={successOrderId ? `/orders/${successOrderId}` : "/shop"}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-accent-500 text-background-50 rounded-full text-sm font-medium hover:bg-accent-600 transition-colors whitespace-nowrap cursor-pointer"
+                >
+                  <i className="ri-file-list-3-line"></i>
+                  {t("checkout.viewOrder")}
+                </Link>
                 <Link
                   to="/shop"
                   className="inline-flex items-center gap-2 px-6 py-3 bg-primary-500 text-background-50 rounded-full text-sm font-medium hover:bg-primary-600 transition-colors whitespace-nowrap cursor-pointer"
@@ -266,7 +339,7 @@ export default function CheckoutPage() {
                       const lineTotal = itemMoney.multiply(item.quantity);
                       return (
                         <div
-                          key={item.productName}
+                          key={`${item.productId ?? "legacy"}:${item.skuId ?? "none"}:${item.productName}`}
                           className="flex items-start gap-3 p-3 rounded-xl bg-background-50 border border-background-100"
                         >
                           <div className="w-9 h-9 flex items-center justify-center rounded-lg bg-secondary-100 shrink-0">
@@ -297,11 +370,7 @@ export default function CheckoutPage() {
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-foreground-400">{t("checkout.shipping")}</span>
-                      <span className="text-green-600 font-medium">{t("checkout.free")}</span>
-                    </div>
-                    <div className="border-t border-background-200 pt-2 flex items-center justify-between">
-                      <span className="text-base font-semibold text-foreground-900">{t("checkout.total")}</span>
-                      <span className="text-lg font-bold text-primary-600">{computedSubtotalMoney.format()}</span>
+                      <span className="text-amber-700 font-medium">{t("checkout.awaitingQuote")}</span>
                     </div>
                   </div>
 
@@ -327,6 +396,18 @@ export default function CheckoutPage() {
                       <p className="text-xs text-foreground-500">{t("checkout.giftDetailsDescription")}</p>
                     </div>
                   </div>
+
+                  {hasUnverifiableCartItems && (
+                    <div
+                      role="alert"
+                      className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 mb-5"
+                    >
+                      <i className="ri-error-warning-line text-amber-600 text-sm mt-0.5 shrink-0"></i>
+                      <p className="text-sm text-amber-800">
+                        {t("checkout.unverifiableCartItems")}
+                      </p>
+                    </div>
+                  )}
 
                   {checkoutError && (
                     <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200 mb-5">
@@ -407,87 +488,59 @@ export default function CheckoutPage() {
                           />
                           <p className="text-xs text-foreground-400 mt-1">{t("checkout.phoneHelp")}</p>
                         </div>
-                      </div>
-                    </div>
-
-                    {/* Sender Section */}
-                    <div className="bg-background-50 rounded-xl p-4 border border-background-200">
-                      <div className="flex items-center gap-2 mb-4">
-                        <div className="w-7 h-7 flex items-center justify-center rounded-full bg-primary-500 text-background-50">
-                          <i className="ri-user-line text-xs"></i>
-                        </div>
-                        <span className="text-sm font-semibold text-foreground-800">{t("checkout.yourDetails")}</span>
-                      </div>
-
-                      <div className="space-y-4">
                         <div>
-                          <label htmlFor="sender-name" className="block text-sm font-medium text-foreground-700 mb-1.5">
-                            Your Name *
+                          <label htmlFor="recipient-address" className="block text-sm font-medium text-foreground-700 mb-1.5">
+                            {t("checkout.deliveryAddress")} *
                           </label>
-                          <input
-                            id="sender-name"
-                            name="sender_name"
-                            type="text"
+                          <textarea
+                            id="recipient-address"
+                            name="recipient_address"
+                            rows={3}
+                            maxLength={500}
                             required
-                            value={senderName}
-                            onChange={(e) => setSenderName(e.target.value)}
-                            placeholder={t("checkout.namePlaceholder")}
-                            className="w-full px-4 py-2.5 rounded-xl border border-background-300 bg-white text-sm text-foreground-900 placeholder:text-foreground-400 focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-colors"
+                            value={recipientAddress}
+                            onChange={(e) => setRecipientAddress(e.target.value)}
+                            className="w-full px-4 py-2.5 rounded-xl border border-background-300 bg-white text-sm text-foreground-900 focus:outline-none focus:border-accent-400 focus:ring-2 focus:ring-accent-100 transition-colors resize-none"
                           />
-                        </div>
-
-                        <div>
-                          <label htmlFor="sender-email" className="block text-sm font-medium text-foreground-700 mb-1.5">
-                            Your Email *
-                          </label>
-                          <input
-                            id="sender-email"
-                            name="email"
-                            type="email"
-                            required
-                            value={senderEmail}
-                            onChange={(e) => setSenderEmail(e.target.value)}
-                            placeholder={t("auth.emailPlaceholder")}
-                            className="w-full px-4 py-2.5 rounded-xl border border-background-300 bg-white text-sm text-foreground-900 placeholder:text-foreground-400 focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-colors"
-                          />
-                          <p className="text-xs text-foreground-400 mt-1">{t("checkout.emailHelp")}</p>
                         </div>
                       </div>
                     </div>
 
-                    {/* Gift Message */}
                     <div>
-                      <label htmlFor="gift-message" className="block text-sm font-medium text-foreground-700 mb-1.5">
-                        {t("checkout.giftMessage")} <span className="text-foreground-400 font-normal">({t("public.optional")})</span>
+                      <label htmlFor="order-notes" className="block text-sm font-medium text-foreground-700 mb-1.5">
+                        {t("checkout.orderNotes")} <span className="text-foreground-400 font-normal">({t("public.optional")})</span>
                       </label>
                       <textarea
-                        id="gift-message"
-                        name="gift_message"
+                        id="order-notes"
+                        name="order_notes"
                         rows={3}
                         maxLength={300}
-                        value={giftMessage}
-                        onChange={(e) => setGiftMessage(e.target.value)}
-                        placeholder={t("checkout.giftMessagePlaceholder")}
+                        value={orderNotes}
+                        onChange={(e) => setOrderNotes(e.target.value)}
+                        placeholder={t("checkout.orderNotesPlaceholder")}
                         className="w-full px-4 py-2.5 rounded-xl border border-background-300 bg-white text-sm text-foreground-900 placeholder:text-foreground-400 focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-colors resize-none"
                       ></textarea>
-                      <p className="text-xs text-foreground-400 mt-1">{t("checkout.giftMessageHelp")}</p>
                     </div>
 
                     {/* Submit */}
                     <button
                       type="submit"
-                      disabled={submitting || items.length === 0}
+                      disabled={
+                        submitting ||
+                        items.length === 0 ||
+                        hasUnverifiableCartItems
+                      }
                       className="w-full py-3.5 bg-accent-500 text-background-50 dark:text-foreground-950 rounded-full text-base font-semibold hover:bg-accent-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                       {submitting ? (
                         <>
                           <div className="w-5 h-5 border-2 border-background-50/40 border-t-background-50 rounded-full animate-spin"></div>
-                          Placing order...
+                          {t("public.placingOrder")}
                         </>
                       ) : (
                         <>
                           <i className="ri-gift-line"></i>
-                          Send Gift — {computedSubtotalMoney.format()}
+                          {t("public.placeOrder")} — {computedSubtotalMoney.format()}
                         </>
                       )}
                     </button>

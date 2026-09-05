@@ -30,7 +30,10 @@ export function OrdersList() {
   }, [fetchOrders]);
 
   const getStatusBadge = (status?: string) => {
-    const s = (status || "pending").toLowerCase();
+    const s = (status || "placed").toLowerCase();
+    const label = t(`settings.orderStatus.${s}`, {
+      defaultValue: status || t("settings.orderStatus.placed"),
+    });
     switch (s) {
       case "completed":
       case "delivered":
@@ -38,30 +41,39 @@ export function OrdersList() {
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            Completed
+            {label}
           </span>
         );
       case "pending":
+      case "pending_payment":
       case "processing":
-      case "in_transit":
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-            Pending
+            {label}
+          </span>
+        );
+      case "shipped":
+      case "in_transit":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+            {label}
           </span>
         );
       case "cancelled":
       case "refunded":
+      case "expired":
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
             <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-            Cancelled
+            {label}
           </span>
         );
       default:
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-            {status || "Placed"}
+            {label}
           </span>
         );
     }
@@ -139,7 +151,7 @@ export function OrdersList() {
           ? (order.items as Array<OrderItem | Record<string, unknown>>)
           : [];
 
-        const totalPrice = order.total_price ?? order.subtotal ?? 0;
+        const totalPrice = order.subtotal_items ?? order.total_price ?? order.subtotal ?? 0;
         const currency = order.currency || "EUR";
 
         return (
@@ -150,10 +162,10 @@ export function OrdersList() {
             {/* Header: Order ID, Date, Status */}
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-700 font-semibold text-xs">
+                <Link to={`/orders/${orderId}`} className="p-2 rounded-lg bg-amber-500/10 text-amber-700 font-semibold text-xs">
                   <Package className="w-4 h-4 inline mr-1" />
                   {orderId}
-                </div>
+                </Link>
                 <div className="flex items-center gap-1.5 text-xs text-slate-500">
                   <Calendar className="w-3.5 h-3.5" />
                   {formattedDate}
@@ -167,6 +179,7 @@ export function OrdersList() {
               {itemsList.map((item, idx) => {
                 const itemName =
                   (item as OrderItem).productName ||
+                  (item as OrderItem).product_name ||
                   (item as { name?: string }).name ||
                   `Item #${idx + 1}`;
                 const quantity = (item as OrderItem).quantity || 1;

@@ -20,6 +20,8 @@ export default {
   "home.viewAllEvents": "Все мероприятия",
   "home.upcoming": "предстоящих",
   "home.thisWeeksEvents": "События этой недели",
+  "home.noEventsThisWeek": "На этой неделе мероприятий нет",
+  "home.noEventsThisWeekHint": "Проверьте полный календарь: там могут появиться новые мероприятия сообщества.",
   "home.viewAll": "Смотреть все",
   "home.full": "Мест нет",
   "home.spots": "мест",

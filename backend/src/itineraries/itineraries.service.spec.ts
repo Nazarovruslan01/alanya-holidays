@@ -21,6 +21,7 @@ describe('ItinerariesService', () => {
     title: '3 Days in Alanya',
     params: { days: 3, district: 'Alanya' },
     itinerary: [{ day: 1, activities: ['Castle visit'] }],
+    is_public: false,
     created_at: '2026-08-19T00:00:00.000Z',
   };
 
@@ -134,11 +135,37 @@ describe('ItinerariesService', () => {
   });
 
   describe('getItineraryById', () => {
-    it('should return itinerary if found', async () => {
-      const result = await service.getItineraryById('itin-123');
+    it('returns a private itinerary to its owner', async () => {
+      const result = await service.getItineraryById('itin-123', 'user-1');
 
       expect(result).toEqual(mockItinerary);
       expect(mockRepository.findById).toHaveBeenCalledWith('itin-123');
+    });
+
+    it('returns a public itinerary without authentication', async () => {
+      const publicItinerary = { ...mockItinerary, is_public: true };
+      (mockRepository.findById as jest.Mock).mockResolvedValue(publicItinerary);
+
+      await expect(service.getItineraryById('itin-123')).resolves.toEqual(
+        publicItinerary,
+      );
+    });
+
+    it('hides a private itinerary from other users even when params.shared is true', async () => {
+      (mockRepository.findById as jest.Mock).mockResolvedValue({
+        ...mockItinerary,
+        params: { shared: true },
+      });
+
+      await expect(
+        service.getItineraryById('itin-123', 'user-2'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('hides a private itinerary from anonymous users', async () => {
+      await expect(service.getItineraryById('itin-123')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw NotFoundException if itinerary does not exist', async () => {
@@ -166,6 +193,17 @@ describe('ItinerariesService', () => {
       expect(mockRepository.updateItinerary).toHaveBeenCalledWith(
         'itin-123',
         updateDto,
+        'user-1',
+      );
+    });
+
+    it('allows the owner to publish and unpublish an itinerary', async () => {
+      await service.updateItinerary('itin-123', { is_public: true }, 'user-1');
+
+      expect(mockRepository.updateItinerary).toHaveBeenCalledWith(
+        'itin-123',
+        { is_public: true },
+        'user-1',
       );
     });
 
@@ -177,7 +215,19 @@ describe('ItinerariesService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('should throw ForbiddenException if user is not the owner', async () => {
+    it('hides a private itinerary when a non-owner tries to update it', async () => {
+      await expect(
+        service.updateItinerary('itin-123', updateDto, 'different-user'),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockRepository.updateItinerary).not.toHaveBeenCalled();
+    });
+
+    it('forbids a non-owner from updating a public itinerary', async () => {
+      (mockRepository.findById as jest.Mock).mockResolvedValue({
+        ...mockItinerary,
+        is_public: true,
+      });
+
       await expect(
         service.updateItinerary('itin-123', updateDto, 'different-user'),
       ).rejects.toThrow(ForbiddenException);
@@ -190,7 +240,10 @@ describe('ItinerariesService', () => {
       const result = await service.deleteItinerary('itin-123', 'user-1');
 
       expect(result).toEqual({ success: true });
-      expect(mockRepository.deleteItinerary).toHaveBeenCalledWith('itin-123');
+      expect(mockRepository.deleteItinerary).toHaveBeenCalledWith(
+        'itin-123',
+        'user-1',
+      );
     });
 
     it('should throw NotFoundException if itinerary does not exist', async () => {
@@ -201,10 +254,10 @@ describe('ItinerariesService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('should throw ForbiddenException if user is not the owner', async () => {
+    it('hides a private itinerary when a non-owner tries to delete it', async () => {
       await expect(
         service.deleteItinerary('itin-123', 'different-user'),
-      ).rejects.toThrow(ForbiddenException);
+      ).rejects.toThrow(NotFoundException);
       expect(mockRepository.deleteItinerary).not.toHaveBeenCalled();
     });
   });

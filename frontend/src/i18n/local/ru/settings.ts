@@ -28,4 +28,11 @@ export default {
   "settings.profileUpdatedDescription": "Изменения сохранены в вашем аккаунте.",
   "settings.passwordChangedTitle": "Пароль изменён",
   "settings.passwordChangedDescription": "Пароль успешно обновлён.",
+  "settings.orderStatus.pending_payment": "Ожидает оплаты",
+  "settings.orderStatus.paid": "Оплачен",
+  "settings.orderStatus.shipped": "Отправлен",
+  "settings.orderStatus.completed": "Завершён",
+  "settings.orderStatus.cancelled": "Отменён",
+  "settings.orderStatus.expired": "Истёк",
+  "settings.orderStatus.placed": "Оформлен",
 };

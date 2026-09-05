@@ -20,6 +20,8 @@ export default {
   "home.viewAllEvents": "Tüm Etkinlikleri Gör",
   "home.upcoming": "yaklaşan",
   "home.thisWeeksEvents": "Bu Haftanın Etkinlikleri",
+  "home.noEventsThisWeek": "Bu hafta planlanmış etkinlik yok",
+  "home.noEventsThisWeekHint": "Yeni topluluk etkinlikleri için tam takvime göz atın.",
   "home.viewAll": "Tümünü Gör",
   "home.full": "Dolu",
   "home.spots": "yer",

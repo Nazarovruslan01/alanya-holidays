@@ -3,6 +3,8 @@ import Stripe from 'stripe';
 import {
   AddonCheckoutParams,
   PaymentGateway,
+  ProductOrderCheckoutParams,
+  ProductOrderCheckoutResult,
   SubscriptionCheckoutParams,
 } from '../domain/payment-gateway.interface';
 
@@ -116,6 +118,52 @@ export class StripePaymentAdapter implements PaymentGateway {
       throw new Error('Stripe did not return a checkout URL');
     }
     return { url: session.url };
+  }
+
+  async createProductOrderCheckoutSession(
+    params: ProductOrderCheckoutParams,
+  ): Promise<ProductOrderCheckoutResult> {
+    const siteUrl = params.siteUrl || 'https://alanyaholidays.com';
+    const expiresAtSeconds = Math.floor(
+      new Date(params.expiresAt).getTime() / 1000,
+    );
+    const session = await this.stripe.checkout.sessions.create(
+      {
+        mode: 'payment',
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: params.currency.toLowerCase(),
+              product_data: { name: `Order #${params.orderId}` },
+              unit_amount: Math.round(params.amount * 100),
+            },
+            quantity: 1,
+          },
+        ],
+        metadata: {
+          type: 'product_order',
+          orderId: String(params.orderId),
+          quoteConfirmedAt: params.quoteConfirmedAt,
+        },
+        customer_email: params.customerEmail || undefined,
+        expires_at: expiresAtSeconds,
+        success_url: `${siteUrl}/orders/${params.orderId}?payment=return`,
+        cancel_url: `${siteUrl}/orders/${params.orderId}?payment=cancelled`,
+      },
+      {
+        idempotencyKey: `product-order-${params.orderId}-${Date.parse(params.quoteConfirmedAt)}`,
+      },
+    );
+
+    if (!session.url) {
+      throw new Error('Stripe did not return a checkout URL');
+    }
+    return {
+      url: session.url,
+      sessionId: session.id,
+      expiresAt: new Date(session.expires_at * 1000).toISOString(),
+    };
   }
 
   private static readonly VOYAGER_PRICE_IDS: Record<

@@ -26,6 +26,22 @@ export interface AddonCheckoutParams {
   siteUrl?: string;
 }
 
+export interface ProductOrderCheckoutParams {
+  orderId: number;
+  amount: number;
+  currency: string;
+  customerEmail?: string | null;
+  quoteConfirmedAt: string;
+  expiresAt: string;
+  siteUrl?: string;
+}
+
+export interface ProductOrderCheckoutResult {
+  url: string;
+  sessionId: string;
+  expiresAt: string;
+}
+
 export interface PaymentGateway {
   constructEvent(
     rawBody: Buffer,
@@ -40,6 +56,10 @@ export interface PaymentGateway {
   createAddonCheckoutSession(
     params: AddonCheckoutParams,
   ): Promise<{ url: string }>;
+
+  createProductOrderCheckoutSession(
+    params: ProductOrderCheckoutParams,
+  ): Promise<ProductOrderCheckoutResult>;
 
   /**
    * Stripe Checkout (mode: subscription) для Voyager-плана.

@@ -91,6 +91,7 @@ export default function Navbar() {
   const desktopDropdownRef = useRef<HTMLDivElement>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
   const notificationDropdownRef = useRef<HTMLDivElement>(null);
+  const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const navigate = useNavigate();
@@ -781,6 +782,7 @@ export default function Navbar() {
           <div className="flex md:hidden items-center gap-2">
             <LanguageSwitcher isSolidNav={isSolidNav} compact />
             <button
+              ref={mobileMenuButtonRef}
               aria-expanded={mobileOpen}
               aria-haspopup="true"
               aria-controls="mobile-navigation"
@@ -922,7 +924,11 @@ export default function Navbar() {
               )}
               <button
                 className="block w-full text-left text-sm font-medium text-foreground-600 py-2.5 cursor-pointer"
-                onClick={() => { closeAllMobile(); setCartOpen(true); }}
+                onClick={() => {
+                  mobileMenuButtonRef.current?.focus();
+                  closeAllMobile();
+                  setCartOpen(true);
+                }}
               >
                 <i className="ri-shopping-cart-line mr-2 text-foreground-400"></i>
                 {t("nav.cart")}

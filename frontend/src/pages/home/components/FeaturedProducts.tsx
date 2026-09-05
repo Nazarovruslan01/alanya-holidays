@@ -4,6 +4,8 @@ import { productsService, type ShopProduct as FeaturedProduct } from "@/api-serv
 import { useTranslation } from "react-i18next";
 import "@/i18n";
 
+const PAUSED_GIFT_CARD_CATEGORY = "Gift Cards";
+
 function getCategoryBadge(product: FeaturedProduct): { label: string; icon: string } {
   const catName = product.product_categories?.name || "";
   if (catName === "Food & Treats") return { label: "Edible", icon: "ri-cake-line" };
@@ -38,7 +40,13 @@ export default function FeaturedProducts() {
         setError(null);
         const data = await productsService.getFeaturedProducts();
         if (!cancelled) {
-          setProducts(data);
+          setProducts(
+            data.filter(
+              (product) =>
+                product.product_categories?.name !==
+                PAUSED_GIFT_CARD_CATEGORY,
+            ),
+          );
         }
       } catch (err: unknown) {
         if (!cancelled) {
@@ -94,7 +102,7 @@ export default function FeaturedProducts() {
             </div>
             <h2 className="font-heading text-3xl md:text-4xl text-foreground-900 mb-3">{t("public.handpickedForYou")}</h2>
             <p className="text-foreground-500 text-sm md:text-base max-w-xl">
-              Gift cards and community favorites — every purchase supports AlanyaHolidays.
+              {t("public.shopSupportDescription")}
             </p>
           </div>
           <div className="flex gap-5 overflow-hidden">
@@ -137,7 +145,7 @@ export default function FeaturedProducts() {
             </div>
             <h2 className="font-heading text-3xl md:text-4xl text-foreground-900 mb-3">{t("public.handpickedForYou")}</h2>
             <p className="text-foreground-500 text-sm md:text-base max-w-xl">
-              Gift cards and community favorites — every purchase supports AlanyaHolidays.
+              {t("public.shopSupportDescription")}
             </p>
           </div>
 
