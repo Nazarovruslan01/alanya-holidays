@@ -1,3 +1,6 @@
+import { useTranslation } from "react-i18next";
+import "@/i18n";
+
 interface ThreadFiltersProps {
   totalThreads: number;
   sortBy: string;
@@ -5,10 +8,10 @@ interface ThreadFiltersProps {
 }
 
 const sortOptions = [
-  { value: "latest", label: "Latest", icon: "ri-time-line" },
-  { value: "hot", label: "Most Active", icon: "ri-fire-line" },
-  { value: "popular", label: "Most Viewed", icon: "ri-eye-line" },
-  { value: "unreplied", label: "Unanswered", icon: "ri-chat-1-line" },
+  { value: "latest", key: "public.sortLatest", icon: "ri-time-line" },
+  { value: "hot", key: "public.sortMostActive", icon: "ri-fire-line" },
+  { value: "popular", key: "public.sortMostViewed", icon: "ri-eye-line" },
+  { value: "unreplied", key: "public.sortUnanswered", icon: "ri-chat-1-line" },
 ];
 
 export default function ThreadFilters({
@@ -16,6 +19,7 @@ export default function ThreadFilters({
   sortBy,
   onSortChange,
 }: ThreadFiltersProps) {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
       {/* Thread count */}
@@ -23,7 +27,7 @@ export default function ThreadFilters({
         <span className="font-semibold text-foreground-900">
           {totalThreads}
         </span>{" "}
-        discussions
+        {t("public.discussions")}
       </p>
 
       {/* Sort tabs */}
@@ -39,7 +43,7 @@ export default function ThreadFilters({
             }`}
           >
             <i className={`${opt.icon} text-sm`}></i>
-            {opt.label}
+            {t(opt.key)}
           </button>
         ))}
       </div>

@@ -8,6 +8,7 @@ import { BLOG_CATEGORIES } from "@/pages/blog/blog.constants";
 import { blogService, type BlogPostItem, type BlogTag } from "@/api-services/blog.service";
 import { logger } from "@/lib/logger";
 import { useTranslation } from "react-i18next";
+import { getBlogCategoryLabel, getBlogReadTimeLabel } from "@/i18n/display-labels";
 import "@/i18n";
 
 export default function BlogPage() {
@@ -197,7 +198,7 @@ export default function BlogPage() {
                         : "bg-white border border-foreground-200 text-foreground-700 hover:border-primary-300 hover:text-primary-600"
                     }`}
                   >
-                    {blogCategory}
+                    {getBlogCategoryLabel(blogCategory, t)}
                   </button>
                 ))}
               </div>
@@ -300,9 +301,9 @@ export default function BlogPage() {
                         <div className="p-6 flex flex-col flex-1">
                           <div className="flex items-center gap-2 mb-3">
                             <span className="px-2.5 py-0.5 rounded-full bg-accent-100 text-accent-700 text-xs font-medium whitespace-nowrap">
-                              {category}
+                              {getBlogCategoryLabel(category, t)}
                             </span>
-                            <span className="text-xs text-foreground-400">{readTime}</span>
+                            <span className="text-xs text-foreground-400">{getBlogReadTimeLabel(readTime, t)}</span>
                           </div>
                           <h3 className="font-heading text-base text-foreground-900 mb-2 group-hover:text-primary-600 transition-colors">
                             {post.title}

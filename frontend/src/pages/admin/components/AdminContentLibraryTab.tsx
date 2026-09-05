@@ -213,6 +213,13 @@ export default function AdminContentLibraryTab() {
   const openEdit = (item: ManagedItem) => {
     resetEventMediaDraft(true);
     setEditing(item);
+    const listingOverrides: Record<string, string | boolean> = resource === 'listings'
+      ? {
+          images: Array.isArray(item.gallery)
+            ? item.gallery.map((entry) => String(entry)).join('\n')
+            : '',
+        }
+      : {};
     const productOverrides: Record<string, string | boolean> = resource === 'products'
       ? {
           name: String(item.name ?? ''),
@@ -235,6 +242,7 @@ export default function AdminContentLibraryTab() {
           Array.isArray(value) ? value.join('\n') : typeof value === 'boolean' ? value : String(value ?? ''),
         ]),
       ),
+      ...listingOverrides,
       ...productOverrides,
     });
     setIsFormOpen(true);

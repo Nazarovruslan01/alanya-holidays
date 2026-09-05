@@ -8,8 +8,8 @@ import { useTranslation } from "react-i18next";
 import "@/i18n";
 
 const quickLinks = [
-  { icon: "ri-discuss-line", title: "Categories", description: "Browse all discussion categories", link: "/categories", color: "primary" },
-  { icon: "ri-calendar-event-line", title: "Events", description: "Upcoming meetups and activities", link: "/events", color: "accent" },
+  { icon: "ri-discuss-line", titleKey: "community.quickCategories", descriptionKey: "community.quickCategoriesDescription", link: "/categories", color: "primary" },
+  { icon: "ri-calendar-event-line", titleKey: "community.quickEvents", descriptionKey: "community.quickEventsDescription", link: "/events", color: "accent" },
 ];
 
 export default function CommunityHubPage() {
@@ -68,7 +68,7 @@ export default function CommunityHubPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 md:gap-6">
               {quickLinks.map((link) => (
                 <Link
-                  key={link.title}
+                  key={link.titleKey}
                   to={link.link}
                   className="bg-white rounded-2xl p-6 md:p-7 border border-background-200/70 hover:border-primary-200/60 transition-all group"
                 >
@@ -83,8 +83,8 @@ export default function CommunityHubPage() {
                       "text-secondary-600"
                     } text-xl`}></i>
                   </div>
-                  <h3 className="font-heading text-lg text-foreground-900 mb-1.5">{link.title}</h3>
-                  <p className="text-sm text-foreground-500">{link.description}</p>
+                  <h3 className="font-heading text-lg text-foreground-900 mb-1.5">{t(link.titleKey)}</h3>
+                  <p className="text-sm text-foreground-500">{t(link.descriptionKey)}</p>
                 </Link>
               ))}
             </div>

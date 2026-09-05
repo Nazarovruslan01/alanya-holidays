@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import type { Category } from "@/api-services/forum.service";
 import { useTranslation } from "react-i18next";
+import { getForumCategoryDescription, getForumCategoryLabel } from "@/i18n/display-labels";
 import "@/i18n";
 
 interface CategoryHeaderProps {
@@ -28,7 +29,7 @@ export default function CategoryHeader({ category }: CategoryHeaderProps) {
             {t("nav.home")}
           </Link>
           <i className="ri-arrow-right-s-line text-white/40 text-sm"></i>
-          <span className="text-white/90 text-sm">{category.name}</span>
+          <span className="text-white/90 text-sm">{getForumCategoryLabel(category, t)}</span>
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -38,11 +39,11 @@ export default function CategoryHeader({ category }: CategoryHeaderProps) {
                 <i className={`${category.icon} text-white text-xl md:text-2xl`}></i>
               </div>
               <h1 className="font-heading text-3xl md:text-4xl text-white">
-                {category.name}
+                {getForumCategoryLabel(category, t)}
               </h1>
             </div>
             <p className="text-white/70 text-sm md:text-base max-w-2xl">
-              {category.description}
+              {getForumCategoryDescription(category, t)}
             </p>
           </div>
 

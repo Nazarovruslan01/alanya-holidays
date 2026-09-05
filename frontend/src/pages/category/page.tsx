@@ -13,6 +13,7 @@ import ErrorState from "@/components/base/ErrorState";
 import { logger } from "@/lib/logger";
 import SubmitContentModal from "@/components/feature/SubmitContentModal";
 import { useTranslation } from "react-i18next";
+import { getForumCategoryLabel } from "@/i18n/display-labels";
 import "@/i18n";
 
 export default function CategoryPage() {
@@ -222,7 +223,7 @@ export default function CategoryPage() {
             {/* Sidebar */}
             <SubcategorySidebar
               subcategories={category.subcategories}
-              categoryName={category.name}
+              categoryName={getForumCategoryLabel(category, t)}
               activeSubcategory={activeSubcategory}
               onSelect={setActiveSubcategory}
             />
@@ -330,10 +331,10 @@ export default function CategoryPage() {
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground-900 truncate">
-                        {c.name}
+                        {getForumCategoryLabel(c, t)}
                       </p>
                       <p className="text-xs text-foreground-400">
-                        {c.threadCount.toLocaleString()} threads
+                        {c.threadCount.toLocaleString()} {t("public.discussionsShort")}
                       </p>
                     </div>
                   </Link>

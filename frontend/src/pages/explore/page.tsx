@@ -21,6 +21,7 @@ import PaginationControls from "@/components/base/PaginationControls";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useCompare } from "@/hooks/useCompare";
 import { useTranslation } from "react-i18next";
+import { getBusinessCategoryLabel } from "@/i18n/display-labels";
 import "@/i18n";
 
 const PAGE_SIZE = 20;
@@ -139,7 +140,7 @@ export default function ExplorePage() {
   }, [allBusinesses, sortBy, showFavoritesOnly, isFavorite]);
 
   const currentCategory = businessCategories.find((c) => c.id === activeCategory);
-  const sortLabel = sortBy === "rating" ? t("public.topRated") : sortBy === "reviews" ? t("public.mostReviewed") : "A-Z";
+  const sortLabel = sortBy === "rating" ? t("public.topRated") : sortBy === "reviews" ? t("public.mostReviewed") : t("public.alphabetical");
   const displayedTotal = showFavoritesOnly ? filteredBusinesses.length : totalBusinesses;
 
   const selectCategory = (category: string) => {
@@ -245,7 +246,7 @@ export default function ExplorePage() {
                   }`}
                 >
                   <i className={`${cat.icon} text-sm`} />
-                  {cat.name}
+                  {getBusinessCategoryLabel(cat.id, t, cat.name)}
                 </button>
               ))}
               <div className="w-px h-8 bg-background-200 mx-1" />
@@ -285,14 +286,14 @@ export default function ExplorePage() {
                   {showFavoritesOnly
                     ? t("public.myFavorites")
                     : currentCategory && activeCategory !== "all"
-                      ? currentCategory.name
+                      ? getBusinessCategoryLabel(currentCategory.id, t, currentCategory.name)
                       : t("public.allBusinesses")}
                 </h2>
                 <p className="text-sm text-foreground-500">
                   {t(displayedTotal === 1 ? "public.businessFound" : "public.businessesFound", { count: displayedTotal })}
                   {showFavoritesOnly && t("public.inFavorites")}
                   {searchQuery && (
-                    <span> for &quot;{searchQuery}&quot;</span>
+                    <span> {t("public.searchFor", { query: searchQuery })}</span>
                   )}
                 </p>
               </div>
@@ -377,7 +378,7 @@ export default function ExplorePage() {
                             className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors cursor-pointer ${sortBy === "rating" ? "bg-primary-50 text-primary-700 font-semibold" : "text-foreground-700 hover:bg-background-100"}`}
                           >
                             <i className="ri-star-line text-sm" />
-                            Top Rated
+                            {t("public.topRated")}
                           </button>
                           <button
                             type="button"
@@ -385,7 +386,7 @@ export default function ExplorePage() {
                             className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors cursor-pointer ${sortBy === "reviews" ? "bg-primary-50 text-primary-700 font-semibold" : "text-foreground-700 hover:bg-background-100"}`}
                           >
                             <i className="ri-message-3-line text-sm" />
-                            Most Reviewed
+                            {t("public.mostReviewed")}
                           </button>
                           <button
                             type="button"
@@ -393,7 +394,7 @@ export default function ExplorePage() {
                             className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors cursor-pointer ${sortBy === "name" ? "bg-primary-50 text-primary-700 font-semibold" : "text-foreground-700 hover:bg-background-100"}`}
                           >
                             <i className="ri-sort-alphabet-asc text-sm" />
-                            A-Z
+                            {t("public.alphabetical")}
                           </button>
                         </div>
                       </>

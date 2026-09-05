@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import CreatorUgcFloatingWidget from "./CreatorUgcFloatingWidget";
@@ -57,6 +57,24 @@ describe("CreatorUgcFloatingWidget", () => {
     expect(screen.queryByText(/Post a tip, story, or question/i)).not.toBeInTheDocument();
   });
 
+  it.each(["/login", "/register", "/checkout", "/admin"])(
+    "does not render its trigger on the protected form surface %s",
+    (path) => {
+      renderWidget([path]);
+      expect(
+        screen.queryByRole("button", { name: /open community post widget/i }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("uses safe-area-aware offsets", () => {
+    const { container } = renderWidget();
+    expect(container.querySelector('[data-floating-widget="community"]')).toHaveClass(
+      "bottom-[calc(1rem+env(safe-area-inset-bottom))]",
+      "left-[calc(1rem+env(safe-area-inset-left))]",
+    );
+  });
+
   it("expands to the floating card when clicked", () => {
     renderWidget();
     fireEvent.click(
@@ -97,4 +115,55 @@ describe("CreatorUgcFloatingWidget", () => {
       screen.queryByRole("dialog", { name: /share a post/i })
     ).not.toBeInTheDocument();
   });
+
+  it.each([
+    ["hidden BackToTop", "fixed bottom-24 right-6 opacity-0 pointer-events-none"],
+    ["visible BackToTop", "fixed bottom-24 right-6 opacity-100 pointer-events-auto"],
+  ])(
+    "does not hide behind a %s",
+    async (_state, className) => {
+      class VisibleIntersectionObserver implements IntersectionObserver {
+        readonly root = null;
+        readonly rootMargin = "0px";
+        readonly thresholds = [0];
+
+        constructor(private readonly callback: IntersectionObserverCallback) {}
+
+        observe(target: Element) {
+          this.callback(
+            [
+              {
+                boundingClientRect: target.getBoundingClientRect(),
+                intersectionRatio: 1,
+                intersectionRect: target.getBoundingClientRect(),
+                isIntersecting: true,
+                rootBounds: null,
+                target,
+                time: 0,
+              },
+            ],
+            this,
+          );
+        }
+
+        disconnect() {}
+        takeRecords() { return []; }
+        unobserve() {}
+      }
+
+      vi.stubGlobal("IntersectionObserver", VisibleIntersectionObserver);
+      render(
+        <MemoryRouter>
+          <button data-floating-widget="back-to-top" className={className} />
+          <CreatorUgcFloatingWidget />
+        </MemoryRouter>,
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /open community post widget/i }),
+        ).toBeInTheDocument();
+      });
+    },
+  );
 });

@@ -9,6 +9,7 @@ import Navbar from "@/pages/home/components/Navbar";
 import Footer from "@/pages/home/components/Footer";
 import PageHeroImage from "@/components/base/PageHeroImage";
 import { useTranslation } from "react-i18next";
+import { getForumCategoryDescription, getForumCategoryLabel } from "@/i18n/display-labels";
 import "@/i18n";
 
 export default function CategoriesPage() {
@@ -149,7 +150,7 @@ export default function CategoriesPage() {
                   <div className="relative h-44 overflow-hidden">
                     <img
                       src={category.image}
-                      alt={category.name}
+                      alt={getForumCategoryLabel(category, t)}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       loading="lazy"
                     />
@@ -170,10 +171,10 @@ export default function CategoriesPage() {
                   {/* Card Body */}
                   <div className="p-4 md:p-5 flex-1 flex flex-col">
                     <h3 className="font-heading text-lg text-foreground-900 group-hover:text-primary-500 transition-colors mb-2 leading-tight">
-                      {category.name}
+                      {getForumCategoryLabel(category, t)}
                     </h3>
                     <p className="text-foreground-500 text-xs md:text-sm leading-relaxed mb-4 flex-1">
-                      {category.description}
+                      {getForumCategoryDescription(category, t)}
                     </p>
 
                     {/* Stats row */}
@@ -183,18 +184,18 @@ export default function CategoriesPage() {
                         <span className="font-medium text-foreground-700">
                           {category.threadCount.toLocaleString()}
                         </span>
-                        <span className="hidden sm:inline">threads</span>
+                        <span className="hidden sm:inline">{t("public.discussionsShort")}</span>
                       </div>
                       <div className="flex items-center gap-1.5 text-xs text-foreground-400">
                         <i className="ri-group-line text-sm"></i>
                         <span className="font-medium text-foreground-700">
                           {category.memberCount.toLocaleString()}
                         </span>
-                        <span className="hidden sm:inline">members</span>
+                        <span className="hidden sm:inline">{t("public.members")}</span>
                       </div>
                       <div className="ml-auto">
                         <span className="inline-flex items-center gap-1 text-xs font-medium text-primary-500 group-hover:translate-x-0.5 transition-transform">
-                          Browse
+                          {t("public.browse")}
                           <i className="ri-arrow-right-line text-sm"></i>
                         </span>
                       </div>
@@ -206,8 +207,8 @@ export default function CategoriesPage() {
           ) : (
             <EmptyState
               icon="ri-stack-line"
-              title="No categories found"
-              description="Forum categories will appear here once configured."
+              title={t("community.noCategoriesFound")}
+              description={t("community.categoriesAppearAfterConfigured")}
               className="my-12"
             />
           )}
@@ -220,15 +221,14 @@ export default function CategoriesPage() {
               <div className="flex items-center gap-2 mb-2">
                 <i className="ri-lightbulb-flash-line text-accent-500 text-lg"></i>
                 <span className="text-sm font-semibold text-accent-500 uppercase tracking-wider">
-                  Can&apos;t Find What You Need?
+                  {t("community.cantFindWhatYouNeed")}
                 </span>
               </div>
               <h3 className="font-heading text-2xl md:text-3xl text-foreground-900 mb-2">
-                Start Your Own Discussion
+                {t("community.startYourOwnDiscussion")}
               </h3>
               <p className="text-foreground-500 text-sm md:text-base">
-                Have a question or story to share? Create a new thread and
-                get answers from the Alanya community within minutes.
+                {t("community.startDiscussionDescription")}
               </p>
             </div>
             <Link
@@ -236,7 +236,7 @@ export default function CategoriesPage() {
               className="inline-flex items-center gap-2 px-6 py-3 bg-primary-500 text-background-50 rounded-full text-sm font-medium whitespace-nowrap hover:bg-primary-600 transition-colors shrink-0"
             >
               <i className="ri-edit-line"></i>
-              Create a Thread
+              {t("community.createThread")}
             </Link>
           </div>
         </section>

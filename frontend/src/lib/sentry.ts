@@ -1,8 +1,50 @@
 import * as Sentry from '@sentry/react';
 
+const AUTH_SECRET_PARAMETERS = new Set([
+  'access_token',
+  'refresh_token',
+  'provider_token',
+  'provider_refresh_token',
+  'code',
+  'token',
+  'token_hash',
+]);
+
+function containsAuthSecretParameter(value: string): boolean {
+  if (!value) {
+    return false;
+  }
+
+  const withoutPrefix = value.startsWith('?') || value.startsWith('#')
+    ? value.slice(1)
+    : value;
+  const queryStart = withoutPrefix.indexOf('?');
+  const parameterStrings = queryStart >= 0
+    ? [withoutPrefix, withoutPrefix.slice(queryStart + 1)]
+    : [withoutPrefix];
+
+  return parameterStrings.some((parameterString) => {
+    const parameters = new URLSearchParams(parameterString);
+    return [...parameters.keys()].some((key) => AUTH_SECRET_PARAMETERS.has(key));
+  });
+}
+
+function hasAuthSecretsInInitialUrl(): boolean {
+  return typeof window !== 'undefined' && (
+    containsAuthSecretParameter(window.location.search) ||
+    containsAuthSecretParameter(window.location.hash)
+  );
+}
+
 export function initSentry(): void {
   const dsn = import.meta.env.VITE_SENTRY_DSN;
   if (!dsn || dsn.trim() === '') {
+    return;
+  }
+
+  // Supabase consumes auth callback secrets from the initial URL asynchronously.
+  // Do not start tracing or Replay until a later page load after those secrets are gone.
+  if (hasAuthSecretsInInitialUrl()) {
     return;
   }
 
