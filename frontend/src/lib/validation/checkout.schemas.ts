@@ -4,10 +4,7 @@ export const checkoutSchema = z.object({
   recipientName: z.string().trim().min(1, "Please enter the recipient's name."),
   recipientEmail: z.string().trim().min(1, "Please enter the recipient's email address.").email("Please enter a valid email address."),
   recipientPhone: z.string().trim().min(1, "Please enter the recipient's phone number.").min(6, "Valid phone number is required"),
-  senderName: z.string().trim().min(1, "Please enter your name."),
-  senderEmail: z.string().trim().min(1, "Please enter your email address.").email("Please enter a valid email address."),
-  deliveryDate: z.string().optional(),
-  giftMessage: z.string().optional(),
+  recipientAddress: z.string().trim().min(1, "Please enter the delivery address.").max(500),
   message: z.string().optional(),
 });
 

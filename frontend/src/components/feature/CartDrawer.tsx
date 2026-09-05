@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useCart } from "@/hooks/useCart";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -15,6 +15,10 @@ export default function CartDrawer({ open, onClose }: CartDrawerProps) {
   const { items, removeFromCart, updateQuantity, clearCart, totalItems, subtotalMoney } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
+  const wasOpenRef = useRef(false);
 
   // Auto-close on route change (e.g. going to /checkout)
   useEffect(() => {
@@ -33,7 +37,24 @@ export default function CartDrawer({ open, onClose }: CartDrawerProps) {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         onClose();
+        return;
       }
+
+      if (e.key !== "Tab") return;
+
+      const focusable = Array.from(
+        drawerRef.current?.querySelectorAll<HTMLElement>(
+          "button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
+        ) || []
+      );
+      if (focusable.length === 0) return;
+
+      const currentIndex = focusable.indexOf(document.activeElement as HTMLElement);
+      const nextIndex = currentIndex === -1
+        ? e.shiftKey ? focusable.length - 1 : 0
+        : e.shiftKey ? currentIndex - 1 : currentIndex + 1;
+      e.preventDefault();
+      focusable[(nextIndex + focusable.length) % focusable.length].focus();
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -44,12 +65,28 @@ export default function CartDrawer({ open, onClose }: CartDrawerProps) {
     };
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (open) {
+      const activeElement = document.activeElement;
+      openerRef.current = activeElement instanceof HTMLElement ? activeElement : null;
+      wasOpenRef.current = true;
+      closeButtonRef.current?.focus();
+      return;
+    }
+
+    if (wasOpenRef.current) {
+      wasOpenRef.current = false;
+      openerRef.current?.focus();
+      openerRef.current = null;
+    }
+  }, [open]);
+
   const handleCheckout = () => {
     onClose();
     navigate("/checkout");
   };
 
-  if (typeof document === "undefined") return null;
+  if (typeof document === "undefined" || !open) return null;
 
   return createPortal(
     <>
@@ -64,6 +101,7 @@ export default function CartDrawer({ open, onClose }: CartDrawerProps) {
 
       {/* Drawer */}
       <div
+        ref={drawerRef}
         role="dialog"
         aria-modal="true"
         aria-hidden={!open}
@@ -87,6 +125,7 @@ export default function CartDrawer({ open, onClose }: CartDrawerProps) {
             </div>
           </div>
           <button
+            ref={closeButtonRef}
             onClick={onClose}
             aria-label={t("public.closeCart")}
             className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-background-100 transition-colors cursor-pointer"
@@ -121,7 +160,7 @@ export default function CartDrawer({ open, onClose }: CartDrawerProps) {
             <div className="space-y-3">
               {items.map((item) => (
                 <div
-                  key={item.productName}
+                  key={`${item.productId ?? "legacy"}:${item.skuId ?? "none"}:${item.productName}`}
                   className="flex items-start gap-3 p-4 rounded-xl bg-background-50 border border-background-200/70 shadow-xs"
                 >
                   <div className="relative w-10 h-10 flex items-center justify-center rounded-lg bg-secondary-100 dark:bg-secondary-950/50 shrink-0 overflow-hidden">
@@ -146,7 +185,7 @@ export default function CartDrawer({ open, onClose }: CartDrawerProps) {
                     </p>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => updateQuantity(item.productName, item.quantity - 1)}
+                        onClick={() => updateQuantity(item, item.quantity - 1)}
                         aria-label={`Decrease quantity of ${item.productName}`}
                         className="w-7 h-7 flex items-center justify-center rounded-full border border-background-300 text-foreground-500 hover:bg-background-100 transition-colors cursor-pointer"
                       >
@@ -156,7 +195,7 @@ export default function CartDrawer({ open, onClose }: CartDrawerProps) {
                         {item.quantity}
                       </span>
                       <button
-                        onClick={() => updateQuantity(item.productName, item.quantity + 1)}
+                        onClick={() => updateQuantity(item, item.quantity + 1)}
                         aria-label={`Increase quantity of ${item.productName}`}
                         className="w-7 h-7 flex items-center justify-center rounded-full border border-background-300 text-foreground-500 hover:bg-background-100 transition-colors cursor-pointer"
                       >
@@ -165,7 +204,7 @@ export default function CartDrawer({ open, onClose }: CartDrawerProps) {
                     </div>
                   </div>
                   <button
-                    onClick={() => removeFromCart(item.productName)}
+                    onClick={() => removeFromCart(item)}
                     aria-label={`Remove ${item.productName} from cart`}
                     className="w-7 h-7 flex items-center justify-center rounded-full text-foreground-300 hover:text-foreground-600 hover:bg-accent-100 transition-colors cursor-pointer shrink-0 mt-0.5"
                   >

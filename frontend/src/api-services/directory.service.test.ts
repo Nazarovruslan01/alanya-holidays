@@ -78,8 +78,9 @@ describe("directory.service", () => {
       expect(result.featured).toBe(true);
       expect(result.can_claim).toBe(true);
       expect(result.priceRange).toBe("$$$");
-      expect(result.lat).toBe(36.5437);
-      expect(result.lng).toBe(31.9998);
+      expect(result.openingHours).toBeUndefined();
+      expect(result.lat).toBeUndefined();
+      expect(result.lng).toBeUndefined();
     });
 
     it("mapBackendListingToBusiness should apply canonical defaults for missing fields", () => {
@@ -95,7 +96,9 @@ describe("directory.service", () => {
       expect(result.reviewCount).toBe(0);
       expect(result.googleRating).toBeNull();
       expect(result.googleReviewCount).toBeNull();
-      expect(result.openingHours).toBe("09:00 - 18:00");
+      expect(result.openingHours).toBeUndefined();
+      expect(result.lat).toBeUndefined();
+      expect(result.lng).toBeUndefined();
       expect(result.image).toContain("ui-avatars.com");
     });
 

@@ -39,7 +39,7 @@ describe("Adversarial Stress Test: UpcomingEventsCarousel", () => {
 
       expect(screen.getByText(/This Week's Events/i)).toBeInTheDocument();
       expect(screen.getByText("No events scheduled this week")).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Browse all events" })).toHaveAttribute("href", "/events");
+      expect(screen.getByRole("link", { name: /Browse all events/i })).toHaveAttribute("href", "/events");
       expect(windowAddListenerSpy).not.toHaveBeenCalled();
     });
 

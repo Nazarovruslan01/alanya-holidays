@@ -3,6 +3,8 @@ import Stripe from 'stripe';
 import {
   AddonCheckoutParams,
   PaymentGateway,
+  ProductOrderCheckoutParams,
+  ProductOrderCheckoutResult,
   SubscriptionCheckoutParams,
 } from '../domain/payment-gateway.interface';
 
@@ -90,6 +92,7 @@ export class InMemoryPaymentFake implements PaymentGateway {
   }
 
   createdAddonSessions: AddonCheckoutParams[] = [];
+  createdProductOrderSessions: ProductOrderCheckoutParams[] = [];
 
   createAddonCheckoutSession(
     params: AddonCheckoutParams,
@@ -97,6 +100,17 @@ export class InMemoryPaymentFake implements PaymentGateway {
     this.createdAddonSessions.push(params);
     return Promise.resolve({
       url: `https://checkout.stripe.test/session-${this.createdAddonSessions.length}`,
+    });
+  }
+
+  createProductOrderCheckoutSession(
+    params: ProductOrderCheckoutParams,
+  ): Promise<ProductOrderCheckoutResult> {
+    this.createdProductOrderSessions.push(params);
+    return Promise.resolve({
+      url: `https://checkout.stripe.test/product-order-${params.orderId}`,
+      sessionId: `cs_product_order_${params.orderId}`,
+      expiresAt: params.expiresAt,
     });
   }
 

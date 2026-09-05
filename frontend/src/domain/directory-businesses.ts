@@ -21,9 +21,9 @@ export interface Business {
   featured: boolean;
   trustBadge?: TrustBadgeType;
   priceRange: string;
-  openingHours: string;
-  lat: number;
-  lng: number;
+  openingHours?: string;
+  lat?: number;
+  lng?: number;
   is_claimed?: boolean;
   is_verified?: boolean;
   claimed_at?: string;

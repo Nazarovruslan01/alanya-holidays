@@ -8,6 +8,10 @@ import {
   IsEmail,
   Min,
   IsNotEmpty,
+  IsInt,
+  IsUUID,
+  Matches,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -22,6 +26,11 @@ export class OrderRecipientDto {
   @IsString()
   @IsNotEmpty()
   phone!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  address?: string;
 
   @IsIn(['whatsapp', 'phone_call', 'email'])
   contact_method!: 'whatsapp' | 'phone_call' | 'email';
@@ -43,6 +52,7 @@ export class CreateOrderItemDto {
   skuLabel?: string | null;
 
   @IsNumber()
+  @IsInt()
   @Min(1)
   quantity!: number;
 
@@ -60,6 +70,14 @@ export class CreateOrderItemDto {
 }
 
 export class CreateProductOrderDto {
+  @IsOptional()
+  @IsUUID()
+  requestId?: string;
+
+  @IsOptional()
+  @Matches(/^[A-Za-z0-9_-]{43}$/)
+  guestAccessToken?: string;
+
   @IsString()
   @IsNotEmpty()
   currency!: string;

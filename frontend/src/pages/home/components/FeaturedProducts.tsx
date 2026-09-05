@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 import "@/i18n";
 import ErrorState from "@/components/base/ErrorState";
 
+const PAUSED_GIFT_CARD_CATEGORY = "Gift Cards";
+
 function getCategoryBadge(product: FeaturedProduct): { labelKey: string; icon: string } {
   const catName = product.product_categories?.name || "";
   if (catName === "Food & Treats") return { labelKey: "home.productBadge.edible", icon: "ri-cake-line" };
@@ -39,7 +41,13 @@ export default function FeaturedProducts() {
         setError(null);
         const data = await productsService.getFeaturedProducts();
         if (!cancelled) {
-          setProducts(data);
+          setProducts(
+            data.filter(
+              (product) =>
+                product.product_categories?.name !==
+                PAUSED_GIFT_CARD_CATEGORY,
+            ),
+          );
         }
       } catch (err: unknown) {
         if (!cancelled) {
@@ -88,7 +96,13 @@ export default function FeaturedProducts() {
     setLoading(true);
     setError(null);
     try {
-      setProducts(await productsService.getFeaturedProducts());
+      const data = await productsService.getFeaturedProducts();
+      setProducts(
+        data.filter(
+          (product) =>
+            product.product_categories?.name !== PAUSED_GIFT_CARD_CATEGORY,
+        ),
+      );
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : t("home.productsUnavailable"));
     } finally {
@@ -107,7 +121,7 @@ export default function FeaturedProducts() {
             </div>
             <h2 className="font-heading text-3xl md:text-4xl text-foreground-900 mb-3">{t("public.handpickedForYou")}</h2>
             <p className="text-foreground-500 text-sm md:text-base max-w-xl">
-              {t("home.productSupportDescription")}
+              {t("public.shopSupportDescription")}
             </p>
           </div>
           <div className="flex gap-5 overflow-hidden">
@@ -156,7 +170,7 @@ export default function FeaturedProducts() {
             </div>
             <h2 className="font-heading text-3xl md:text-4xl text-foreground-900 mb-3">{t("public.handpickedForYou")}</h2>
             <p className="text-foreground-500 text-sm md:text-base max-w-xl">
-              {t("home.productSupportDescription")}
+              {t("public.shopSupportDescription")}
             </p>
           </div>
 

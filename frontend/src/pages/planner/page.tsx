@@ -53,6 +53,8 @@ export default function PlannerPage() {
   const {
     plans,
     isSyncing,
+    syncWithCloud,
+    savePlanToCloud,
     createPlan,
     updatePlan,
     deletePlan,
@@ -61,12 +63,14 @@ export default function PlannerPage() {
     updateItem,
     removeItem,
     reorderItems,
+    setPlanPublicationMetadata,
     getPlan,
     getDayLabels,
   } = usePlanner();
 
   const {
     sharedPlans,
+    fetchCommunityPlans,
     sharePlan,
     unsharePlan,
     incrementCopyCount,
@@ -89,6 +93,11 @@ export default function PlannerPage() {
 
   const [businessesList, setBusinessesList] = useState<Business[]>([]);
   const [eventsList, setEventsList] = useState<ForumEvent[]>([]);
+
+  useEffect(() => {
+    void syncWithCloud();
+    void fetchCommunityPlans();
+  }, [fetchCommunityPlans, syncWithCloud]);
 
   useEffect(() => {
     let isMounted = true;
@@ -140,10 +149,7 @@ export default function PlannerPage() {
     const suggested = suggestedPlans.find((sp) => sp.id === quickstartId);
     if (!suggested) return;
     quickstartApplied.current = true;
-    const plan = createPlan(suggested.name, suggested.description);
-    suggested.items.forEach((item) => {
-      addItem(plan.id, item);
-    });
+    const plan = createPlan(suggested.name, suggested.description, suggested.items);
     setSelectedPlanId(plan.id);
     setViewMode("detail");
     const labels = getDayLabels(plan.id);
@@ -200,10 +206,17 @@ export default function PlannerPage() {
     setActiveDay("Day 1");
   }
 
-  function handleEditPlan() {
+  async function handleEditPlan() {
     if (!editPlanName.trim() || !selectedPlan) return;
-    updatePlan(selectedPlan.id, { name: editPlanName.trim(), description: editPlanDescription.trim() });
-    setShowEditModal(false);
+    try {
+      await updatePlan(selectedPlan.id, {
+        name: editPlanName.trim(),
+        description: editPlanDescription.trim(),
+      });
+      setShowEditModal(false);
+    } catch {
+      showToast("Could not save plan changes. Please try again.");
+    }
   }
 
   function openEditModal() {
@@ -213,12 +226,16 @@ export default function PlannerPage() {
     setShowEditModal(true);
   }
 
-  function handleDeletePlan() {
+  async function handleDeletePlan() {
     if (!selectedPlan) return;
-    deletePlan(selectedPlan.id);
-    setShowDeleteConfirm(false);
-    setSelectedPlanId("");
-    setViewMode("list");
+    try {
+      await deletePlan(selectedPlan.id);
+      setShowDeleteConfirm(false);
+      setSelectedPlanId("");
+      setViewMode("list");
+    } catch {
+      showToast("Could not delete this plan. Please try again.");
+    }
   }
 
   function handleDuplicatePlan() {
@@ -234,10 +251,7 @@ export default function PlannerPage() {
   function handleCopySuggestedPlan(suggestedPlanId: string) {
     const suggested = suggestedPlans.find((sp) => sp.id === suggestedPlanId);
     if (!suggested) return;
-    const plan = createPlan(suggested.name, suggested.description);
-    suggested.items.forEach((item) => {
-      addItem(plan.id, item);
-    });
+    const plan = createPlan(suggested.name, suggested.description, suggested.items);
     setSelectedPlanId(plan.id);
     setViewMode("detail");
     const labels = getDayLabels(plan.id);
@@ -245,11 +259,11 @@ export default function PlannerPage() {
   }
 
   function handleCreatePlanFromAi(result: GenerateItineraryResult) {
-    const plan = createPlan(result.title, result.description);
+    const items: Omit<PlanItem, "id">[] = [];
     let orderCounter = 1;
     result.days.forEach((day) => {
       day.items.forEach((item) => {
-        addItem(plan.id, {
+        items.push({
           type: "custom",
           customName: item.name,
           customDescription: item.description,
@@ -262,6 +276,7 @@ export default function PlannerPage() {
         });
       });
     });
+    const plan = createPlan(result.title, result.description, items);
     setSelectedPlanId(plan.id);
     setViewMode("detail");
     const labels = getDayLabels(plan.id);
@@ -335,34 +350,45 @@ export default function PlannerPage() {
     setShowShareModal(true);
   }
 
-  function handleConfirmShare() {
+  async function handleConfirmShare() {
     if (!selectedPlan || selectedPlan.items.length === 0) return;
     if (isPlanShared(selectedPlan.id)) return;
     const name = shareAuthorName.trim() || "Alanya Traveler";
-    sharePlan(selectedPlan, name);
     try {
-      localStorage.setItem("alanya-share-author", name);
+      await savePlanToCloud(selectedPlan.id);
+      await sharePlan(selectedPlan, name);
+      setPlanPublicationMetadata(selectedPlan.id, {
+        originalPlanId: selectedPlan.id,
+        authorName: name,
+        category: "Community",
+      });
+      try {
+        localStorage.setItem("alanya-share-author", name);
+      } catch {
+        // ignore
+      }
+      setShowShareModal(false);
+      showToast("Plan shared to the community! Others can now copy it as a template.");
     } catch {
-      // ignore
+      showToast("Could not share this plan. Please try again.");
     }
-    setShowShareModal(false);
-    showToast("Plan shared to the community! Others can now copy it as a template.");
   }
 
-  function handleUnsharePlan() {
+  async function handleUnsharePlan() {
     if (!selectedPlan) return;
     const shareId = isPlanShared(selectedPlan.id);
     if (shareId) {
-      unsharePlan(shareId);
-      showToast("Plan removed from community templates.");
+      try {
+        await unsharePlan(shareId);
+        showToast("Plan removed from community templates.");
+      } catch {
+        showToast("Could not remove this plan from the community. Please try again.");
+      }
     }
   }
 
   function handleCopySharedPlan(shared: SharedPlan) {
-    const plan = createPlan(shared.name, shared.description);
-    shared.items.forEach((item) => {
-      addItem(plan.id, item);
-    });
+    const plan = createPlan(shared.name, shared.description, shared.items);
     incrementCopyCount(shared.shareId);
     setSelectedPlanId(plan.id);
     setViewMode("detail");

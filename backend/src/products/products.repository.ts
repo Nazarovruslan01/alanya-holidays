@@ -71,6 +71,18 @@ export interface CreateOrderResult {
   success: boolean;
   orderId: number;
   message: string;
+  status?: string;
+  expiresAt?: string;
+  guestAccessToken?: string;
+}
+
+export interface OnlinePaymentPreparation {
+  id: number;
+  currency: string;
+  total_amount: number;
+  recipient: { email?: string } | null;
+  delivery_quote_confirmed_at: string;
+  checkout_expires_at: string;
 }
 
 export interface CatalogItemRow {
@@ -103,6 +115,14 @@ export class ProductsRepository {
         customer_notes,
         customer_id,
         recipient,
+        reservation_expires_at,
+        delivery_fee,
+        delivery_eta,
+        delivery_quote_confirmed_at,
+        total_amount,
+        stripe_session_expires_at,
+        payment_received_at,
+        payment_reconciliation_status,
         created_at,
         updated_at,
         items:order_items(
@@ -117,6 +137,24 @@ export class ProductsRepository {
           final_price,
           subtotal,
           created_at
+        )
+      `;
+
+  // Seller projection intentionally excludes whole-order totals, notes,
+  // customer identity, payment metadata, and non-fulfillment recipient data.
+  private static readonly SELLER_ORDER_SELECT = `
+        id,
+        currency,
+        status,
+        recipient,
+        created_at,
+        items:order_items!inner(
+          id,
+          product_id,
+          product_name,
+          sku_label,
+          quantity,
+          subtotal
         )
       `;
 
@@ -409,12 +447,24 @@ export class ProductsRepository {
 
   async getFeaturedProducts(limit = 8): Promise<ProductItemRow[]> {
     try {
-      const { data, error } = await this.client
+      const categories = await this.getShopCategories();
+      const giftCardCategory = categories.find(
+        (category) => category.name === 'Gift Cards',
+      );
+      let query = this.client
         .from('product_items')
         .select(
           'id, name, description, price, currency, stock, media, category_id, status, created_at, product_categories(id, name)',
         )
-        .eq('status', 'active')
+        .eq('status', 'active');
+
+      if (giftCardCategory) {
+        query = query.or(
+          'category_id.is.null,category_id.neq.' + giftCardCategory.id,
+        );
+      }
+
+      const { data, error } = await query
         .limit(limit)
         .order('created_at', { ascending: false });
 
@@ -438,12 +488,22 @@ export class ProductsRepository {
   async getShopCatalog(
     query?: GetShopCatalogQueryDto,
   ): Promise<ShopCatalogResult> {
+    const categories = await this.getShopCategories();
+    const giftCardCategory = categories.find(
+      (category) => category.name === 'Gift Cards',
+    );
     let productsQuery = this.client
       .from('product_items')
       .select(
         'id, name, description, price, currency, stock, media, category_id, status, created_at, product_categories(id, name)',
       )
       .eq('status', 'active');
+
+    if (giftCardCategory) {
+      productsQuery = productsQuery.or(
+        'category_id.is.null,category_id.neq.' + giftCardCategory.id,
+      );
+    }
 
     if (query?.category) {
       const categoryNum = Number(query.category);
@@ -456,13 +516,10 @@ export class ProductsRepository {
     const limit = query?.limit ?? 20;
     const from = (page - 1) * limit;
     const to = from + limit - 1;
-    const [productsRes, categoriesRes] = await Promise.all([
-      productsQuery
-        .order('created_at', { ascending: true })
-        .order('id', { ascending: true })
-        .range(from, to),
-      this.getShopCategories(),
-    ]);
+    const productsRes = await productsQuery
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to);
 
     if (productsRes.error) throw new Error(productsRes.error.message);
 
@@ -494,7 +551,7 @@ export class ProductsRepository {
 
     return {
       products,
-      categories: categoriesRes,
+      categories,
     };
   }
 
@@ -542,6 +599,7 @@ export class ProductsRepository {
       currency: string;
       stock: number;
       status: string;
+      product_categories: { name: string } | null;
       skus: Array<{ id: number; price: number; stock: number; label: string }>;
     }>
   > {
@@ -557,7 +615,7 @@ export class ProductsRepository {
     const { data, error } = await this.client
       .from('product_items')
       .select(
-        'id, name, price, currency, stock, status' +
+        'id, name, price, currency, stock, status, product_categories(name)' +
           (numericSkuIds.length > 0
             ? ', product_skus(id, price, stock, label)'
             : ''),
@@ -580,6 +638,7 @@ export class ProductsRepository {
       currency: string;
       stock: number;
       status: string;
+      product_categories: { name: string } | null;
       product_skus?: SkuNested[] | null;
     }>;
 
@@ -593,6 +652,7 @@ export class ProductsRepository {
       currency: row.currency,
       stock: row.stock,
       status: row.status,
+      product_categories: row.product_categories,
       skus: row.product_skus ?? [],
     }));
   }
@@ -600,6 +660,8 @@ export class ProductsRepository {
   async createProductOrder(
     dto: CreateProductOrderDto,
     userId?: string,
+    requestPayload?: Record<string, unknown>,
+    guestAccessTokenHash?: string | null,
   ): Promise<CreateOrderResult> {
     // Atomic RPC (audit 2.2): header + items are inserted in a single DB
     // transaction so a failure can never leave an orphaned order header.
@@ -621,22 +683,53 @@ export class ProductsRepository {
         final_price: item.finalPrice,
         subtotal: item.subtotal,
       })),
+      p_request_id: dto.requestId ?? null,
+      p_request_payload: requestPayload ?? null,
+      p_guest_access_token_hash: guestAccessTokenHash ?? null,
     })) as { data: unknown; error: { message: string } | null };
 
     if (error || !data) {
       throw new Error(error?.message || 'Failed to create order');
     }
 
-    const orderId = Number(
-      typeof data === 'object' && data !== null && 'data' in data
-        ? (data as { data: number | string }).data
-        : data,
-    );
+    return this.toCreateOrderResult(data);
+  }
+
+  async getProductOrderReplay(
+    requestId: string,
+    requestPayload: Record<string, unknown>,
+    userId?: string,
+    guestAccessTokenHash?: string | null,
+  ): Promise<CreateOrderResult | null> {
+    const customerId = userId && this.isValidUuid(userId) ? userId : null;
+    const { data, error } = (await this.client.rpc('get_product_order_replay', {
+      p_request_id: requestId,
+      p_customer_id: customerId,
+      p_request_payload: requestPayload,
+      p_guest_access_token_hash: guestAccessTokenHash ?? null,
+    })) as { data: unknown; error: { message: string } | null };
+
+    if (error) throw new Error(error.message);
+    return data == null ? null : this.toCreateOrderResult(data);
+  }
+
+  private toCreateOrderResult(data: unknown): CreateOrderResult {
+    const payload =
+      typeof data === 'object' && data !== null
+        ? (data as {
+            data?: number | string;
+            status?: string;
+            expires_at?: string;
+          })
+        : null;
+    const orderId = Number(payload?.data ?? data);
 
     return {
       success: true,
       orderId,
       message: 'Order placed successfully',
+      ...(payload?.status ? { status: payload.status } : {}),
+      ...(payload?.expires_at ? { expiresAt: payload.expires_at } : {}),
     };
   }
 
@@ -670,6 +763,34 @@ export class ProductsRepository {
       throw new Error(error.message);
     }
     return data;
+  }
+
+  async getOrderByGuestAccess(
+    orderId: string | number,
+    guestAccessTokenHash: string,
+  ) {
+    const numId = Number(orderId);
+    if (!Number.isSafeInteger(numId) || numId <= 0) return null;
+
+    const { data, error } = await this.client
+      .from('order_headers')
+      .select(ProductsRepository.ORDER_SELECT)
+      .eq('id', numId)
+      .eq('guest_access_token_hash', guestAccessTokenHash)
+      .maybeSingle();
+
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async getOrdersByIds(orderIds: number[]) {
+    if (orderIds.length === 0) return [];
+    const { data, error } = await this.client
+      .from('order_headers')
+      .select(ProductsRepository.ORDER_SELECT)
+      .in('id', orderIds);
+    if (error) throw new Error(error.message);
+    return data ?? [];
   }
 
   // --- Seller (Business Dashboard) ---
@@ -750,9 +871,11 @@ export class ProductsRepository {
   }
 
   async getOrdersContainingCatalogItems(catalogItemIds: number[]) {
+    if (catalogItemIds.length === 0) return [];
+
     const { data, error } = await this.client
       .from('order_headers')
-      .select(ProductsRepository.ORDER_SELECT)
+      .select(ProductsRepository.SELLER_ORDER_SELECT)
       .in(
         'items.product_id',
         catalogItemIds.map((id) => String(id)),
@@ -777,18 +900,26 @@ export class ProductsRepository {
     return data ?? [];
   }
 
-  async sellerOwnsAnyCatalogItem(itemIds: string[], sellerId: string) {
-    if (itemIds.length === 0 || !this.isValidUuid(sellerId)) return false;
+  async sellerOwnsAllCatalogItems(itemIds: string[], sellerId: string) {
+    const catalogItemIds = [...new Set(itemIds.map((id) => Number(id)))];
+    if (
+      catalogItemIds.length === 0 ||
+      catalogItemIds.some((id) => !Number.isSafeInteger(id) || id <= 0) ||
+      !this.isValidUuid(sellerId)
+    ) {
+      return false;
+    }
 
     const { data, error } = await this.client
       .from('product_items')
       .select('id')
-      .in('id', itemIds)
+      .in('id', catalogItemIds)
       .eq('seller_id', sellerId)
-      .limit(1);
+      .limit(catalogItemIds.length);
 
     if (error) throw new Error(error.message);
-    return (data ?? []).length > 0;
+    const ownedIds = new Set((data ?? []).map((item) => Number(item.id)));
+    return catalogItemIds.every((id) => ownedIds.has(id));
   }
 
   async updateOrderStatus(
@@ -796,20 +927,74 @@ export class ProductsRepository {
     status: string,
     expectedCurrentStatus: string,
   ) {
-    const numId = Number(orderId);
-    const queryId = Number.isNaN(numId) ? orderId : numId;
+    const { data, error } = (await this.client.rpc(
+      'transition_product_order_status',
+      {
+        p_order_id: Number(orderId),
+        p_expected_current_status: expectedCurrentStatus,
+        p_new_status: status,
+      },
+    )) as { data: unknown; error: { message: string } | null };
 
-    // Guard on the status the caller validated against: if a concurrent
-    // request changed it meanwhile, this UPDATE matches 0 rows instead of
-    // silently overwriting (TOCTOU / last-write-wins race).
-    const { data, error } = await this.client
-      .from('order_headers')
-      .update({ status })
-      .eq('id', queryId)
-      .eq('status', expectedCurrentStatus)
-      .select('id, status, updated_at')
-      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  }
 
+  async confirmDeliveryQuote(
+    orderId: number | string,
+    deliveryFee: number,
+    deliveryEta: string,
+  ) {
+    const { data, error } = (await this.client.rpc(
+      'confirm_product_order_delivery_quote',
+      {
+        p_order_id: Number(orderId),
+        p_delivery_fee: deliveryFee,
+        p_delivery_eta: deliveryEta,
+      },
+    )) as { data: unknown; error: { message: string } | null };
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async selectManualPayment(orderId: number | string) {
+    const { data, error } = (await this.client.rpc(
+      'select_product_order_manual_payment',
+      { p_order_id: Number(orderId) },
+    )) as { data: unknown; error: { message: string } | null };
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async beginOnlinePayment(
+    orderId: number | string,
+  ): Promise<OnlinePaymentPreparation> {
+    const { data, error } = (await this.client.rpc(
+      'begin_product_order_online_payment',
+      { p_order_id: Number(orderId) },
+    )) as {
+      data: OnlinePaymentPreparation | null;
+      error: { message: string } | null;
+    };
+    if (error || !data) {
+      throw new Error(error?.message || 'Could not start online payment');
+    }
+    return data;
+  }
+
+  async attachOnlinePaymentSession(
+    orderId: number | string,
+    sessionId: string,
+    sessionExpiresAt: string,
+  ) {
+    const { data, error } = (await this.client.rpc(
+      'attach_product_order_checkout_session',
+      {
+        p_order_id: Number(orderId),
+        p_session_id: sessionId,
+        p_session_expires_at: sessionExpiresAt,
+      },
+    )) as { data: unknown; error: { message: string } | null };
     if (error) throw new Error(error.message);
     return data;
   }

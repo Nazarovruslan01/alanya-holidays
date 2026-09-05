@@ -6,6 +6,7 @@ import { AddonWebhookHandler } from './handlers/addon-webhook.handler';
 import { SubscriptionWebhookHandler } from './handlers/subscription-webhook.handler';
 import { BookingWebhookHandler } from './handlers/booking-webhook.handler';
 import { ProcessedStripeEventsRepository } from './processed-stripe-events.repository';
+import { ProductOrderWebhookHandler } from './handlers/product-order-webhook.handler';
 import { BadRequestException } from '@nestjs/common';
 import Stripe from 'stripe';
 
@@ -15,6 +16,7 @@ describe('StripeWebhookService', () => {
   let addonHandler: jest.Mocked<Partial<AddonWebhookHandler>>;
   let subscriptionHandler: jest.Mocked<Partial<SubscriptionWebhookHandler>>;
   let bookingHandler: jest.Mocked<Partial<BookingWebhookHandler>>;
+  let productOrderHandler: jest.Mocked<Partial<ProductOrderWebhookHandler>>;
   let processedEvents: {
     tryClaimEvent: jest.Mock;
     releaseEvent: jest.Mock;
@@ -39,6 +41,9 @@ describe('StripeWebhookService', () => {
       handlePaymentIntentFailed: jest.fn().mockResolvedValue(undefined),
       handleDisputeCreated: jest.fn().mockResolvedValue(undefined),
       handleChargeRefunded: jest.fn().mockResolvedValue(undefined),
+    };
+    productOrderHandler = {
+      handleCheckoutSession: jest.fn().mockResolvedValue(undefined),
     };
 
     const processedEventsMock = {
@@ -71,6 +76,10 @@ describe('StripeWebhookService', () => {
         {
           provide: BookingWebhookHandler,
           useValue: bookingHandler,
+        },
+        {
+          provide: ProductOrderWebhookHandler,
+          useValue: productOrderHandler,
         },
         {
           provide: ProcessedStripeEventsRepository,
@@ -156,6 +165,33 @@ describe('StripeWebhookService', () => {
       expect(bookingHandler.handleCheckoutSession).toHaveBeenCalledWith(
         session,
       );
+      expect(addonHandler.handleCheckoutSession).not.toHaveBeenCalled();
+    });
+
+    it('routes product order checkout only to its signed webhook handler', async () => {
+      const session = {
+        id: 'cs_product_1',
+        metadata: {
+          type: 'product_order',
+          orderId: '77',
+          quoteConfirmedAt: '2026-09-06T10:00:00.000Z',
+        },
+      } as unknown as Stripe.Checkout.Session;
+      paymentFake.registerEvent('product_order_sig', {
+        id: 'evt_product_order',
+        type: 'checkout.session.completed',
+        data: { object: session },
+      } as Stripe.Event);
+
+      await service.processWebhookEvent(
+        Buffer.from('payload'),
+        'product_order_sig',
+      );
+
+      expect(productOrderHandler.handleCheckoutSession).toHaveBeenCalledWith(
+        session,
+      );
+      expect(bookingHandler.handleCheckoutSession).not.toHaveBeenCalled();
       expect(addonHandler.handleCheckoutSession).not.toHaveBeenCalled();
     });
 

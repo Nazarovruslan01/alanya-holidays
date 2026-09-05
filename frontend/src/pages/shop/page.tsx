@@ -17,6 +17,8 @@ import { useTranslation } from "react-i18next";
 import { getShopCategoryLabel, getShopCategoryTag, getShopVariantLabel } from "@/i18n/display-labels";
 import "@/i18n";
 
+const PAUSED_GIFT_CARD_CATEGORY = "Gift Cards";
+
 export default function ShopPage() {
   const { t } = useTranslation();
   const { addToCart } = useCart();
@@ -74,9 +76,15 @@ export default function ShopPage() {
     };
   }, []);
 
+  const availableProducts = products.filter(
+    (product) => product.product_categories?.name !== PAUSED_GIFT_CARD_CATEGORY,
+  );
+  const availableCategories = categories.filter(
+    (category) => category.name !== PAUSED_GIFT_CARD_CATEGORY,
+  );
   const filteredProducts = activeCategory === null
-    ? products
-    : products.filter((p) => p.category_id === activeCategory);
+    ? availableProducts
+    : availableProducts.filter((p) => p.category_id === activeCategory);
 
   const formatPrice = (product: ShopProduct) => {
     const symbol = product.currency === "EUR" ? "€" : product.currency === "USD" ? "$" : product.currency;
@@ -106,6 +114,7 @@ export default function ShopPage() {
       )?.url;
       addToCart({
         name: product.name,
+        productId: product.id,
         price: formatPrice(product),
         icon: getCategoryIcon(product),
         imageUrl,
@@ -162,7 +171,7 @@ export default function ShopPage() {
               <div className="flex-1 min-w-0">
 
             {/* Category Filter Tabs */}
-            {!loading && !error && categories.length > 0 && (
+            {!loading && !error && availableCategories.length > 0 && (
               <div className="flex items-center justify-center gap-1.5 mb-10 overflow-x-auto pb-1 flex-wrap">
                 <button
                   onClick={() => setActiveCategory(null)}
@@ -174,7 +183,7 @@ export default function ShopPage() {
                 >
                 {t("public.allProducts")}
                 </button>
-                {categories.map((cat) => (
+                {availableCategories.map((cat) => (
                   <button
                     key={cat.id}
                     onClick={() => setActiveCategory(cat.id)}

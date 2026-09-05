@@ -108,4 +108,38 @@ describe("BusinessCard Component", () => {
 
     expect(screen.queryByRole("status")).toBeNull();
   });
+
+  it("hides missing contact actions and hours", () => {
+    render(
+      <MemoryRouter>
+        <BusinessCard
+          business={{ ...mockBusiness, phone: "call 12", website: "", openingHours: undefined }}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByText("Call")).not.toBeInTheDocument();
+    expect(screen.queryByText("Website")).not.toBeInTheDocument();
+    expect(screen.queryByText("10:00 - 23:00")).not.toBeInTheDocument();
+  });
+
+  it("normalizes a formatted Turkish phone number", () => {
+    render(
+      <MemoryRouter>
+        <BusinessCard business={{ ...mockBusiness, phone: "+90 (242) 511-0000" }} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("Call")).toHaveAttribute("href", "tel:+902425110000");
+  });
+
+  it("only exposes HTTP(S) website links", () => {
+    render(
+      <MemoryRouter>
+        <BusinessCard business={{ ...mockBusiness, website: "javascript:alert(1)" }} />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByText("Website")).not.toBeInTheDocument();
+  });
 });
