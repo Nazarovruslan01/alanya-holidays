@@ -472,15 +472,17 @@ describe('ForumController', () => {
 
     it('should delegate event create, update, delete, and getAttendees', async () => {
       const user: AuthUser = { id: 'merchant-1' };
+      const idempotencyKey = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
       const createBody: CreateForumEventDto = {
         title: 'New Meetup',
         event_date: '2026-09-01',
         is_published: true,
       };
-      await controller.createForumEvent(createBody, user);
+      await controller.createForumEvent(createBody, user, idempotencyKey);
       expect(mockService.createForumEvent).toHaveBeenCalledWith(
         createBody,
         'merchant-1',
+        idempotencyKey,
       );
 
       const updateBody: UpdateForumEventDto = {

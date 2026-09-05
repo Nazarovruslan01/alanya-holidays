@@ -25,6 +25,8 @@ RUN pnpm --filter @alanya-holidays/backend --prod --legacy deploy /app/deployed
 FROM node:22-alpine AS runner
 WORKDIR /app
 
+RUN apk add --no-cache ffmpeg
+
 ENV NODE_ENV=production
 ENV PORT=4000
 

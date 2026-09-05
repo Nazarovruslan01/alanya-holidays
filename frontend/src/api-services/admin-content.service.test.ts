@@ -3,6 +3,8 @@ import { apiClient } from '@/lib/api-client';
 import { adminContentService } from './admin-content.service';
 
 describe('adminContentService CRUD contracts', () => {
+  const idempotencyKey = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
   beforeEach(() => vi.restoreAllMocks());
 
   it('uses the current blog content model for article and guide CRUD', async () => {
@@ -30,7 +32,10 @@ describe('adminContentService CRUD contracts', () => {
     vi.spyOn(apiClient, 'patch').mockResolvedValue({});
     vi.spyOn(apiClient, 'delete').mockResolvedValue(undefined);
 
-    await adminContentService.createEvent({ title: 'Meetup', event_date: '2026-09-01T18:00:00Z' });
+    await adminContentService.createEvent(
+      { title: 'Meetup', event_date: '2026-09-01T18:00:00Z' },
+      idempotencyKey,
+    );
     await adminContentService.updateEvent('event-1', { title: 'Meetup', event_date: '2026-09-01T18:00:00Z' });
     await adminContentService.deleteEvent('event-1');
     await adminContentService.createListing({ name: 'Cafe', category_id: 'restaurants' });
@@ -50,7 +55,11 @@ describe('adminContentService CRUD contracts', () => {
     await adminContentService.updateProduct('product-1', product);
     await adminContentService.deleteProduct('product-1');
 
-    expect(apiClient.post).toHaveBeenCalledWith('/forum/events', expect.any(Object));
+    expect(apiClient.post).toHaveBeenCalledWith(
+      '/forum/events',
+      expect.any(Object),
+      { headers: { 'Idempotency-Key': idempotencyKey } },
+    );
     expect(apiClient.put).toHaveBeenCalledWith('/forum/events/event-1', expect.any(Object));
     expect(apiClient.post).toHaveBeenCalledWith('/directory/admin/listings', expect.any(Object));
     expect(apiClient.patch).toHaveBeenCalledWith('/directory/admin/listings/listing-1', expect.any(Object));

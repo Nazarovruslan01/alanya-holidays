@@ -1,11 +1,19 @@
 import {
+  BadRequestException,
+  ConflictException,
   Injectable,
   ForbiddenException,
   NotFoundException,
   Optional,
 } from '@nestjs/common';
+import { createHash } from 'node:crypto';
+import { isUUID } from 'class-validator';
 import { slugify, generateUniqueSlug } from '../../utils/slugify';
-import { ForumRepository, EVENT_SELECT } from '../forum.repository';
+import {
+  ForumEventPersistenceException,
+  ForumRepository,
+  EVENT_SELECT,
+} from '../forum.repository';
 import { UserRolesRepository } from '../../common/auth/user-roles.repository';
 import { BusinessApplicationsService } from '../../business-applications/business-applications.service';
 import { assertAdmin } from '../domain/forum-authorization.helper';
@@ -58,23 +66,54 @@ export class ForumEventService {
   private async requireEventOwnerOrAdmin(
     eventId: string,
     userId: string,
-  ): Promise<'admin' | 'owner'> {
-    if ((await this.requireEventManager(userId)) === 'admin') return 'admin';
+  ): Promise<{
+    access: 'admin' | 'owner';
+    event: {
+      host_id: string | null;
+      created_by: string | null;
+      is_published: boolean;
+      image_url: string | null;
+      video_url: string | null;
+    };
+  }> {
+    const managerAccess = await this.requireEventManager(userId);
     const ownership = await this.forumRepository.getEventOwnership(eventId);
     if (!ownership) throw new NotFoundException('Event not found');
+    if (managerAccess === 'admin') {
+      return { access: 'admin', event: ownership };
+    }
     if (ownership.host_id !== userId && ownership.created_by !== userId) {
       throw new ForbiddenException('Not authorized');
     }
     if (ownership.is_published) {
       throw new ForbiddenException('Only admins can modify a published event');
     }
-    return 'owner';
+    return { access: 'owner', event: ownership };
   }
 
   private async resolveEventSlug(baseSlug: string): Promise<string> {
     const seed = slugify(baseSlug) || 'event';
     const existingSlugs = await this.forumRepository.getEventSlugs(seed);
     return generateUniqueSlug(seed, existingSlugs);
+  }
+
+  private async executeMediaMutation<T>(
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (error instanceof ForumEventPersistenceException) {
+        if (error.code === '42501') throw new ForbiddenException(error.message);
+        if (error.code === '22023')
+          throw new BadRequestException(error.message);
+        if (error.code === '55000' || error.code === '23505') {
+          throw new ConflictException(error.message);
+        }
+        if (error.code === 'P0002') throw new NotFoundException(error.message);
+      }
+      throw error;
+    }
   }
 
   private async annotateRsvp(
@@ -158,21 +197,53 @@ export class ForumEventService {
   async createForumEvent(
     input: CreateForumEventDto,
     userId: string,
+    idempotencyKey: string,
   ): Promise<ForumEvent> {
+    if (!isUUID(idempotencyKey, '4')) {
+      throw new BadRequestException(
+        'A valid UUID v4 Idempotency-Key header is required',
+      );
+    }
+    const parsedEventDate = new Date(input.event_date);
+    if (Number.isNaN(parsedEventDate.getTime())) {
+      throw new BadRequestException('A valid event date is required');
+    }
     const access = await this.requireEventManager(userId);
-    const slug = await this.resolveEventSlug(slugify(input.title));
-    return this.forumRepository.insertEvent({
+    const media = {
+      imageMediaId: input.image_media_id ?? null,
+      videoMediaId: input.video_media_id ?? null,
+    };
+    const normalizedEvent = {
       title: input.title.trim(),
-      slug,
       description: input.description?.trim() || null,
       location: input.location?.trim() || null,
-      event_date: input.event_date,
-      image_url: input.image_url || null,
+      event_date: parsedEventDate.toISOString(),
       host_id: access === 'admin' ? input.host_id || null : userId,
       category_id: input.category_id || null,
       is_published: access === 'admin' ? (input.is_published ?? true) : false,
       created_by: userId,
-    });
+    };
+    const requestFingerprint = createHash('sha256')
+      .update(
+        JSON.stringify({
+          ...normalizedEvent,
+          image_media_id: media.imageMediaId,
+          video_media_id: media.videoMediaId,
+        }),
+      )
+      .digest('hex');
+    const slug = await this.resolveEventSlug(slugify(input.title));
+    return this.executeMediaMutation(() =>
+      this.forumRepository.createEventWithMedia(
+        {
+          ...normalizedEvent,
+          slug,
+        },
+        userId,
+        media,
+        { idempotencyKey, requestFingerprint },
+      ),
+    );
   }
 
   async updateForumEvent(
@@ -180,7 +251,7 @@ export class ForumEventService {
     updates: UpdateForumEventDto,
     userId: string,
   ): Promise<ForumEvent> {
-    const access = await this.requireEventOwnerOrAdmin(id, userId);
+    const { access } = await this.requireEventOwnerOrAdmin(id, userId);
     if (access !== 'admin' && updates.is_published === true) {
       throw new ForbiddenException('Only admins can publish an event');
     }
@@ -191,8 +262,6 @@ export class ForumEventService {
     if (updates.location !== undefined)
       safe.location = updates.location?.trim() || null;
     if (updates.event_date !== undefined) safe.event_date = updates.event_date;
-    if (updates.image_url !== undefined)
-      safe.image_url = updates.image_url || null;
     if (access === 'admin' && updates.host_id !== undefined)
       safe.host_id = updates.host_id || null;
     if (updates.category_id !== undefined)
@@ -200,10 +269,13 @@ export class ForumEventService {
     if (updates.is_published !== undefined)
       safe.is_published = updates.is_published;
 
-    const updated = await this.forumRepository.updateEvent(
-      id,
-      safe,
-      access === 'owner' ? userId : undefined,
+    const updated = await this.executeMediaMutation(() =>
+      this.forumRepository.updateEventWithMedia(id, safe, userId, {
+        replaceImage: updates.image_media_id !== undefined,
+        imageMediaId: updates.image_media_id ?? null,
+        replaceVideo: updates.video_media_id !== undefined,
+        videoMediaId: updates.video_media_id ?? null,
+      }),
     );
     if (!updated) {
       if (access === 'admin') throw new NotFoundException('Event not found');
@@ -218,10 +290,9 @@ export class ForumEventService {
     id: string,
     userId: string,
   ): Promise<ForumActionResponse> {
-    const access = await this.requireEventOwnerOrAdmin(id, userId);
-    const deleted = await this.forumRepository.deleteEvent(
-      id,
-      access === 'owner' ? userId : undefined,
+    const { access } = await this.requireEventOwnerOrAdmin(id, userId);
+    const deleted = await this.executeMediaMutation(() =>
+      this.forumRepository.deleteEventWithMedia(id, userId),
     );
     if (!deleted) {
       if (access === 'admin') throw new NotFoundException('Event not found');

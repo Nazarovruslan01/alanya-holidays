@@ -400,6 +400,110 @@ describe('ForumRepository', () => {
   });
 
   describe('Events operations', () => {
+    it('uses atomic RPCs for create, replace cleanup, and delete cleanup', async () => {
+      mockClient.rpc
+        .mockResolvedValueOnce({ data: { id: 'e-1' }, error: null })
+        .mockResolvedValueOnce({ data: { id: 'e-1' }, error: null })
+        .mockResolvedValueOnce({ data: true, error: null });
+
+      await repository.createEventWithMedia(
+        { title: 'Meet', slug: 'meet', event_date: '2026-09-01' },
+        'actor-1',
+        { imageMediaId: 'image-1', videoMediaId: 'video-1' },
+        {
+          idempotencyKey: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          requestFingerprint: 'f'.repeat(64),
+        },
+      );
+      await repository.updateEventWithMedia(
+        'e-1',
+        { title: 'Updated' },
+        'actor-1',
+        {
+          replaceImage: true,
+          imageMediaId: 'image-2',
+          replaceVideo: true,
+          videoMediaId: null,
+        },
+      );
+      await repository.deleteEventWithMedia('e-1', 'actor-1');
+
+      expect(mockClient.rpc).toHaveBeenNthCalledWith(
+        1,
+        'create_forum_event_with_media',
+        expect.objectContaining({
+          p_actor_id: 'actor-1',
+          p_idempotency_key: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          p_request_fingerprint: 'f'.repeat(64),
+          p_image_media_id: 'image-1',
+          p_video_media_id: 'video-1',
+        }),
+      );
+      expect(mockClient.rpc).toHaveBeenNthCalledWith(
+        2,
+        'update_forum_event_with_media',
+        expect.objectContaining({
+          p_replace_image: true,
+          p_image_media_id: 'image-2',
+          p_replace_video: true,
+          p_video_media_id: null,
+        }),
+      );
+      expect(mockClient.rpc).toHaveBeenNthCalledWith(
+        3,
+        'delete_forum_event_with_media',
+        { p_actor_id: 'actor-1', p_event_id: 'e-1' },
+      );
+    });
+
+    it('does not issue a second cleanup operation when the atomic mutation rolls back', async () => {
+      mockClient.rpc.mockResolvedValueOnce({
+        data: null,
+        error: { code: '40001', message: 'transaction rolled back' },
+      });
+
+      await expect(
+        repository.updateEventWithMedia(
+          'e-1',
+          { title: 'Will roll back' },
+          'actor-1',
+          {
+            replaceImage: false,
+            imageMediaId: null,
+            replaceVideo: true,
+            videoMediaId: 'video-2',
+          },
+        ),
+      ).rejects.toMatchObject({
+        code: '40001',
+        message: 'transaction rolled back',
+      });
+      expect(mockClient.rpc).toHaveBeenCalledTimes(1);
+      expect(mockClient.rpc).toHaveBeenCalledWith(
+        'update_forum_event_with_media',
+        expect.objectContaining({ p_video_media_id: 'video-2' }),
+      );
+    });
+
+    it('loads persisted media URLs with the event ownership snapshot', async () => {
+      const chain = createQueryChain({
+        data: {
+          host_id: 'owner-1',
+          created_by: 'owner-1',
+          is_published: false,
+          image_url: 'https://project.example/image.webp',
+          video_url: 'https://project.example/video.mp4',
+        },
+      });
+      mockClient.from.mockReturnValue(chain);
+
+      await repository.getEventOwnership('e-1');
+
+      expect(chain.select).toHaveBeenCalledWith(
+        'host_id, created_by, is_published, image_url, video_url',
+      );
+    });
+
     it('should get events, event by slug, and event slugs', async () => {
       mockClient.from.mockReturnValue(
         createQueryChain({ data: [{ id: 'e-1', title: 'Beach' }] }),

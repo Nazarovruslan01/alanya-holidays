@@ -1,10 +1,123 @@
 import { supabase } from "@/lib/supabase";
 import { logger } from "@/lib/logger";
+import { apiClient } from "@/lib/api-client";
 
 /**
  * Service to handle media and asset storage operations via Supabase Storage.
  * UI components must consume this service rather than importing the Supabase client directly.
  */
+
+const MAX_EVENT_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_EVENT_VIDEO_SIZE_BYTES = 50 * 1024 * 1024;
+const EVENT_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const EVENT_VIDEO_EXTENSIONS: Record<string, "mp4" | "webm"> = {
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+};
+
+export interface UploadedEventImage {
+  mediaId: string;
+  url: string;
+  thumbnailUrl: string;
+}
+
+export interface UploadedEventVideo {
+  mediaId: string;
+  url: string;
+}
+
+function validateEventImage(file: File): void {
+  if (!EVENT_IMAGE_TYPES.has(file.type)) {
+    throw new Error("Only JPEG, PNG, and WebP images are allowed");
+  }
+  if (file.size <= 0) {
+    throw new Error("Image file must not be empty");
+  }
+  if (file.size > MAX_EVENT_IMAGE_SIZE_BYTES) {
+    throw new Error("Image must not exceed 5 MB");
+  }
+}
+
+function validateEventVideo(file: File): "mp4" | "webm" {
+  const extension = EVENT_VIDEO_EXTENSIONS[file.type];
+  if (!extension) {
+    throw new Error("Only MP4 and WebM videos are allowed");
+  }
+  if (file.size <= 0) {
+    throw new Error("Video file must not be empty");
+  }
+  if (file.size > MAX_EVENT_VIDEO_SIZE_BYTES) {
+    throw new Error("Video must not exceed 50 MB");
+  }
+  return extension;
+}
+
+export async function uploadEventImage(
+  file: File,
+): Promise<UploadedEventImage> {
+  validateEventImage(file);
+  const body = new FormData();
+  body.append("file", file);
+  return apiClient.post<UploadedEventImage>("/media/events/image", body);
+}
+
+export async function uploadEventVideo(
+  file: File,
+  _userId?: string,
+): Promise<UploadedEventVideo> {
+  validateEventVideo(file);
+  const intent = await apiClient.post<{
+    mediaId: string;
+    path: string;
+    token: string;
+  }>("/media/events/video-intent", {
+    fileName: file.name,
+    mimeType: file.type,
+    sizeBytes: file.size,
+  });
+  const storage = supabase.storage.from("event-media");
+  const { error } = await storage.uploadToSignedUrl(
+    intent.path,
+    intent.token,
+    file,
+    {
+      cacheControl: "3600",
+      contentType: file.type,
+      upsert: false,
+    },
+  );
+  if (error) {
+    try {
+      await apiClient.delete(`/media/events/${intent.mediaId}`);
+    } catch (cleanupError) {
+      logger.warn(
+        "Failed to queue unsuccessful event video cleanup:",
+        cleanupError,
+      );
+    }
+    throw error;
+  }
+  try {
+    return await apiClient.post<UploadedEventVideo>(
+      `/media/events/${intent.mediaId}/finalize`,
+      {},
+    );
+  } catch (error) {
+    try {
+      await apiClient.delete(`/media/events/${intent.mediaId}`);
+    } catch (cleanupError) {
+      logger.warn(
+        "Failed to queue rejected event video cleanup:",
+        cleanupError,
+      );
+    }
+    throw error;
+  }
+}
+
+export async function abandonEventMedia(mediaId: string): Promise<void> {
+  await apiClient.delete(`/media/events/${mediaId}`);
+}
 
 /**
  * Uploads an image for forum threads, replies, or rich text content to the 'forum-media' bucket.
@@ -166,6 +279,9 @@ export async function deleteBlogImage(publicUrl: string, userId: string): Promis
 export const storageService = {
   uploadForumImage,
   deleteForumImage,
+  uploadEventImage,
+  uploadEventVideo,
+  abandonEventMedia,
   uploadBlogImage,
   deleteBlogImage,
 };

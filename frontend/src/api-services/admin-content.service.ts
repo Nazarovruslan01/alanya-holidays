@@ -81,11 +81,19 @@ class AdminContentService {
     });
   }
 
-  createEvent(input: CreateEventPayload): Promise<BackendForumEvent> {
-    return apiClient.post('/forum/events', input);
+  createEvent(
+    input: CreateEventPayload,
+    idempotencyKey: string,
+  ): Promise<BackendForumEvent> {
+    return apiClient.post('/forum/events', input, {
+      headers: { 'Idempotency-Key': idempotencyKey },
+    });
   }
 
-  updateEvent(id: string, input: CreateEventPayload): Promise<BackendForumEvent> {
+  updateEvent(
+    id: string,
+    input: Partial<CreateEventPayload>,
+  ): Promise<BackendForumEvent> {
     return apiClient.put(`/forum/events/${id}`, input);
   }
 

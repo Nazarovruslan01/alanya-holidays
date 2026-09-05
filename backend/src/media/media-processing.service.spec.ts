@@ -16,6 +16,8 @@ describe('MediaProcessingService', () => {
   };
   let uploadMock: jest.Mock;
   let getPublicUrlMock: jest.Mock;
+  let removeMock: jest.Mock;
+  let fromMock: jest.Mock;
   let loggerErrorSpy: jest.SpyInstance;
 
   beforeEach(async () => {
@@ -25,20 +27,22 @@ describe('MediaProcessingService', () => {
     uploadMock = jest
       .fn()
       .mockResolvedValue({ data: { path: 'test.webp' }, error: null });
-    getPublicUrlMock = jest.fn().mockReturnValue({
+    getPublicUrlMock = jest.fn().mockImplementation((bucket, path) => ({
       data: {
-        publicUrl:
-          'https://example.supabase.co/storage/v1/object/public/properties/test.webp',
+        publicUrl: `https://project.supabase.co/storage/v1/object/public/${bucket}/${path}`,
       },
-    });
+    }));
+    removeMock = jest.fn().mockResolvedValue({ data: [], error: null });
+    fromMock = jest.fn().mockImplementation((bucket) => ({
+      upload: uploadMock,
+      getPublicUrl: (path: string) => getPublicUrlMock(bucket, path),
+      remove: removeMock,
+    }));
 
     supabaseServiceMock = {
       getClient: jest.fn().mockReturnValue({
         storage: {
-          from: jest.fn().mockReturnValue({
-            upload: uploadMock,
-            getPublicUrl: getPublicUrlMock,
-          }),
+          from: fromMock,
         },
       }),
     };
@@ -54,6 +58,10 @@ describe('MediaProcessingService', () => {
     }).compile();
 
     service = module.get<MediaProcessingService>(MediaProcessingService);
+  });
+
+  afterEach(() => {
+    loggerErrorSpy.mockRestore();
   });
 
   it('should process input image into main WebP and thumbnail WebP and upload both to Supabase Storage', async () => {
@@ -163,6 +171,45 @@ describe('MediaProcessingService', () => {
         error: expect.stringContaining('Storage bucket full'),
       }),
     );
+  });
+
+  it('removes the successful image object when its sibling upload fails', async () => {
+    // Event replacement/deletion coverage now lives at the atomic RPC/outbox
+    // boundary. This lower-level assertion is intentionally limited to the
+    // generic processor's immediate sibling-upload compensation.
+    uploadMock
+      .mockResolvedValueOnce({ data: { path: 'full.webp' }, error: null })
+      .mockResolvedValueOnce({
+        data: null,
+        error: new Error('thumbnail upload failed'),
+      });
+    const inputBuffer = await sharp({
+      create: {
+        width: 10,
+        height: 10,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 1 },
+      },
+    })
+      .png()
+      .toBuffer();
+
+    await expect(
+      service.processAndUploadImage(
+        {
+          buffer: inputBuffer,
+          originalname: 'partial.png',
+          mimetype: 'image/png',
+        },
+        { bucket: 'forum-media', folder: 'owner/events' },
+      ),
+    ).rejects.toEqual(
+      new InternalServerErrorException('Unable to process image'),
+    );
+
+    const successfulPath = uploadMock.mock.calls[0][0] as string;
+    expect(removeMock).toHaveBeenCalledTimes(1);
+    expect(removeMock).toHaveBeenCalledWith([successfulPath]);
   });
 
   it('returns a stable sanitized 400 for invalid image content', async () => {

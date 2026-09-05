@@ -23,6 +23,7 @@ export interface ForumEvent {
   hostId?: string | null;
   createdBy?: string | null;
   isPublished?: boolean;
+  videoUrl?: string;
 }
 
 export const eventCategories = [
@@ -55,8 +56,8 @@ export interface CreateEventPayload {
   max_attendees?: number;
   hostName?: string;
   host_id?: string;
-  image_url?: string;
-  image?: string;
+  image_media_id?: string | null;
+  video_media_id?: string | null;
   is_published?: boolean;
 }
 
@@ -76,6 +77,7 @@ export interface BackendForumEvent {
   location?: string | null;
   event_date: string;
   image_url?: string | null;
+  video_url?: string | null;
   host_id?: string | null;
   category_id?: string | null;
   is_published?: boolean;
@@ -188,6 +190,7 @@ export function mapBackendEventToForumEvent(event: BackendForumEvent): ForumEven
     hostAvatar: event.host?.avatar_url || defaultHostAvatar,
     description: event.description || "",
     image: event.image_url || defaultEventImage,
+    videoUrl: event.video_url || undefined,
     isFeatured: !!event.is_featured,
     slug: event.slug,
     going_by_me: !!event.going_by_me,
@@ -256,25 +259,30 @@ export class EventsService {
   /**
    * Creates a new event.
    */
-  async createEvent(payload: CreateEventPayload): Promise<ForumEvent> {
+  async createEvent(
+    payload: CreateEventPayload,
+    idempotencyKey: string,
+  ): Promise<ForumEvent> {
     const combinedDate = payload.event_date
       ? payload.event_date
       : payload.eventDate && payload.eventTime
         ? `${payload.eventDate}T${payload.eventTime}:00Z`
         : payload.eventDate || new Date().toISOString();
 
-    const response = await apiClient.post<BackendForumEvent>("/forum/events", {
-      title: payload.title,
-      description: payload.description || null,
-      location: payload.location || null,
-      event_date: combinedDate,
-      image_url: payload.image_url || payload.image || null,
-      category_id:
-        payload.category_id ||
-        payload.categoryId ||
-        null,
-      is_published: payload.is_published ?? true,
-    });
+    const response = await apiClient.post<BackendForumEvent>(
+      "/forum/events",
+      {
+        title: payload.title,
+        description: payload.description || null,
+        location: payload.location || null,
+        event_date: combinedDate,
+        image_media_id: payload.image_media_id ?? null,
+        video_media_id: payload.video_media_id ?? null,
+        category_id: payload.category_id || payload.categoryId || null,
+        is_published: payload.is_published ?? true,
+      },
+      { headers: { "Idempotency-Key": idempotencyKey } },
+    );
 
     return mapBackendEventToForumEvent(response);
   }
@@ -303,8 +311,11 @@ export class EventsService {
         ...(payload.event_date !== undefined
           ? { event_date: payload.event_date }
           : {}),
-        ...(payload.image_url !== undefined
-          ? { image_url: payload.image_url || null }
+        ...(payload.image_media_id !== undefined
+          ? { image_media_id: payload.image_media_id }
+          : {}),
+        ...(payload.video_media_id !== undefined
+          ? { video_media_id: payload.video_media_id }
           : {}),
         ...(payload.is_published !== undefined
           ? { is_published: payload.is_published }
@@ -354,7 +365,10 @@ export const eventsService = new EventsService();
 export const getEvents = (options?: GetEventsOptions) => eventsService.getEvents(options);
 export const getEventBySlug = (slug: string, options?: RequestOptions) =>
   eventsService.getEventBySlug(slug, options);
-export const createEvent = (payload: CreateEventPayload) => eventsService.createEvent(payload);
+export const createEvent = (
+  payload: CreateEventPayload,
+  idempotencyKey: string,
+) => eventsService.createEvent(payload, idempotencyKey);
 export const getMyEvents = (options?: RequestOptions) => eventsService.getMyEvents(options);
 export const updateEvent = (eventId: string, payload: Partial<CreateEventPayload>) =>
   eventsService.updateEvent(eventId, payload);

@@ -2,6 +2,15 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminContentLibraryTab from '../components/AdminContentLibraryTab';
 import { adminContentService } from '@/api-services/admin-content.service';
+import { storageService } from '@/api-services/storage.service';
+
+vi.mock('@/api-services/storage.service', () => ({
+  storageService: {
+    uploadEventImage: vi.fn(),
+    uploadEventVideo: vi.fn(),
+    abandonEventMedia: vi.fn(),
+  },
+}));
 
 vi.mock('@/components/base/RichTextEditor', () => ({
   default: ({ value, onChange }: { value: string; onChange: (value: string) => void }) => (
@@ -12,6 +21,7 @@ vi.mock('@/components/base/RichTextEditor', () => ({
 describe('AdminContentLibraryTab', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.clearAllMocks();
     vi.spyOn(adminContentService, 'listArticles').mockResolvedValue([
       { id: 'post-1', title: 'Alanya Guide', slug: 'alanya-guide', content: '<p>Guide body</p>' },
     ]);
@@ -23,7 +33,13 @@ describe('AdminContentLibraryTab', () => {
       id: 'post-1', title: 'Updated Guide', slug: 'alanya-guide', content: '<p>Guide body</p>',
     });
     vi.spyOn(adminContentService, 'listEvents').mockResolvedValue([
-      { id: 'event-1', title: 'Harbour Meetup', event_date: '2026-09-01T18:00:00Z' },
+      {
+        id: 'event-1',
+        title: 'Harbour Meetup',
+        event_date: '2026-09-01T18:00:00Z',
+        image_url: 'https://legacy.example/cover.jpg',
+        video_url: 'https://legacy.example/clip.mp4',
+      },
     ]);
     vi.spyOn(adminContentService, 'listListings').mockResolvedValue([
       { id: 'listing-1', name: 'Castle Cafe', category_id: 'restaurants', creation_source: 'import' },
@@ -35,9 +51,20 @@ describe('AdminContentLibraryTab', () => {
       total: 21,
     });
     vi.spyOn(adminContentService, 'createEvent').mockResolvedValue({ id: 'event-2', title: 'New Event', event_date: '2026-09-02T18:00:00Z' });
+    vi.spyOn(adminContentService, 'updateEvent').mockResolvedValue({ id: 'event-1', title: 'Harbour Meetup', event_date: '2026-09-01T18:00:00Z' });
     vi.spyOn(adminContentService, 'createListing').mockResolvedValue({ id: 'listing-2', name: 'New Cafe', category_id: 'restaurants' });
     vi.spyOn(adminContentService, 'updateListing').mockResolvedValue({ id: 'listing-1', name: 'Castle Cafe', category_id: 'restaurants', creation_source: 'admin' });
     vi.spyOn(adminContentService, 'createProduct').mockResolvedValue({ id: 2, name: 'New Lamp', description: 'Handmade', category_id: 7, price: 12, stock: 3, currency: 'EUR', status: 'active', media: [] });
+    vi.mocked(storageService.uploadEventImage).mockResolvedValue({
+      mediaId: 'image-media-1',
+      url: 'https://project.example/new-cover.webp',
+      thumbnailUrl: 'https://project.example/new-cover-thumb.webp',
+    });
+    vi.mocked(storageService.uploadEventVideo).mockResolvedValue({
+      mediaId: 'video-media-1',
+      url: 'https://project.example/new-video.mp4',
+    });
+    vi.mocked(storageService.abandonEventMedia).mockResolvedValue(undefined);
   });
 
   it('creates and deletes an article with explicit confirmation', async () => {
@@ -74,7 +101,14 @@ describe('AdminContentLibraryTab', () => {
     fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'New Event' } });
     fireEvent.change(screen.getByLabelText('Date and time'), { target: { value: '2026-09-02T18:00' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(adminContentService.createEvent).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(adminContentService.createEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'New Event' }),
+        expect.stringMatching(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+        ),
+      ),
+    );
 
     fireEvent.click(screen.getByRole('tab', { name: 'Directory Listings' }));
     expect(await screen.findByText('Castle Cafe')).toBeInTheDocument();
@@ -103,6 +137,113 @@ describe('AdminContentLibraryTab', () => {
       status: 'draft',
       media: [],
     }));
+  });
+
+  it('omits legacy event URLs on metadata-only edit and preserves opaque replacement/removal', async () => {
+    render(<AdminContentLibraryTab />);
+    await screen.findByText('Alanya Guide');
+    fireEvent.click(screen.getByRole('tab', { name: 'Events' }));
+    await screen.findByText('Harbour Meetup');
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    fireEvent.change(screen.getByLabelText('Title'), {
+      target: { value: 'Updated harbour meetup' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(adminContentService.updateEvent).toHaveBeenCalled());
+    const metadataPayload = vi.mocked(adminContentService.updateEvent).mock
+      .calls[0][1];
+    expect(metadataPayload).not.toHaveProperty('image_url');
+    expect(metadataPayload).not.toHaveProperty('video_url');
+    expect(metadataPayload).not.toHaveProperty('image_media_id');
+    expect(metadataPayload).not.toHaveProperty('video_media_id');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    const replacement = new File(['cover'], 'cover.png', {
+      type: 'image/png',
+    });
+    fireEvent.change(screen.getByLabelText('Event cover image'), {
+      target: { files: [replacement] },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Remove event video' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(adminContentService.updateEvent).toHaveBeenLastCalledWith(
+        'event-1',
+        expect.objectContaining({
+          image_media_id: 'image-media-1',
+          video_media_id: null,
+        }),
+      ),
+    );
+    const mediaPayload = vi.mocked(adminContentService.updateEvent).mock
+      .calls.at(-1)?.[1];
+    expect(mediaPayload).not.toHaveProperty('image_url');
+    expect(mediaPayload).not.toHaveProperty('video_url');
+  });
+
+  it('keeps one event-create key and media draft while an uncertain save is pending', async () => {
+    let rejectCreation: ((reason?: unknown) => void) | undefined;
+    vi.mocked(adminContentService.createEvent)
+      .mockReturnValueOnce(
+        new Promise<
+          Awaited<ReturnType<typeof adminContentService.createEvent>>
+        >((_resolve, reject) => {
+          rejectCreation = reject;
+        }),
+      )
+      .mockResolvedValueOnce({
+        id: 'event-2',
+        title: 'New Event',
+        event_date: '2026-09-02T18:00:00Z',
+      });
+    render(<AdminContentLibraryTab />);
+    await screen.findByText('Alanya Guide');
+    fireEvent.click(screen.getByRole('tab', { name: 'Events' }));
+    await screen.findByText('Harbour Meetup');
+    fireEvent.click(screen.getByRole('button', { name: /create events/i }));
+    const title = screen.getByLabelText('Title');
+    const image = screen.getByLabelText('Event cover image');
+    fireEvent.change(title, { target: { value: 'New Event' } });
+    fireEvent.change(screen.getByLabelText('Date and time'), {
+      target: { value: '2026-09-02T18:00' },
+    });
+    fireEvent.change(image, {
+      target: {
+        files: [new File(['cover'], 'cover.png', { type: 'image/png' })],
+      },
+    });
+    const form = screen.getByRole('button', { name: 'Save' }).closest(
+      'form',
+    ) as HTMLFormElement;
+
+    fireEvent.submit(form);
+    await waitFor(() =>
+      expect(adminContentService.createEvent).toHaveBeenCalledTimes(1),
+    );
+    const firstCall = vi.mocked(adminContentService.createEvent).mock.calls[0];
+    fireEvent.change(title, { target: { value: 'Changed while pending' } });
+    fireEvent.change(image, {
+      target: {
+        files: [new File(['other'], 'other.webp', { type: 'image/webp' })],
+      },
+    });
+    fireEvent.submit(form);
+
+    expect(adminContentService.createEvent).toHaveBeenCalledTimes(1);
+    expect(storageService.abandonEventMedia).not.toHaveBeenCalled();
+    rejectCreation?.(new Error('network response lost'));
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    fireEvent.submit(form);
+
+    await waitFor(() =>
+      expect(adminContentService.createEvent).toHaveBeenCalledTimes(2),
+    );
+    expect(storageService.uploadEventImage).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(adminContentService.createEvent).mock.calls[1]).toEqual(
+      firstCall,
+    );
   });
 
   it('searches and pages products beyond the first 20 records', async () => {

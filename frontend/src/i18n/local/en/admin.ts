@@ -280,4 +280,10 @@ export default {
   "admin.verifyListing": "Verify {{name}}",
   "admin.verifiedTitle": "Verified Business Badge (Click to unverify)",
   "admin.unverifiedTitle": "Unverified (Click to verify)",
+  "admin.eventCoverImage": "Event cover image",
+  "admin.currentEventCover": "Current event cover",
+  "admin.eventVideo": "Event video",
+  "admin.removeEventCover": "Remove event cover",
+  "admin.removeEventVideo": "Remove event video",
+  "admin.removeMedia": "Remove",
 } as const;
