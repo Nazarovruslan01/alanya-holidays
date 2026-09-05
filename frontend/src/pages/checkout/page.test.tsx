@@ -6,16 +6,25 @@ import { MemoryRouter } from "react-router-dom";
 import CheckoutPage from "./page";
 import { ordersService } from "@/api-services/orders.service";
 import { ApiError } from "@/lib/api-client";
+import i18n from "@/i18n";
+
+vi.mock("@/pages/home/components/Navbar", () => ({ default: () => <nav /> }));
+vi.mock("@/pages/home/components/Footer", () => ({ default: () => <footer /> }));
+vi.mock("@/components/base/PageHeroImage", () => ({ default: () => null }));
 
 const mockClearCart = vi.fn();
-let mockCartItems: Array<{
+type MockCartItem = {
+  id?: string | number;
   productId?: string | number;
   skuId?: string | number | null;
   productName: string;
   price: string;
   quantity: number;
   icon: string;
-}> = [
+  imageUrl?: string;
+};
+
+let mockCartItems: MockCartItem[] = [
   {
     productId: 1,
     productName: "Luxury Yacht Voucher",
@@ -52,7 +61,8 @@ vi.mock("react-router-dom", async () => {
 });
 
 describe("CheckoutPage Component", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
     vi.restoreAllMocks();
     mockClearCart.mockClear();
     mockNavigate.mockClear();
@@ -67,8 +77,9 @@ describe("CheckoutPage Component", () => {
     ];
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.restoreAllMocks();
+    await i18n.changeLanguage("en");
   });
 
   it("should render order summary and form fields when cart has items", () => {
@@ -88,7 +99,21 @@ describe("CheckoutPage Component", () => {
     expect(screen.queryByLabelText(/Your Name/i)).not.toBeInTheDocument();
   });
 
-  it("should redirect to /shop if cart is empty and not completed", () => {
+  it("should render a product image in the order summary when available", () => {
+    mockCartItems[0].imageUrl = "https://example.com/yacht-voucher.jpg";
+
+    render(
+      <MemoryRouter>
+        <CheckoutPage />
+      </MemoryRouter>
+    );
+
+    expect(
+      screen.getByRole("img", { name: "Luxury Yacht Voucher" }),
+    ).toHaveAttribute("src", "https://example.com/yacht-voucher.jpg");
+  });
+
+  it("shows an actionable empty-cart state instead of silently redirecting", () => {
     mockCartItems = [];
     render(
       <MemoryRouter>
@@ -96,7 +121,25 @@ describe("CheckoutPage Component", () => {
       </MemoryRouter>
     );
 
-    expect(mockNavigate).toHaveBeenCalledWith("/shop", { replace: true });
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: "Your cart is empty" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Browse the shop" })).toHaveAttribute("href", "/shop");
+  });
+
+  it("localizes checkout labels and actions in Russian", async () => {
+    await i18n.changeLanguage("ru");
+
+    render(
+      <MemoryRouter>
+        <CheckoutPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByLabelText("Имя получателя *")).toBeInTheDocument();
+    expect(screen.getByLabelText("Email получателя *")).toBeInTheDocument();
+    expect(screen.getByLabelText("Телефон получателя *")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Оформить заказ — 350.00 EUR" })).toBeInTheDocument();
+    expect(screen.queryByText("Back to Shop")).not.toBeInTheDocument();
   });
 
   it("should submit order via ordersService.createOrder and show order confirmation", async () => {

@@ -39,7 +39,12 @@ describe("ShopPage cart identity", () => {
           price: 40,
           currency: "EUR",
           stock: 5,
-          media: [],
+          media: [
+            {
+              type: "image",
+              url: "https://example.com/ceramic-vase.jpg",
+            },
+          ],
           category_id: null,
           product_categories: null,
         },
@@ -59,7 +64,7 @@ describe("ShopPage cart identity", () => {
     });
   });
 
-  it("adds the canonical catalog product ID to the cart", async () => {
+  it("adds the canonical catalog product ID and image to the cart", async () => {
     render(
       <MemoryRouter>
         <ShopPage />
@@ -73,6 +78,7 @@ describe("ShopPage cart identity", () => {
       expect.objectContaining({
         productId: 77,
         name: "Ceramic Vase",
+        imageUrl: "https://example.com/ceramic-vase.jpg",
       }),
     );
     expect(screen.queryByRole("heading", { name: "Gift Voucher" })).not.toBeInTheDocument();

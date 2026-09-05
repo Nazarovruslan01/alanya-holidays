@@ -68,6 +68,9 @@ export default {
   "nav.merchantDashboard": "İşletme Paneli",
   "nav.adminDashboard": "Yönetici Paneli",
   "nav.signOut": "Çıkış Yap",
+  "floating.whatsappLabel": "WhatsApp'tan yazın",
+  "floating.whatsappTooltip": "WhatsApp üzerinden bize ulaşın",
+  "floating.whatsappMessage": "Merhaba Alanya Holidays! Deneyimleriniz hakkında bir sorum var.",
 
   // Auth
   "auth.welcomeBack": "Tekrar Hoş Geldiniz",
@@ -130,6 +133,17 @@ export default {
   "auth.websitePlaceholder": "https://example.com",
   "auth.passwordRequirementPlaceholder": "En az 8 karakter",
   "auth.confirmPasswordPlaceholder": "Şifrenizi tekrar girin",
+  "auth.checkingResetLink": "Sıfırlama bağlantısı kontrol ediliyor…",
+  "auth.checkingResetLinkHelp": "Güvenli bağlantınızı doğrularken lütfen bekleyin.",
+  "auth.resetLinkUnavailable": "Sıfırlama bağlantısı kullanılamıyor",
+  "auth.resetLinkInvalid": "Bu şifre sıfırlama bağlantısı geçersiz veya süresi dolmuş.",
+  "auth.requestAnotherResetLink": "Yeni bir sıfırlama bağlantısı iste",
+  "auth.chooseNewPassword": "Yeni bir şifre seçin",
+  "auth.newPassword": "Yeni şifre",
+  "auth.newPasswordHelp": "Yeni şifreniz için en az 8 karakter kullanın.",
+  "auth.setNewPassword": "Yeni şifreyi ayarla",
+  "auth.updatingPassword": "Şifre güncelleniyor…",
+  "auth.passwordResetFailed": "Şifre sıfırlanamadı. Lütfen tekrar deneyin.",
 
   // Booking & Directory
   "booking.bookNow": "Rezervasyon Yap",

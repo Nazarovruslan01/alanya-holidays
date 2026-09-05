@@ -10,6 +10,7 @@ import { logger } from "@/lib/logger";
 import { ApiError } from "@/lib/api-client";
 import { deleteBlogImage, uploadBlogImage } from "@/api-services/storage.service";
 import { useTranslation } from "react-i18next";
+import { getBlogCategoryLabel } from "@/i18n/display-labels";
 import i18n from "@/i18n";
 
 const MAX_COVER_SIZE = 5 * 1024 * 1024;
@@ -369,7 +370,7 @@ export default function BlogSubmitPage() {
                     >
                       {BLOG_CATEGORIES.map((blogCategory) => (
                         <option key={blogCategory} value={blogCategory}>
-                          {blogCategory}
+                          {getBlogCategoryLabel(blogCategory, t)}
                         </option>
                       ))}
                     </select>

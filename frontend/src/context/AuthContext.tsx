@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { User, Session, AuthError, Provider } from "@supabase/supabase-js";
-import { supabase } from "../lib/supabase";
+import * as supabaseModule from "../lib/supabase";
 import { apiClient } from "../lib/api-client";
 import type { Tables } from "@alanya-holidays/shared";
 import { logger } from "@/lib/logger";
@@ -15,6 +15,8 @@ export interface SignUpParams {
   emailRedirectTo?: string;
 }
 
+export type PasswordRecoveryStatus = "checking" | "ready" | "invalid";
+
 export interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -23,6 +25,7 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   isHost: boolean;
+  passwordRecoveryStatus: PasswordRecoveryStatus;
   signIn: (
     email: string,
     password: string
@@ -31,10 +34,10 @@ export interface AuthContextType {
     params: SignUpParams
   ) => Promise<{ user: User | null; session: Session | null; error: AuthError | null }>;
   signOut: () => Promise<{ error: AuthError | null }>;
-  resetPassword: (
-    email: string,
-    redirectTo?: string
-  ) => Promise<{ error: AuthError | null }>;
+  resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
+  completePasswordRecovery: (
+    newPassword: string
+  ) => Promise<{ error: Error | null }>;
   signInWithOAuth: (
     provider: Provider,
     redirectTo?: string
@@ -49,6 +52,16 @@ export interface AuthContextType {
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const { supabase } = supabaseModule;
+
+const readInitialPasswordRecoveryIntent = (): boolean => {
+  if (!("initialPasswordRecoveryIntent" in supabaseModule)) {
+    return false;
+  }
+
+  return supabaseModule.initialPasswordRecoveryIntent === true;
+};
 
 const createFallbackProfile = (authUser: User): UserProfile => {
   const metaFullName =
@@ -79,6 +92,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [passwordRecoveryStatus, setPasswordRecoveryStatus] =
+    useState<PasswordRecoveryStatus>("checking");
+  const passwordRecoveryUserIdRef = useRef<string | null>(null);
+  const [hasInitialRecoveryIntent] = useState(readInitialPasswordRecoveryIntent);
 
   const fetchProfile = useCallback(async (userId: string, authUser?: User | null): Promise<UserProfile | null> => {
     try {
@@ -124,6 +141,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const initializeAuth = async () => {
       try {
+        const initializationResult =
+          typeof supabase.auth.initialize === "function"
+            ? await supabase.auth.initialize()
+            : { error: null };
         const { data, error } = await supabase.auth.getSession();
         if (error) {
           logger.warn("Error getting initial Supabase session:", error.message);
@@ -134,6 +155,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const currentSession = data.session;
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
+
+        if (
+          hasInitialRecoveryIntent &&
+          !initializationResult.error &&
+          currentSession?.user
+        ) {
+          passwordRecoveryUserIdRef.current = currentSession.user.id;
+          setPasswordRecoveryStatus("ready");
+        } else if (!passwordRecoveryUserIdRef.current) {
+          setPasswordRecoveryStatus("invalid");
+        }
 
         if (currentSession?.user) {
           const prof = await fetchProfile(currentSession.user.id, currentSession.user);
@@ -156,8 +188,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!isMounted) return;
+
+      if (event === "PASSWORD_RECOVERY" && newSession?.user) {
+        passwordRecoveryUserIdRef.current = newSession.user.id;
+        setPasswordRecoveryStatus("ready");
+      } else if (
+        event === "SIGNED_OUT" ||
+        (passwordRecoveryUserIdRef.current &&
+          newSession?.user.id !== passwordRecoveryUserIdRef.current)
+      ) {
+        passwordRecoveryUserIdRef.current = null;
+        setPasswordRecoveryStatus("invalid");
+      } else if (
+        (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
+        !passwordRecoveryUserIdRef.current
+      ) {
+        setPasswordRecoveryStatus("invalid");
+      }
 
       setSession(newSession);
       const currentUser = newSession?.user ?? null;
@@ -178,7 +227,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [fetchProfile]);
+  }, [fetchProfile, hasInitialRecoveryIntent]);
 
   const signIn = useCallback(
     async (email: string, password: string) => {
@@ -241,15 +290,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSession(null);
     setUser(null);
     setProfile(null);
+    passwordRecoveryUserIdRef.current = null;
+    setPasswordRecoveryStatus("invalid");
     return { error };
   }, []);
 
-  const resetPassword = useCallback(async (email: string, redirectTo?: string) => {
+  const resetPassword = useCallback(async (email: string) => {
     const redirectUrl =
-      redirectTo ||
-      (typeof window !== "undefined"
-        ? `${window.location.origin}/login`
-        : undefined);
+      typeof window !== "undefined"
+        ? new URL(
+            `${__BASE_PATH__.replace(/\/+$/, "")}/reset-password`,
+            window.location.origin
+          ).toString()
+        : undefined;
 
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: redirectUrl,
@@ -257,6 +310,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return { error };
   }, []);
+
+  const completePasswordRecovery = useCallback(
+    async (newPassword: string): Promise<{ error: Error | null }> => {
+      const recoveryUserId = passwordRecoveryUserIdRef.current;
+      if (!recoveryUserId || !session?.user || session.user.id !== recoveryUserId) {
+        return {
+          error: new Error("Password recovery session is invalid or expired."),
+        };
+      }
+
+      try {
+        const { error } = await supabase.auth.updateUser({
+          password: newPassword,
+        });
+
+        if (error) {
+          return { error: new Error(error.message) };
+        }
+      } catch (err: unknown) {
+        return {
+          error:
+            err instanceof Error
+              ? err
+              : new Error("Failed to update password"),
+        };
+      }
+
+      passwordRecoveryUserIdRef.current = null;
+      setPasswordRecoveryStatus("invalid");
+
+      try {
+        await apiClient.post("/auth/logout");
+      } catch {
+        // The recovery session must still be removed locally if the API is down.
+      }
+
+      let signOutError: Error | null = null;
+      try {
+        const { error } = await supabase.auth.signOut({ scope: "local" });
+        if (error) {
+          signOutError = new Error(error.message);
+        }
+      } catch (err: unknown) {
+        signOutError =
+          err instanceof Error ? err : new Error("Failed to end recovery session");
+      } finally {
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+      }
+
+      return { error: signOutError };
+    },
+    [session]
+  );
 
   const signInWithOAuth = useCallback(
     async (provider: Provider, redirectTo?: string) => {
@@ -338,10 +446,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isAuthenticated,
       isAdmin,
       isHost,
+      passwordRecoveryStatus,
       signIn,
       signUp,
       signOut,
       resetPassword,
+      completePasswordRecovery,
       signInWithOAuth,
       refreshProfile,
       updateProfile,
@@ -355,10 +465,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isAuthenticated,
       isAdmin,
       isHost,
+      passwordRecoveryStatus,
       signIn,
       signUp,
       signOut,
       resetPassword,
+      completePasswordRecovery,
       signInWithOAuth,
       refreshProfile,
       updateProfile,

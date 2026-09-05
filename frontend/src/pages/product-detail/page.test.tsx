@@ -39,7 +39,12 @@ const productDetail = {
     price: 40,
     currency: "EUR",
     stock: 5,
-    media: [],
+    media: [
+      {
+        type: "image",
+        url: "https://example.com/ceramic-vase.jpg",
+      },
+    ],
     category_id: null,
     product_categories: null,
   },
@@ -114,6 +119,7 @@ describe("ProductDetailPage checkout", () => {
         skuId: 501,
         skuLabel: "Standard",
         variantLabel: "Standard",
+        imageUrl: "https://example.com/ceramic-vase.jpg",
       }),
     );
   });

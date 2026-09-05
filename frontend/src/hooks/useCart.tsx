@@ -16,6 +16,7 @@ export interface CartItem {
   price: string;
   moneyPrice: Money;
   icon: string;
+  imageUrl?: string;
   quantity: number;
   skuId?: string | number | null;
   skuLabel?: string | null;
@@ -25,6 +26,7 @@ export interface AddToCartProduct {
   name: string;
   price: string | number | Money;
   icon: string;
+  imageUrl?: string;
   variantLabel?: string;
   productId?: string | number;
   skuId?: string | number | null;
@@ -77,6 +79,10 @@ function deserializeCartItem(raw: Record<string, unknown>): CartItem {
   const productName = String(raw.productName || "");
   const price = String(raw.price || "");
   const icon = String(raw.icon || "ri-shopping-bag-3-line");
+  const imageUrl =
+    typeof raw.imageUrl === "string" && raw.imageUrl.length > 0
+      ? raw.imageUrl
+      : undefined;
   const quantity =
     typeof raw.quantity === "number" && raw.quantity > 0 ? raw.quantity : 1;
   const productId = raw.productId as string | number | undefined;
@@ -98,6 +104,7 @@ function deserializeCartItem(raw: Record<string, unknown>): CartItem {
     price: price || moneyPrice.format(),
     moneyPrice,
     icon,
+    imageUrl,
     quantity,
     skuId,
     skuLabel,
@@ -129,6 +136,7 @@ function saveCart(items: CartItem[]): void {
       price: item.price,
       moneyPrice: item.moneyPrice.toJSON(),
       icon: item.icon,
+      imageUrl: item.imageUrl,
       quantity: item.quantity,
       skuId: item.skuId,
       skuLabel: item.skuLabel,
@@ -175,7 +183,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (existing) {
         return prev.map((item) =>
           hasSameCartIdentity(item, identity)
-            ? { ...item, quantity: item.quantity + qtyToAdd }
+            ? {
+                ...item,
+                imageUrl: item.imageUrl || product.imageUrl,
+                quantity: item.quantity + qtyToAdd,
+              }
             : item,
         );
       }
@@ -187,6 +199,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           price: priceStr,
           moneyPrice: money,
           icon: product.icon,
+          imageUrl: product.imageUrl,
           quantity: qtyToAdd,
           skuId: product.skuId,
           skuLabel: product.skuLabel || product.variantLabel,

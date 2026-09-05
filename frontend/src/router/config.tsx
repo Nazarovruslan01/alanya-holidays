@@ -12,6 +12,7 @@ const NewThreadPage = lazy(() => import("../pages/new-thread/page"));
 const LoginPage = lazy(() => import("../pages/login/page"));
 const RegisterPage = lazy(() => import("../pages/register/page"));
 const ForgotPasswordPage = lazy(() => import("../pages/forgot-password/page"));
+const ResetPasswordPage = lazy(() => import("../pages/reset-password/page"));
 const VerifyClaimPage = lazy(() => import("../pages/verify-claim/page"));
 const AboutPage = lazy(() => import("../pages/about/page"));
 const PrivacyPage = lazy(() => import("../pages/privacy/page"));
@@ -191,6 +192,10 @@ const routes: RouteObject[] = [
   {
     path: "/forgot-password",
     element: <ForgotPasswordPage />,
+  },
+  {
+    path: "/reset-password",
+    element: <ResetPasswordPage />,
   },
   {
     path: "/verify-claim",
