@@ -17,7 +17,7 @@ export default function ThreadFilters({
   onSortChange,
 }: ThreadFiltersProps) {
   return (
-    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
+    <div className="flex min-w-0 max-w-full flex-col sm:flex-row sm:flex-wrap items-start sm:items-center justify-between gap-3 mb-5">
       {/* Thread count */}
       <p className="text-sm text-foreground-600">
         <span className="font-semibold text-foreground-900">
@@ -27,7 +27,7 @@ export default function ThreadFilters({
       </p>
 
       {/* Sort tabs */}
-      <div className="flex items-center bg-background-100 rounded-full p-1 gap-0.5 overflow-x-auto scrollbar-hide">
+      <div className="flex max-w-full flex-wrap items-center bg-background-100 rounded-2xl sm:rounded-full p-1 gap-0.5">
         {sortOptions.map((opt) => (
           <button
             key={opt.value}
