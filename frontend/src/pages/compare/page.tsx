@@ -120,7 +120,7 @@ export default function ComparePage() {
       rating: !allSame(selectedBusinesses.map((b) => String(b.rating))),
       description: true, // descriptions are always different
       address: true, // addresses are always different
-      openingHours: !allSame(selectedBusinesses.map((b) => b.openingHours)),
+      openingHours: !allSame(selectedBusinesses.map((b) => b.openingHours ?? "")),
       phone: true, // phones are always different
       email: true, // emails are always different
       website: true, // websites are always different

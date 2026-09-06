@@ -6,6 +6,7 @@ import { InMemoryPaymentFake } from './adapters/in-memory-payment.fake';
 import { AddonWebhookHandler } from './handlers/addon-webhook.handler';
 import { SubscriptionWebhookHandler } from './handlers/subscription-webhook.handler';
 import { BookingWebhookHandler } from './handlers/booking-webhook.handler';
+import { ProductOrderWebhookHandler } from './handlers/product-order-webhook.handler';
 import Stripe from 'stripe';
 
 describe('Task 6.1: Stripe Webhook Idempotency & Concurrency Stress Suite', () => {
@@ -59,6 +60,10 @@ describe('Task 6.1: Stripe Webhook Idempotency & Concurrency Stress Suite', () =
         { provide: BookingWebhookHandler, useValue: bookingHandler },
         { provide: SubscriptionWebhookHandler, useValue: subscriptionHandler },
         { provide: AddonWebhookHandler, useValue: addonHandler },
+        {
+          provide: ProductOrderWebhookHandler,
+          useValue: { handleCheckoutSession: jest.fn() },
+        },
         {
           provide: ProcessedStripeEventsRepository,
           useValue: mockProcessedRepo,

@@ -3,9 +3,11 @@ import { ProductsController } from './products.controller';
 import { ProductDraftsService } from './product-drafts.service';
 import { ProductsService } from './products.service';
 import { AuthGuard } from '../auth/auth.guard';
+import { OptionalAuthGuard } from '../auth/optional-auth.guard';
 import { AuthUser } from '../auth/types/auth-user.interface';
 import { CreateProductOrderDto } from './dto/create-product-order.dto';
 import { GetShopCatalogQueryDto } from './dto/get-shop-catalog-query.dto';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
 
 describe('ProductsController', () => {
   let controller: ProductsController;
@@ -96,6 +98,8 @@ describe('ProductsController', () => {
       ],
     })
       .overrideGuard(AuthGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(OptionalAuthGuard)
       .useValue({ canActivate: () => true })
       .compile();
 
@@ -193,6 +197,42 @@ describe('ProductsController', () => {
       });
     });
 
+    it('POST /products/orders should use optional auth and preserve guest checkout', async () => {
+      const guards = Reflect.getMetadata(
+        GUARDS_METADATA,
+        ProductsController.prototype.createProductOrder,
+      ) as unknown[];
+      expect(guards).toContain(OptionalAuthGuard);
+
+      const dto = {
+        currency: 'EUR',
+        subtotal: 25,
+        recipient: {
+          name: 'Guest',
+          email: 'guest@example.com',
+          phone: '+905551234567',
+          contact_method: 'email' as const,
+        },
+        items: [
+          {
+            productId: 1,
+            productName: 'Olive Oil',
+            quantity: 1,
+            unitPrice: 25,
+            finalPrice: 25,
+            subtotal: 25,
+          },
+        ],
+      };
+
+      await controller.createProductOrder(dto, undefined);
+
+      expect(mockService.createProductOrder).toHaveBeenCalledWith(
+        dto,
+        undefined,
+      );
+    });
+
     it('GET /products/featured should return featured products', async () => {
       const res = await controller.getFeaturedProducts({ limit: 4 });
       expect(mockService.getFeaturedProducts).toHaveBeenCalledWith(4);
@@ -216,7 +256,11 @@ describe('ProductsController', () => {
 
     it('GET /products/orders/:id should return single order for user', async () => {
       const res = await controller.getOrderById('101', mockCustomer);
-      expect(mockService.getOrderById).toHaveBeenCalledWith('101', 'user-123');
+      expect(mockService.getOrderById).toHaveBeenCalledWith(
+        '101',
+        'user-123',
+        undefined,
+      );
       expect(res).toEqual({
         id: 101,
         currency: 'EUR',

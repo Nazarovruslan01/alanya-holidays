@@ -10,11 +10,13 @@ import {
   Query,
   UseGuards,
   ParseIntPipe,
+  Headers,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { ProductDraftsService } from './product-drafts.service';
 
 import { AuthGuard } from '../auth/auth.guard';
+import { OptionalAuthGuard } from '../auth/optional-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthUser } from '../auth/types/auth-user.interface';
 import { CreateProductOrderDto } from './dto/create-product-order.dto';
@@ -28,6 +30,7 @@ import {
   UpdateSellerProductDto,
 } from './dto/seller-product.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { ConfirmDeliveryQuoteDto } from './dto/confirm-delivery-quote.dto';
 import { LimitQueryDto } from '../common/dto/pagination.dto';
 import {
   CreateProductDto,
@@ -116,6 +119,7 @@ export class ProductsController {
   }
 
   @Post('orders')
+  @UseGuards(OptionalAuthGuard)
   async createProductOrder(
     @Body() dto: CreateProductOrderDto,
     @CurrentUser() user?: AuthUser,
@@ -130,9 +134,51 @@ export class ProductsController {
   }
 
   @Get('orders/:id')
+  @UseGuards(OptionalAuthGuard)
+  async getOrderById(
+    @Param('id') id: string,
+    @CurrentUser() user?: AuthUser,
+    @Headers('x-order-access-token') guestAccessToken?: string,
+  ) {
+    return this.productsService.getOrderById(id, user?.id, guestAccessToken);
+  }
+
+  @Post('orders/:id/delivery-quote')
   @UseGuards(AuthGuard)
-  async getOrderById(@Param('id') id: string, @CurrentUser() user: AuthUser) {
-    return this.productsService.getOrderById(id, user.id);
+  async confirmDeliveryQuote(
+    @Param('id') id: string,
+    @Body() dto: ConfirmDeliveryQuoteDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.productsService.confirmDeliveryQuote(id, dto, user.id);
+  }
+
+  @Post('orders/:id/payment/manual')
+  @UseGuards(OptionalAuthGuard)
+  async selectManualPayment(
+    @Param('id') id: string,
+    @CurrentUser() user?: AuthUser,
+    @Headers('x-order-access-token') guestAccessToken?: string,
+  ) {
+    return this.productsService.selectManualPayment(
+      id,
+      user?.id,
+      guestAccessToken,
+    );
+  }
+
+  @Post('orders/:id/payment/online')
+  @UseGuards(OptionalAuthGuard)
+  async createOnlinePayment(
+    @Param('id') id: string,
+    @CurrentUser() user?: AuthUser,
+    @Headers('x-order-access-token') guestAccessToken?: string,
+  ) {
+    return this.productsService.createOnlinePayment(
+      id,
+      user?.id,
+      guestAccessToken,
+    );
   }
 
   // --- Products Endpoints ---

@@ -23,6 +23,28 @@ const priceRangeKey: Record<string, string> = {
   "$$$": "public.premium",
 };
 
+function getHttpUrl(value: string | undefined): string | undefined {
+  const candidate = value?.trim();
+  if (!candidate) return undefined;
+
+  try {
+    const url = new URL(candidate);
+    return url.protocol === "http:" || url.protocol === "https:" ? candidate : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function getPhoneHref(value: string | undefined): string | undefined {
+  const candidate = value?.trim();
+  if (!candidate || !/^[+\d\s()-]+$/.test(candidate)) return undefined;
+
+  const digits = candidate.replace(/\D/g, "");
+  if (digits.length < 6 || digits.length > 15) return undefined;
+
+  return `tel:${candidate.startsWith("+") ? "+" : ""}${digits}`;
+}
+
 export default function BusinessCard({
   business,
   layout = "horizontal",
@@ -36,6 +58,8 @@ export default function BusinessCard({
   const { t } = useTranslation();
   const { isFavorite, toggleFavorite } = useFavorites();
   const favorited = isFavorite(business.id);
+  const phone = getPhoneHref(business.phone);
+  const website = getHttpUrl(business.website);
 
   const handleCardClick = () => {
     if (compareMode) {
@@ -172,10 +196,12 @@ export default function BusinessCard({
               <i className="ri-map-pin-2-fill text-primary-500 text-sm shrink-0" />
               <span className="truncate">{business.address}</span>
             </div>
-            <div className="flex items-center gap-1.5 truncate">
-              <i className="ri-time-fill text-secondary-600 text-sm shrink-0" />
-              <span className="truncate">{business.openingHours}</span>
-            </div>
+            {business.openingHours && (
+              <div className="flex items-center gap-1.5 truncate">
+                <i className="ri-time-fill text-secondary-600 text-sm shrink-0" />
+                <span className="truncate">{business.openingHours}</span>
+              </div>
+            )}
           </div>
 
           {/* Tags */}
@@ -198,24 +224,28 @@ export default function BusinessCard({
 
         {/* Footer Actions */}
         <div className="flex items-center gap-2 pt-3 border-t border-background-100 mt-auto">
-          <a
-            href={`tel:${business.phone}`}
-            onClick={(e) => e.stopPropagation()}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-primary-500 text-white text-xs sm:text-sm font-semibold hover:bg-primary-600 transition-colors shadow-sm whitespace-nowrap cursor-pointer"
-          >
-            <i className="ri-phone-fill text-sm" />
-            {t("public.call")}
-          </a>
-          <a
-            href={business.website}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-foreground-200 text-foreground-700 text-xs sm:text-sm font-medium hover:bg-background-50 hover:text-foreground-900 transition-colors whitespace-nowrap cursor-pointer"
-          >
-            <i className="ri-external-link-line text-sm" />
-            {t("public.website")}
-          </a>
+          {phone && (
+            <a
+              href={phone}
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-primary-500 text-white text-xs sm:text-sm font-semibold hover:bg-primary-600 transition-colors shadow-sm whitespace-nowrap cursor-pointer"
+            >
+              <i className="ri-phone-fill text-sm" />
+              {t("public.call")}
+            </a>
+          )}
+          {website && (
+            <a
+              href={website}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-foreground-200 text-foreground-700 text-xs sm:text-sm font-medium hover:bg-background-50 hover:text-foreground-900 transition-colors whitespace-nowrap cursor-pointer"
+            >
+              <i className="ri-external-link-line text-sm" />
+              {t("public.website")}
+            </a>
+          )}
 
           {/* Claim Action Trigger */}
           {onClaimClick && business.can_claim === true && (

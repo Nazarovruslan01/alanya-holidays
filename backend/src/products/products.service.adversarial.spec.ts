@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { ProductsRepository } from './products.repository';
 import { UserRolesRepository } from '../common/auth/user-roles.repository';
@@ -156,11 +156,17 @@ describe('ProductsService & ProductsRepository - Adversarial Orders Tests', () =
 
         const result = await service.getOrderById(55, 'legit-user-id');
 
-        expect(result).toEqual(orderData);
+        expect(result).toEqual({
+          id: 55,
+          currency: 'EUR',
+          status: 'pending_payment',
+          items: [{ product_name: 'Olive Oil', quantity: 1 }],
+        });
+        expect(result).not.toHaveProperty('customer_id');
         expect(mockRepository.getOrderById).toHaveBeenCalledWith(55);
       });
 
-      it('should strictly throw UnauthorizedException when a regular user tries to access another user order (IDOR attack)', async () => {
+      it('should conceal another user order from a regular user (IDOR attack)', async () => {
         const victimOrder = {
           id: 777,
           currency: 'EUR',
@@ -174,7 +180,7 @@ describe('ProductsService & ProductsRepository - Adversarial Orders Tests', () =
 
         await expect(
           service.getOrderById(777, 'attacker-user-id'),
-        ).rejects.toThrow(UnauthorizedException);
+        ).rejects.toThrow(NotFoundException);
       });
 
       it('should allow an admin to access any user order', async () => {
@@ -194,7 +200,7 @@ describe('ProductsService & ProductsRepository - Adversarial Orders Tests', () =
         expect(result).toEqual(customerOrder);
       });
 
-      it('should throw UnauthorizedException when a regular user accesses an unassigned/guest order (customer_id is null)', async () => {
+      it('should conceal an unassigned guest order without its capability', async () => {
         const guestOrder = {
           id: 999,
           currency: 'EUR',
@@ -208,7 +214,7 @@ describe('ProductsService & ProductsRepository - Adversarial Orders Tests', () =
 
         await expect(
           service.getOrderById(999, 'regular-user-id'),
-        ).rejects.toThrow(UnauthorizedException);
+        ).rejects.toThrow(NotFoundException);
       });
 
       it('should allow admin to access guest order where customer_id is null', async () => {

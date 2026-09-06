@@ -14,6 +14,7 @@ describe("Validation Schemas", () => {
         recipientName: "John Doe",
         recipientEmail: "john@example.com",
         recipientPhone: "+905321234567",
+        recipientAddress: "10 Harbour Road",
         senderName: "Jane Smith",
         senderEmail: "jane@example.com",
         deliveryDate: "2026-09-01",
@@ -29,6 +30,7 @@ describe("Validation Schemas", () => {
         recipientName: "",
         recipientEmail: "john@example.com",
         recipientPhone: "+905321234567",
+        recipientAddress: "10 Harbour Road",
         senderName: "Jane Smith",
         senderEmail: "jane@example.com",
       };
@@ -45,12 +47,16 @@ describe("Validation Schemas", () => {
         recipientName: "John Doe",
         recipientEmail: "not-an-email",
         recipientPhone: "+905321234567",
+        recipientAddress: "10 Harbour Road",
         senderName: "Jane Smith",
         senderEmail: "jane@example.com",
       };
 
       const result = checkoutSchema.safeParse(invalidData);
       expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0].path).toContain("recipientEmail");
+      }
     });
 
     it("rejects phone numbers with fewer than 6 characters", () => {
@@ -58,12 +64,16 @@ describe("Validation Schemas", () => {
         recipientName: "John Doe",
         recipientEmail: "john@example.com",
         recipientPhone: "123",
+        recipientAddress: "10 Harbour Road",
         senderName: "Jane Smith",
         senderEmail: "jane@example.com",
       };
 
       const result = checkoutSchema.safeParse(invalidData);
       expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0].path).toContain("recipientPhone");
+      }
     });
   });
 

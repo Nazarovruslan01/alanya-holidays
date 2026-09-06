@@ -37,8 +37,8 @@ export interface AddToCartProduct {
 export interface CartContextValue {
   items: CartItem[];
   addToCart: (product: AddToCartProduct) => void;
-  removeFromCart: (productName: string) => void;
-  updateQuantity: (productName: string, quantity: number) => void;
+  removeFromCart: (item: CartItem) => void;
+  updateQuantity: (item: CartItem, quantity: number) => void;
   clearCart: () => void;
   itemCount: number;
   totalItems: number;
@@ -57,6 +57,23 @@ const CartContext = createContext<CartContextValue>({
 });
 
 const STORAGE_KEY = "alanya_cart";
+
+function hasSameCartIdentity(
+  left: Pick<CartItem, "productId" | "skuId" | "productName">,
+  right: Pick<CartItem, "productId" | "skuId" | "productName">,
+): boolean {
+  const leftHasProductId = left.productId !== undefined && left.productId !== null;
+  const rightHasProductId = right.productId !== undefined && right.productId !== null;
+
+  if (leftHasProductId && rightHasProductId) {
+    return (
+      String(left.productId) === String(right.productId) &&
+      String(left.skuId ?? "") === String(right.skuId ?? "")
+    );
+  }
+
+  return !leftHasProductId && !rightHasProductId && left.productName === right.productName;
+}
 
 function deserializeCartItem(raw: Record<string, unknown>): CartItem {
   const productName = String(raw.productName || "");
@@ -157,10 +174,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
       product.quantity && product.quantity > 0 ? product.quantity : 1;
 
     setItems((prev) => {
-      const existing = prev.find((item) => item.productName === displayName);
+      const identity = {
+        productId: product.productId,
+        skuId: product.skuId,
+        productName: displayName,
+      };
+      const existing = prev.find((item) => hasSameCartIdentity(item, identity));
       if (existing) {
         return prev.map((item) =>
-          item.productName === displayName
+          hasSameCartIdentity(item, identity)
             ? {
                 ...item,
                 imageUrl: item.imageUrl || product.imageUrl,
@@ -186,23 +208,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const removeFromCart = useCallback((productName: string) => {
-    setItems((prev) =>
-      prev.filter((item) => item.productName !== productName),
-    );
+  const removeFromCart = useCallback((target: CartItem) => {
+    setItems((prev) => prev.filter((item) => !hasSameCartIdentity(item, target)));
   }, []);
 
   const updateQuantity = useCallback(
-    (productName: string, quantity: number) => {
+    (target: CartItem, quantity: number) => {
       if (quantity <= 0) {
-        setItems((prev) =>
-          prev.filter((item) => item.productName !== productName),
-        );
+        setItems((prev) => prev.filter((item) => !hasSameCartIdentity(item, target)));
         return;
       }
       setItems((prev) =>
         prev.map((item) =>
-          item.productName === productName ? { ...item, quantity } : item,
+          hasSameCartIdentity(item, target) ? { ...item, quantity } : item,
         ),
       );
     },

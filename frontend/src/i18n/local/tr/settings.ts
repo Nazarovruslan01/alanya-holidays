@@ -28,4 +28,11 @@ export default {
   "settings.profileUpdatedDescription": "Değişiklikleriniz hesabınıza kaydedildi.",
   "settings.passwordChangedTitle": "Şifre Değiştirildi",
   "settings.passwordChangedDescription": "Şifreniz başarıyla güncellendi.",
+  "settings.orderStatus.pending_payment": "Ödeme bekliyor",
+  "settings.orderStatus.paid": "Ödendi",
+  "settings.orderStatus.shipped": "Gönderildi",
+  "settings.orderStatus.completed": "Tamamlandı",
+  "settings.orderStatus.cancelled": "İptal edildi",
+  "settings.orderStatus.expired": "Süresi doldu",
+  "settings.orderStatus.placed": "Oluşturuldu",
 };

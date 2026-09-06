@@ -20,6 +20,7 @@ describe('ProductsService', () => {
   };
   let mockBillingService: {
     hasActivePremiumAccess: jest.Mock;
+    createProductOrderCheckout: jest.Mock;
   };
   let mockRepository: {
     insertProduct: jest.Mock;
@@ -38,17 +39,24 @@ describe('ProductsService', () => {
     getFeaturedProducts: jest.Mock;
     getShopProductDetails: jest.Mock;
     getOrderableProductsByIds: jest.Mock;
+    getProductOrderReplay: jest.Mock;
     createProductOrder: jest.Mock;
     getMyOrders: jest.Mock;
     getOrderById: jest.Mock;
+    getOrderByGuestAccess: jest.Mock;
+    getOrdersByIds: jest.Mock;
     getMyCatalogItems: jest.Mock;
     createCatalogItem: jest.Mock;
     updateCatalogItem: jest.Mock;
     deleteCatalogItem: jest.Mock;
     getOrdersContainingCatalogItems: jest.Mock;
     getAllOrders: jest.Mock;
-    sellerOwnsAnyCatalogItem: jest.Mock;
+    sellerOwnsAllCatalogItems: jest.Mock;
     updateOrderStatus: jest.Mock;
+    confirmDeliveryQuote: jest.Mock;
+    selectManualPayment: jest.Mock;
+    beginOnlinePayment: jest.Mock;
+    attachOnlinePaymentSession: jest.Mock;
     getProductsAdmin: jest.Mock;
     getCatalogItemAdmin: jest.Mock;
     createCatalogItemAdmin: jest.Mock;
@@ -62,6 +70,7 @@ describe('ProductsService', () => {
     };
     mockBillingService = {
       hasActivePremiumAccess: jest.fn().mockResolvedValue(true),
+      createProductOrderCheckout: jest.fn(),
     };
     mockRepository = {
       insertProduct: jest.fn(),
@@ -88,6 +97,7 @@ describe('ProductsService', () => {
         skus: [],
       }),
       getOrderableProductsByIds: jest.fn().mockResolvedValue([]),
+      getProductOrderReplay: jest.fn().mockResolvedValue(null),
       createProductOrder: jest.fn().mockResolvedValue({
         success: true,
         orderId: 77,
@@ -97,7 +107,6 @@ describe('ProductsService', () => {
         {
           id: 77,
           currency: 'EUR',
-          customer_id: 'user-xyz',
           items: [],
         },
       ]),
@@ -107,14 +116,20 @@ describe('ProductsService', () => {
         customer_id: 'user-xyz',
         items: [],
       }),
+      getOrderByGuestAccess: jest.fn().mockResolvedValue(null),
+      getOrdersByIds: jest.fn().mockResolvedValue([]),
       getMyCatalogItems: jest.fn().mockResolvedValue([]),
       createCatalogItem: jest.fn(),
       updateCatalogItem: jest.fn(),
       deleteCatalogItem: jest.fn(),
       getOrdersContainingCatalogItems: jest.fn().mockResolvedValue([]),
       getAllOrders: jest.fn().mockResolvedValue([]),
-      sellerOwnsAnyCatalogItem: jest.fn().mockResolvedValue(false),
+      sellerOwnsAllCatalogItems: jest.fn().mockResolvedValue(false),
       updateOrderStatus: jest.fn(),
+      confirmDeliveryQuote: jest.fn(),
+      selectManualPayment: jest.fn(),
+      beginOnlinePayment: jest.fn(),
+      attachOnlinePaymentSession: jest.fn(),
       getProductsAdmin: jest.fn(),
       getCatalogItemAdmin: jest.fn(),
       createCatalogItemAdmin: jest.fn(),
@@ -306,6 +321,10 @@ describe('ProductsService', () => {
 
   describe('Shop Catalog & Orders Service Methods', () => {
     it('getShopCategories should call repository and return categories', async () => {
+      mockRepository.getShopCategories.mockResolvedValueOnce([
+        { id: 1, name: 'Souvenirs', sort_order: 1 },
+        { id: 9, name: 'Gift Cards', sort_order: 2 },
+      ]);
       const res = await service.getShopCategories();
       expect(mockRepository.getShopCategories).toHaveBeenCalled();
       expect(res).toEqual([{ id: 1, name: 'Souvenirs', sort_order: 1 }]);
@@ -313,9 +332,36 @@ describe('ProductsService', () => {
 
     it('getShopCatalog should call repository with query options and return catalog', async () => {
       const query = { category: 'souvenirs', featured: true };
+      mockRepository.getShopCatalog.mockResolvedValueOnce({
+        products: [
+          {
+            id: 1,
+            name: 'Lamp',
+            product_categories: { id: 1, name: 'Souvenirs' },
+          },
+          {
+            id: 9,
+            name: 'Gift Voucher',
+            product_categories: { id: 9, name: 'Gift Cards' },
+          },
+        ],
+        categories: [
+          { id: 1, name: 'Souvenirs', sort_order: 1 },
+          { id: 9, name: 'Gift Cards', sort_order: 2 },
+        ],
+      });
       const res = await service.getShopCatalog(query);
       expect(mockRepository.getShopCatalog).toHaveBeenCalledWith(query);
-      expect(res).toEqual({ products: [], categories: [] });
+      expect(res).toEqual({
+        products: [
+          {
+            id: 1,
+            name: 'Lamp',
+            product_categories: { id: 1, name: 'Souvenirs' },
+          },
+        ],
+        categories: [{ id: 1, name: 'Souvenirs', sort_order: 1 }],
+      });
     });
 
     it('getShopProductDetails should return product details when found', async () => {
@@ -336,6 +382,22 @@ describe('ProductsService', () => {
       });
       await expect(service.getShopProductDetails('999')).rejects.toThrow(
         NotFoundException,
+      );
+    });
+
+    it('getShopProductDetails should identify a paused gift-card catalog item', async () => {
+      mockRepository.getShopProductDetails.mockResolvedValueOnce({
+        product: {
+          id: 9,
+          name: 'Gift Voucher',
+          product_categories: { id: 9, name: 'Gift Cards' },
+        },
+        variants: [],
+        skus: [],
+      });
+
+      await expect(service.getShopProductDetails('9')).rejects.toThrow(
+        'Gift card sales are temporarily unavailable',
       );
     });
 
@@ -393,12 +455,184 @@ describe('ProductsService', () => {
           ],
         }),
         'user-xyz',
+        undefined,
+        null,
       );
       expect(res).toEqual({
         success: true,
         orderId: 77,
         message: 'Order placed successfully',
       });
+    });
+
+    it('createProductOrder should return an exact idempotent replay before catalog checks', async () => {
+      const dto: CreateProductOrderDto = {
+        requestId: '123e4567-e89b-42d3-a456-426614174000',
+        guestAccessToken: 'a'.repeat(43),
+        currency: 'EUR',
+        subtotal: 1,
+        recipient: {
+          name: 'Guest',
+          email: 'guest@example.com',
+          phone: '+905551234567',
+          contact_method: 'email',
+        },
+        items: [
+          {
+            productId: 1,
+            productName: 'Client value',
+            quantity: 1,
+            unitPrice: 1,
+            finalPrice: 1,
+            subtotal: 1,
+          },
+        ],
+      };
+      mockRepository.getProductOrderReplay.mockResolvedValueOnce({
+        success: true,
+        orderId: 77,
+        status: 'pending_payment',
+        expiresAt: '2026-09-06T12:00:00.000Z',
+        message: 'Order placed successfully',
+      });
+
+      await expect(service.createProductOrder(dto)).resolves.toMatchObject({
+        orderId: 77,
+        status: 'pending_payment',
+      });
+      expect(mockRepository.getProductOrderReplay).toHaveBeenCalledWith(
+        dto.requestId,
+        expect.objectContaining({
+          subtotal: 1,
+          items: [expect.objectContaining({ unitPrice: 1 })],
+        }),
+        undefined,
+        expect.stringMatching(/^[0-9a-f]{64}$/),
+      );
+      expect(mockRepository.getOrderableProductsByIds).not.toHaveBeenCalled();
+      expect(mockRepository.createProductOrder).not.toHaveBeenCalled();
+    });
+
+    it('createProductOrder should reject a new gift-card order before persistence', async () => {
+      const dto: CreateProductOrderDto = {
+        currency: 'EUR',
+        subtotal: 50,
+        recipient: {
+          name: 'Guest',
+          email: 'guest@example.com',
+          phone: '+905551234567',
+          contact_method: 'email',
+        },
+        items: [
+          {
+            productId: 9,
+            productName: 'Gift Voucher',
+            quantity: 1,
+            unitPrice: 50,
+            finalPrice: 50,
+            subtotal: 50,
+          },
+        ],
+      };
+      mockRepository.getOrderableProductsByIds.mockResolvedValueOnce([
+        {
+          id: 9,
+          name: 'Gift Voucher',
+          price: 50,
+          currency: 'EUR',
+          stock: 3,
+          status: 'active',
+          skus: [],
+          product_categories: { name: 'Gift Cards' },
+        },
+      ]);
+
+      await expect(service.createProductOrder(dto)).rejects.toThrow(
+        'Gift card sales are temporarily unavailable',
+      );
+      expect(mockRepository.createProductOrder).not.toHaveBeenCalled();
+    });
+
+    it('createProductOrder should return one generic conflict for idempotency mismatch', async () => {
+      const dto = {
+        requestId: '123e4567-e89b-42d3-a456-426614174000',
+        guestAccessToken: 'b'.repeat(43),
+        currency: 'EUR',
+        subtotal: 25,
+        recipient: {
+          name: 'Customer',
+          email: 'customer@example.com',
+          phone: '+905551234567',
+          contact_method: 'email' as const,
+        },
+        items: [
+          {
+            productId: 1,
+            productName: 'Olive Oil',
+            quantity: 1,
+            unitPrice: 25,
+            finalPrice: 25,
+            subtotal: 25,
+          },
+        ],
+      };
+      mockRepository.getProductOrderReplay.mockRejectedValueOnce(
+        new Error('Idempotency key conflict'),
+      );
+
+      await expect(
+        service.createProductOrder(dto, 'different-owner'),
+      ).rejects.toThrow(ConflictException);
+      expect(mockRepository.getOrderableProductsByIds).not.toHaveBeenCalled();
+    });
+
+    it('createProductOrder should leave keyed stock validation to the atomic RPC', async () => {
+      const dto = {
+        requestId: '123e4567-e89b-42d3-a456-426614174000',
+        guestAccessToken: 'c'.repeat(43),
+        currency: 'EUR',
+        subtotal: 25,
+        recipient: {
+          name: 'Customer',
+          email: 'customer@example.com',
+          phone: '+905551234567',
+          contact_method: 'email' as const,
+        },
+        items: [
+          {
+            productId: 1,
+            productName: 'Olive Oil',
+            quantity: 1,
+            unitPrice: 25,
+            finalPrice: 25,
+            subtotal: 25,
+          },
+        ],
+      };
+      mockRepository.getOrderableProductsByIds.mockResolvedValueOnce([
+        {
+          id: 1,
+          name: 'Olive Oil',
+          price: 25,
+          currency: 'EUR',
+          stock: 0,
+          status: 'active',
+          skus: [],
+        },
+      ]);
+
+      await expect(service.createProductOrder(dto)).resolves.toMatchObject({
+        orderId: 77,
+      });
+      expect(mockRepository.createProductOrder).toHaveBeenCalledWith(
+        expect.objectContaining({ requestId: dto.requestId }),
+        undefined,
+        expect.objectContaining({
+          subtotal: 25,
+          items: [expect.objectContaining({ unitPrice: 25 })],
+        }),
+        expect.stringMatching(/^[0-9a-f]{64}$/),
+      );
     });
 
     it('createProductOrder should throw BadRequestException if items array is empty', async () => {
@@ -471,9 +705,27 @@ describe('ProductsService', () => {
     });
 
     it('getFeaturedProducts should query repository with default limit', async () => {
+      mockRepository.getFeaturedProducts.mockResolvedValueOnce([
+        {
+          id: 1,
+          name: 'Lamp',
+          product_categories: { id: 1, name: 'Souvenirs' },
+        },
+        {
+          id: 9,
+          name: 'Gift Voucher',
+          product_categories: { id: 9, name: 'Gift Cards' },
+        },
+      ]);
       const res = await service.getFeaturedProducts(6);
       expect(mockRepository.getFeaturedProducts).toHaveBeenCalledWith(6);
-      expect(res).toEqual([]);
+      expect(res).toEqual([
+        {
+          id: 1,
+          name: 'Lamp',
+          product_categories: { id: 1, name: 'Souvenirs' },
+        },
+      ]);
     });
 
     it('getMyOrders should query repository for customer orders', async () => {
@@ -483,7 +735,6 @@ describe('ProductsService', () => {
         {
           id: 77,
           currency: 'EUR',
-          customer_id: 'user-xyz',
           items: [],
         },
       ]);
@@ -497,7 +748,7 @@ describe('ProductsService', () => {
       });
 
       const res = await service.getOrderById('77', 'user-xyz');
-      expect(res).toEqual({ id: 77, customer_id: 'user-xyz' });
+      expect(res).toEqual({ id: 77 });
     });
 
     it('getOrderById should return order if requester is admin', async () => {
@@ -520,7 +771,7 @@ describe('ProductsService', () => {
       );
     });
 
-    it('getOrderById should throw UnauthorizedException if order belongs to another user and requester is not admin', async () => {
+    it('getOrderById should conceal an order belonging to another user', async () => {
       mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
       mockRepository.getOrderById.mockResolvedValueOnce({
         id: 77,
@@ -528,7 +779,7 @@ describe('ProductsService', () => {
       });
 
       await expect(service.getOrderById('77', 'user-xyz')).rejects.toThrow(
-        UnauthorizedException,
+        NotFoundException,
       );
     });
   });
@@ -624,22 +875,164 @@ describe('ProductsService', () => {
       ).not.toHaveBeenCalled();
     });
 
-    it('getSellerOrders should fetch orders containing seller items', async () => {
+    it('getSellerOrders should expose only seller lines and fulfillment recipient fields', async () => {
       mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
       mockRepository.getMyCatalogItems.mockResolvedValueOnce([
         { id: 3, name: 'Mug' },
         { id: 5, name: 'Plate' },
       ]);
       mockRepository.getOrdersContainingCatalogItems.mockResolvedValueOnce([
-        { id: 77 },
+        {
+          id: 77,
+          currency: 'EUR',
+          payment_provider: 'manual',
+          status: 'paid',
+          subtotal_items: 140,
+          customer_notes: 'Private gift message',
+          customer_id: 'customer-1',
+          recipient: {
+            name: 'Ayse',
+            email: 'ayse@example.com',
+            phone: '+905551234567',
+            contact_method: 'phone_call',
+          },
+          created_at: '2026-08-30T10:00:00.000Z',
+          items: [
+            {
+              id: 1,
+              order_id: 77,
+              product_id: '3',
+              product_name: 'Mug',
+              sku_id: '300',
+              sku_label: 'Blue',
+              quantity: 1,
+              unit_price: 40,
+              final_price: 40,
+              subtotal: 40,
+            },
+            {
+              id: 2,
+              product_id: '9',
+              product_name: 'Other seller item',
+              quantity: 1,
+              subtotal: 100,
+            },
+          ],
+          can_manage_order: false,
+        },
       ]);
 
       await expect(service.getSellerOrders('seller-1')).resolves.toEqual([
-        { id: 77 },
+        {
+          id: 77,
+          currency: 'EUR',
+          status: 'paid',
+          recipient: { name: 'Ayse', email: 'ayse@example.com' },
+          created_at: '2026-08-30T10:00:00.000Z',
+          items: [
+            {
+              id: 1,
+              product_name: 'Mug',
+              sku_label: 'Blue',
+              quantity: 1,
+              subtotal: 40,
+            },
+          ],
+          can_manage_order: false,
+        },
       ]);
       expect(
         mockRepository.getOrdersContainingCatalogItems,
       ).toHaveBeenCalledWith([3, 5]);
+    });
+
+    it('getSellerOrders should expose quote controls and only fulfillment fields when seller owns every line', async () => {
+      mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
+      mockRepository.getMyCatalogItems.mockResolvedValueOnce([
+        { id: 3, name: 'Mug' },
+      ]);
+      mockRepository.getOrdersContainingCatalogItems.mockResolvedValueOnce([
+        {
+          id: 78,
+          currency: 'EUR',
+          status: 'pending_payment',
+          recipient: { name: 'Ayse', email: 'ayse@example.com' },
+          created_at: '2026-09-06T10:00:00.000Z',
+          items: [
+            {
+              id: 3,
+              product_id: '3',
+              product_name: 'Mug',
+              quantity: 1,
+              subtotal: 40,
+            },
+          ],
+        },
+      ]);
+      mockRepository.getOrdersByIds.mockResolvedValueOnce([
+        {
+          id: 78,
+          customer_id: 'customer-1',
+          customer_notes: 'Private note',
+          currency: 'EUR',
+          payment_provider: 'unselected',
+          payment_reconciliation_status: 'none',
+          status: 'pending_payment',
+          subtotal_items: 40,
+          delivery_fee: null,
+          delivery_eta: null,
+          delivery_quote_confirmed_at: null,
+          total_amount: 40,
+          reservation_expires_at: '2026-09-07T10:00:00.000Z',
+          recipient: {
+            name: 'Ayse',
+            email: 'ayse@example.com',
+            phone: '+905551234567',
+            address: '10 Harbour Road',
+            contact_method: 'phone_call',
+            private_field: 'hidden',
+          },
+          created_at: '2026-09-06T10:00:00.000Z',
+          items: [{ id: 3, product_id: '3', product_name: 'Mug' }],
+        },
+      ]);
+
+      const [order] = await service.getSellerOrders('seller-1');
+
+      expect(order).toMatchObject({
+        id: 78,
+        can_manage_order: true,
+        payment_provider: 'unselected',
+        total_amount: 40,
+        recipient: {
+          name: 'Ayse',
+          email: 'ayse@example.com',
+          phone: '+905551234567',
+          address: '10 Harbour Road',
+          contact_method: 'phone_call',
+        },
+      });
+      expect(order).not.toHaveProperty('customer_id');
+      expect(order).not.toHaveProperty('customer_notes');
+      expect((order as Record<string, unknown>).recipient).not.toHaveProperty(
+        'private_field',
+      );
+    });
+
+    it('getSellerOrders should discard rows without an owned catalog line', async () => {
+      mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
+      mockRepository.getMyCatalogItems.mockResolvedValueOnce([
+        { id: 3, name: 'Mug' },
+      ]);
+      mockRepository.getOrdersContainingCatalogItems.mockResolvedValueOnce([
+        {
+          id: 77,
+          recipient: { name: 'Customer', email: 'customer@example.com' },
+          items: [{ id: 2, product_id: '9', product_name: 'Foreign item' }],
+        },
+      ]);
+
+      await expect(service.getSellerOrders('seller-1')).resolves.toEqual([]);
     });
 
     it('getSellerOrders should return all orders for admin', async () => {
@@ -657,7 +1050,7 @@ describe('ProductsService', () => {
         items: [{ product_id: '3' }],
       });
       mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
-      mockRepository.sellerOwnsAnyCatalogItem.mockResolvedValueOnce(true);
+      mockRepository.sellerOwnsAllCatalogItems.mockResolvedValueOnce(true);
       mockRepository.updateOrderStatus.mockResolvedValueOnce({
         id: 77,
         status: 'shipped',
@@ -680,7 +1073,7 @@ describe('ProductsService', () => {
         items: [{ product_id: '3' }],
       });
       mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
-      mockRepository.sellerOwnsAnyCatalogItem.mockResolvedValueOnce(true);
+      mockRepository.sellerOwnsAllCatalogItems.mockResolvedValueOnce(true);
       // Guarded UPDATE matched 0 rows — status changed concurrently.
       mockRepository.updateOrderStatus.mockResolvedValueOnce(null);
 
@@ -709,11 +1102,67 @@ describe('ProductsService', () => {
         items: [{ product_id: '3' }],
       });
       mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
-      mockRepository.sellerOwnsAnyCatalogItem.mockResolvedValueOnce(false);
 
       await expect(
         service.updateOrderStatus('77', 'shipped', 'intruder-1'),
       ).rejects.toThrow(UnauthorizedException);
+      expect(mockRepository.updateOrderStatus).not.toHaveBeenCalled();
+    });
+
+    it('updateOrderStatus should reject a seller who owns only some order lines', async () => {
+      mockRepository.getOrderById.mockResolvedValueOnce({
+        id: 77,
+        status: 'paid',
+        items: [
+          { product_id: '3', sku_id: '300' },
+          { product_id: '5', sku_id: '500' },
+        ],
+      });
+      mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
+      mockRepository.sellerOwnsAllCatalogItems.mockResolvedValueOnce(false);
+
+      await expect(
+        service.updateOrderStatus('77', 'shipped', 'seller-1'),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(mockRepository.updateOrderStatus).not.toHaveBeenCalled();
+    });
+
+    it('updateOrderStatus should check catalog product ids rather than sku ids', async () => {
+      mockRepository.getOrderById.mockResolvedValueOnce({
+        id: 77,
+        status: 'paid',
+        items: [
+          { product_id: '3', sku_id: '300' },
+          { product_id: '5', sku_id: '500' },
+        ],
+      });
+      mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
+      mockRepository.sellerOwnsAllCatalogItems.mockResolvedValueOnce(true);
+      mockRepository.updateOrderStatus.mockResolvedValueOnce({
+        id: 77,
+        status: 'shipped',
+      });
+
+      await service.updateOrderStatus('77', 'shipped', 'seller-1');
+
+      expect(mockRepository.sellerOwnsAllCatalogItems).toHaveBeenCalledWith(
+        ['3', '5'],
+        'seller-1',
+      );
+    });
+
+    it('updateOrderStatus should reject empty orders for sellers', async () => {
+      mockRepository.getOrderById.mockResolvedValueOnce({
+        id: 77,
+        status: 'paid',
+        items: [],
+      });
+      mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
+
+      await expect(
+        service.updateOrderStatus('77', 'shipped', 'seller-1'),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(mockRepository.sellerOwnsAllCatalogItems).not.toHaveBeenCalled();
       expect(mockRepository.updateOrderStatus).not.toHaveBeenCalled();
     });
 
@@ -732,7 +1181,7 @@ describe('ProductsService', () => {
       await expect(
         service.updateOrderStatus('88', 'cancelled', 'admin-1'),
       ).resolves.toEqual({ id: 88, status: 'cancelled' });
-      expect(mockRepository.sellerOwnsAnyCatalogItem).not.toHaveBeenCalled();
+      expect(mockRepository.sellerOwnsAllCatalogItems).not.toHaveBeenCalled();
     });
 
     describe.each([
@@ -779,6 +1228,114 @@ describe('ProductsService', () => {
       await expect(
         service.updateOrderStatus('999', 'paid', 'seller-1'),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('delivery confirmation and payment access', () => {
+    it('requires a distinct secure capability before creating a guest order', async () => {
+      const dto = {
+        requestId: '123e4567-e89b-42d3-a456-426614174000',
+        currency: 'EUR',
+        subtotal: 10,
+        recipient: {
+          name: 'Guest',
+          email: 'guest@example.com',
+          phone: '+905551234567',
+          address: '10 Harbour Road',
+          contact_method: 'email' as const,
+        },
+        items: [
+          {
+            productId: 1,
+            productName: 'Tea',
+            quantity: 1,
+            unitPrice: 10,
+            finalPrice: 10,
+            subtotal: 10,
+          },
+        ],
+      };
+
+      await expect(service.createProductOrder(dto)).rejects.toThrow(
+        'A secure guest access token is required',
+      );
+      expect(mockRepository.getProductOrderReplay).not.toHaveBeenCalled();
+    });
+
+    it('does not reveal a known sequential order id to the wrong guest token', async () => {
+      mockRepository.getOrderById.mockResolvedValueOnce({
+        id: 77,
+        customer_id: null,
+      });
+      mockRepository.getOrderByGuestAccess.mockResolvedValueOnce(null);
+
+      await expect(
+        service.getOrderById('77', undefined, 'x'.repeat(43)),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockRepository.getOrderByGuestAccess).toHaveBeenCalledWith(
+        '77',
+        expect.stringMatching(/^[0-9a-f]{64}$/),
+      );
+    });
+
+    it('lets only an all-lines seller confirm one immutable quote through the RPC', async () => {
+      mockRepository.getOrderById.mockResolvedValueOnce({
+        id: 77,
+        items: [{ product_id: '3' }, { product_id: '5' }],
+      });
+      mockUserRolesRepo.getRole.mockResolvedValueOnce('merchant');
+      mockRepository.sellerOwnsAllCatalogItems.mockResolvedValueOnce(true);
+      mockRepository.confirmDeliveryQuote.mockResolvedValueOnce({
+        delivery_fee: 8.5,
+        total_amount: 58.5,
+      });
+
+      await expect(
+        service.confirmDeliveryQuote(
+          '77',
+          { deliveryFee: 8.5, deliveryEta: 'Tomorrow 10:00–12:00' },
+          'seller-1',
+        ),
+      ).resolves.toMatchObject({ total_amount: 58.5 });
+      expect(mockRepository.sellerOwnsAllCatalogItems).toHaveBeenCalledWith(
+        ['3', '5'],
+        'seller-1',
+      );
+    });
+
+    it('creates online checkout from locked server quote and attaches its session', async () => {
+      mockRepository.getOrderById.mockResolvedValueOnce({
+        id: 77,
+        customer_id: 'buyer-1',
+      });
+      mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
+      mockRepository.beginOnlinePayment.mockResolvedValueOnce({
+        id: 77,
+        currency: 'EUR',
+        total_amount: 58.5,
+        recipient: { email: 'buyer@example.com' },
+        delivery_quote_confirmed_at: '2026-09-06T10:00:00.000Z',
+        checkout_expires_at: '2026-09-06T11:00:00.000Z',
+      });
+      mockBillingService.createProductOrderCheckout.mockResolvedValueOnce({
+        url: 'https://checkout.stripe.test/cs_77',
+        sessionId: 'cs_77',
+        expiresAt: '2026-09-06T11:00:00.000Z',
+      });
+
+      await expect(
+        service.createOnlinePayment('77', 'buyer-1'),
+      ).resolves.toEqual({ url: 'https://checkout.stripe.test/cs_77' });
+      expect(
+        mockBillingService.createProductOrderCheckout,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({ orderId: 77, amount: 58.5 }),
+      );
+      expect(mockRepository.attachOnlinePaymentSession).toHaveBeenCalledWith(
+        77,
+        'cs_77',
+        '2026-09-06T11:00:00.000Z',
+      );
     });
   });
 });

@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 
 export interface OrderItem {
   productName: string;
+  product_name?: string;
   quantity: number;
   price?: string | number;
   icon?: string;
@@ -19,13 +20,17 @@ export interface OrderRecipient {
   name: string;
   email: string;
   phone?: string;
+  address?: string;
   contact_method?: "whatsapp" | "phone_call" | "email";
 }
 
 export interface CreateOrderPayload {
+  requestId?: string;
+  guestAccessToken?: string;
   recipientName?: string;
   recipientEmail?: string;
   recipientPhone?: string;
+  recipientAddress?: string;
   contactMethod?: "whatsapp" | "phone_call" | "email";
   senderName?: string;
   senderEmail?: string;
@@ -41,6 +46,9 @@ export interface CreateOrderResult {
   success: boolean;
   orderId: number | string;
   message?: string;
+  status?: string;
+  expiresAt?: string;
+  guestAccessToken?: string;
 }
 
 export interface OrderDetailsResponse {
@@ -48,6 +56,7 @@ export interface OrderDetailsResponse {
   status?: string;
   currency?: string;
   subtotal?: number;
+  subtotal_items?: number;
   total_price?: number;
   recipient_name?: string;
   recipient_email?: string;
@@ -56,7 +65,35 @@ export interface OrderDetailsResponse {
   gift_message?: string;
   items?: Array<OrderItem | Record<string, unknown>>;
   created_at?: string;
+  payment_provider?: string;
+  delivery_fee?: number | null;
+  delivery_eta?: string | null;
+  delivery_quote_confirmed_at?: string | null;
+  total_amount?: number | null;
+  reservation_expires_at?: string | null;
+  payment_reconciliation_status?: "none" | "late_payment" | "mismatch";
+  recipient?: OrderRecipient;
   [key: string]: unknown;
+}
+
+function isPositiveSafeIntegerId(value: unknown): boolean {
+  if (typeof value === "number") {
+    return Number.isSafeInteger(value) && value > 0;
+  }
+  if (typeof value !== "string" || !/^\d+$/.test(value)) return false;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0;
+}
+
+export function hasValidOrderItemIdentity(
+  item: Pick<OrderItem, "productId" | "skuId">,
+): boolean {
+  return (
+    isPositiveSafeIntegerId(item.productId) &&
+    (item.skuId === undefined ||
+      item.skuId === null ||
+      isPositiveSafeIntegerId(item.skuId))
+  );
 }
 
 export class OrdersService {
@@ -71,6 +108,7 @@ export class OrdersService {
       name: payload.recipientName || "Guest",
       email: payload.recipientEmail || "guest@example.com",
       phone: payload.recipientPhone,
+      address: payload.recipientAddress,
       contact_method: (payload.contactMethod || "email") as
         | "whatsapp"
         | "phone_call"
@@ -83,7 +121,11 @@ export class OrdersService {
         ? `From: ${payload.senderName || ""} (${payload.senderEmail || ""}) - Message: ${payload.giftMessage}`
         : null);
 
-    const items = payload.items.map((item, index) => {
+    const items = payload.items.map((item) => {
+      if (!hasValidOrderItemIdentity(item)) {
+        throw new Error("Product identity is missing or invalid");
+      }
+
       let unitPrice = item.unitPrice;
       if (unitPrice === undefined) {
         if (typeof item.price === "number") {
@@ -104,10 +146,7 @@ export class OrdersService {
               .toDatabaseDecimal();
 
       return {
-        productId:
-          item.productId !== undefined && item.productId !== null
-            ? item.productId
-            : `item-${index + 1}`,
+        productId: item.productId,
         productName: item.productName,
         skuId: item.skuId != null ? item.skuId : null,
         skuLabel: item.skuLabel || null,
@@ -119,6 +158,10 @@ export class OrdersService {
     });
 
     const body = {
+      ...(payload.requestId ? { requestId: payload.requestId } : {}),
+      ...(payload.guestAccessToken
+        ? { guestAccessToken: payload.guestAccessToken }
+        : {}),
       currency,
       subtotal: payload.subtotal,
       customerNotes: notes,
@@ -132,12 +175,18 @@ export class OrdersService {
       orderId?: number | string;
       success?: boolean;
       message?: string;
+      status?: string;
+      expiresAt?: string;
+      guestAccessToken?: string;
     }>("/products/orders", body);
 
     return {
       success: result.success ?? true,
       orderId: result.orderId ?? result.id ?? result.order_id ?? Date.now(),
       message: result.message,
+      status: result.status,
+      expiresAt: result.expiresAt,
+      guestAccessToken: result.guestAccessToken,
     };
   }
 
@@ -147,10 +196,14 @@ export class OrdersService {
    */
   async getOrder(
     orderId: number | string,
+    guestAccessToken?: string | null,
   ): Promise<OrderDetailsResponse | null> {
     try {
       const result = await apiClient.get<OrderDetailsResponse>(
         `/products/orders/${orderId}`,
+        guestAccessToken
+          ? { headers: { "x-order-access-token": guestAccessToken } }
+          : undefined,
       );
       if (
         result &&
@@ -163,6 +216,43 @@ export class OrdersService {
       logger.warn(`Failed to fetch order ${orderId} from API:`, err);
       return null;
     }
+  }
+
+  async confirmDeliveryQuote(
+    orderId: number | string,
+    deliveryFee: number,
+    deliveryEta: string,
+  ): Promise<OrderDetailsResponse> {
+    return apiClient.post(`/products/orders/${orderId}/delivery-quote`, {
+      deliveryFee,
+      deliveryEta,
+    });
+  }
+
+  async selectManualPayment(
+    orderId: number | string,
+    guestAccessToken?: string | null,
+  ): Promise<{ payment_provider: string; status: string }> {
+    return apiClient.post(
+      `/products/orders/${orderId}/payment/manual`,
+      {},
+      guestAccessToken
+        ? { headers: { "x-order-access-token": guestAccessToken } }
+        : undefined,
+    );
+  }
+
+  async createOnlinePayment(
+    orderId: number | string,
+    guestAccessToken?: string | null,
+  ): Promise<{ url: string }> {
+    return apiClient.post(
+      `/products/orders/${orderId}/payment/online`,
+      {},
+      guestAccessToken
+        ? { headers: { "x-order-access-token": guestAccessToken } }
+        : undefined,
+    );
   }
 
   /**
@@ -273,6 +363,13 @@ export interface SellerOrder {
   recipient?: Record<string, unknown> | null;
   created_at?: string;
   updated_at?: string;
+  can_manage_order?: boolean;
+  delivery_fee?: number | null;
+  delivery_eta?: string | null;
+  delivery_quote_confirmed_at?: string | null;
+  total_amount?: number | null;
+  reservation_expires_at?: string | null;
+  payment_reconciliation_status?: "none" | "late_payment" | "mismatch";
   items?: SellerOrderItem[];
 }
 

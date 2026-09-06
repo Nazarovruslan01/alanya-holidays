@@ -5,9 +5,14 @@ import {
   IsOptional,
   IsObject,
   IsArray,
+  IsUUID,
 } from 'class-validator';
 
 export class CreateItineraryDto {
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @IsString()
   @IsNotEmpty()
   @MaxLength(200)

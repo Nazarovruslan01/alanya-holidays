@@ -12,12 +12,14 @@ vi.mock("@/api-services/orders.service", async () => {
     ordersService: {
       getSellerOrders: vi.fn(),
       updateSellerOrderStatus: vi.fn(),
+      confirmDeliveryQuote: vi.fn(),
     },
   };
 });
 
 const mockedOrders = vi.mocked(ordersService.getSellerOrders);
 const mockedUpdate = vi.mocked(ordersService.updateSellerOrderStatus);
+const mockedQuote = vi.mocked(ordersService.confirmDeliveryQuote);
 
 const paidOrder: SellerOrder = {
   id: 7,
@@ -25,6 +27,7 @@ const paidOrder: SellerOrder = {
   currency: "EUR",
   created_at: "2026-08-25T10:00:00Z",
   recipient: { name: "Ayşe Yılmaz", email: "ayse@example.com" },
+  can_manage_order: true,
   items: [
     { id: 1, product_name: "Ceramic Bowl", quantity: 2, subtotal: 49.8 },
     { id: 2, product_name: "Olive Soap", quantity: 1, subtotal: 6 },
@@ -78,5 +81,23 @@ describe("SellerOrdersTab", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Mark as Shipped/i }));
 
     expect(await screen.findByText(/Invalid transition/)).toBeInTheDocument();
+  });
+
+  it("does not interpret an empty delivery fee as an immutable zero quote", async () => {
+    mockedOrders.mockResolvedValueOnce([
+      {
+        ...paidOrder,
+        status: "pending_payment",
+        payment_provider: "unselected",
+      },
+    ]);
+
+    render(<SellerOrdersTab />);
+    fireEvent.change(await screen.findByLabelText("Delivery time"), {
+      target: { value: "Tomorrow" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm delivery" }));
+
+    expect(mockedQuote).not.toHaveBeenCalled();
   });
 });

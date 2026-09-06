@@ -259,6 +259,46 @@ describe("Navbar Component (Milestone 5 — R4)", () => {
     expect(document.getElementById("mobile-navigation")).toBeInTheDocument();
   });
 
+  it("restores focus to the mobile menu toggle after closing the cart", () => {
+    render(
+      <MemoryRouter>
+        <Navbar />
+      </MemoryRouter>
+    );
+
+    const menuButton = screen.getByRole("button", { name: /Open menu/i });
+    fireEvent.click(menuButton);
+    const mobileNavigation = document.getElementById("mobile-navigation");
+    expect(mobileNavigation).not.toBeNull();
+
+    fireEvent.click(within(mobileNavigation!).getByRole("button", { name: /Cart/i }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(menuButton).toHaveFocus();
+  });
+
+  it("restores focus to the mobile menu toggle after backdrop close", () => {
+    render(
+      <MemoryRouter>
+        <Navbar />
+      </MemoryRouter>
+    );
+
+    const menuButton = screen.getByRole("button", { name: /Open menu/i });
+    fireEvent.click(menuButton);
+    const mobileNavigation = document.getElementById("mobile-navigation");
+    expect(mobileNavigation).not.toBeNull();
+
+    fireEvent.click(within(mobileNavigation!).getByRole("button", { name: /Cart/i }));
+    const backdrop = document.querySelector(".fixed.inset-0");
+    expect(backdrop).toBeInTheDocument();
+    if (backdrop) fireEvent.click(backdrop);
+
+    expect(menuButton).toHaveFocus();
+  });
+
   it("keeps desktop navigation at xl while tablets use the hamburger", () => {
     render(
       <MemoryRouter>

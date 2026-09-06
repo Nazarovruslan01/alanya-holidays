@@ -6,6 +6,7 @@ import { InMemoryPaymentFake } from './adapters/in-memory-payment.fake';
 import { AddonWebhookHandler } from './handlers/addon-webhook.handler';
 import { SubscriptionWebhookHandler } from './handlers/subscription-webhook.handler';
 import { BookingWebhookHandler } from './handlers/booking-webhook.handler';
+import { ProductOrderWebhookHandler } from './handlers/product-order-webhook.handler';
 import Stripe from 'stripe';
 
 /**
@@ -55,6 +56,10 @@ describe('StripeWebhookService - persistent event idempotency', () => {
           },
         },
         { provide: BookingWebhookHandler, useValue: bookingHandler },
+        {
+          provide: ProductOrderWebhookHandler,
+          useValue: { handleCheckoutSession: jest.fn() },
+        },
         { provide: ProcessedStripeEventsRepository, useValue: processedEvents },
       ],
     }).compile();

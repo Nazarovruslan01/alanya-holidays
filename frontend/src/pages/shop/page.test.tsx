@@ -2,83 +2,86 @@ import "@testing-library/jest-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-import ShopPage from "./page";
 import { productsService } from "@/api-services/products.service";
+import ShopPage from "./page";
 
-const cartState = vi.hoisted(() => ({
+const shopMocks = vi.hoisted(() => ({
   addToCart: vi.fn(),
+  showToast: vi.fn(),
 }));
 
+vi.mock("@/pages/home/components/Navbar", () => ({ default: () => null }));
+vi.mock("@/pages/home/components/Footer", () => ({ default: () => null }));
+vi.mock("@/components/base/PageHeroImage", () => ({ default: () => null }));
+vi.mock("@/pages/shop/components/PersonalShopperForm", () => ({ default: () => null }));
+vi.mock("@/pages/shop/components/RecentEnquiriesSidebar", () => ({ default: () => null }));
 vi.mock("@/hooks/useCart", () => ({
-  useCart: () => cartState,
+  useCart: () => ({ addToCart: shopMocks.addToCart }),
 }));
-
 vi.mock("@/hooks/useToast", () => ({
   useToast: () => ({
-    showToast: vi.fn(),
+    showToast: shopMocks.showToast,
     ToastContainer: () => null,
   }),
 }));
 
-vi.mock("@/api-services/products.service", () => ({
-  productsService: {
-    getShopCatalog: vi.fn(),
-  },
-}));
-
-vi.mock("@/pages/home/components/Navbar", () => ({ default: () => <nav /> }));
-vi.mock("@/pages/home/components/Footer", () => ({ default: () => <footer /> }));
-vi.mock("@/components/base/PageHeroImage", () => ({ default: () => null }));
-vi.mock("@/pages/shop/components/PersonalShopperForm", () => ({
-  default: () => null,
-}));
-vi.mock("@/pages/shop/components/RecentEnquiriesSidebar", () => ({
-  default: () => null,
-}));
-
-describe("ShopPage cart images", () => {
+describe("ShopPage cart identity", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(productsService.getShopCatalog).mockResolvedValue({
-      categories: [{ id: 7, name: "Turkish Textiles" }],
+    vi.restoreAllMocks();
+    shopMocks.addToCart.mockClear();
+    shopMocks.showToast.mockClear();
+    vi.spyOn(productsService, "getShopCatalog").mockResolvedValue({
       products: [
         {
-          id: 42,
-          name: "Pink Peshtemal",
-          description: "Handwoven cotton towel",
-          price: 30,
+          id: 77,
+          name: "Ceramic Vase",
+          description: "Handmade in Alanya",
+          price: 40,
           currency: "EUR",
           stock: 5,
           media: [
             {
               type: "image",
-              url: "https://example.com/pink-peshtemal.jpg",
+              url: "https://example.com/ceramic-vase.jpg",
             },
           ],
-          category_id: 7,
-          product_categories: { id: 7, name: "Turkish Textiles" },
+          category_id: null,
+          product_categories: null,
+        },
+        {
+          id: 99,
+          name: "Gift Voucher",
+          description: "Paused gift card",
+          price: 50,
+          currency: "EUR",
+          stock: 5,
+          media: [],
+          category_id: 9,
+          product_categories: { id: 9, name: "Gift Cards" },
         },
       ],
+      categories: [{ id: 9, name: "Gift Cards", sort_order: 1 }],
     });
   });
 
-  it("passes the catalog image URL when adding a product to the cart", async () => {
+  it("adds the canonical catalog product ID and image to the cart", async () => {
     render(
       <MemoryRouter>
         <ShopPage />
       </MemoryRouter>,
     );
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: /add to cart/i }),
-    );
+    await screen.findByRole("heading", { name: "Ceramic Vase" });
+    fireEvent.click(screen.getByRole("button", { name: /add to cart/i }));
 
-    expect(cartState.addToCart).toHaveBeenCalledWith({
-      name: "Pink Peshtemal",
-      price: "€30.00",
-      icon: "ri-t-shirt-line",
-      imageUrl: "https://example.com/pink-peshtemal.jpg",
-    });
+    expect(shopMocks.addToCart).toHaveBeenCalledWith(
+      expect.objectContaining({
+        productId: 77,
+        name: "Ceramic Vase",
+        imageUrl: "https://example.com/ceramic-vase.jpg",
+      }),
+    );
+    expect(screen.queryByRole("heading", { name: "Gift Voucher" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Gift Cards" })).not.toBeInTheDocument();
   });
 });

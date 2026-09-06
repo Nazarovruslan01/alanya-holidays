@@ -149,14 +149,14 @@ describe("useCart hook", () => {
     expect(result.current.subtotalMoney.amount).toBe(120);
 
     act(() => {
-      result.current.updateQuantity("Handmade Carpet", 3);
+      result.current.updateQuantity(result.current.items[0], 3);
     });
 
     expect(result.current.items[0].quantity).toBe(3);
     expect(result.current.subtotalMoney.amount).toBe(360);
 
     act(() => {
-      result.current.updateQuantity("Handmade Carpet", 0);
+      result.current.updateQuantity(result.current.items[0], 0);
     });
 
     expect(result.current.items.length).toBe(0);
@@ -182,12 +182,71 @@ describe("useCart hook", () => {
     expect(result.current.items.length).toBe(2);
 
     act(() => {
-      result.current.removeFromCart("Item A");
+      result.current.removeFromCart(result.current.items[0]);
     });
 
     expect(result.current.items.length).toBe(1);
     expect(result.current.items[0].productName).toBe("Item B");
     expect(result.current.subtotalMoney.amount).toBe(20);
+  });
+
+  it("keeps same-name products and SKUs distinct by canonical identity", () => {
+    const { result } = renderHook(() => useCart(), { wrapper });
+
+    act(() => {
+      result.current.addToCart({
+        name: "Gift",
+        variantLabel: "Standard",
+        productId: 10,
+        skuId: 101,
+        skuLabel: "Standard",
+        price: 10,
+        icon: "ri-gift-line",
+      });
+      result.current.addToCart({
+        name: "Gift",
+        variantLabel: "Standard",
+        productId: 20,
+        skuId: 201,
+        skuLabel: "Standard",
+        price: 20,
+        icon: "ri-gift-line",
+      });
+      result.current.addToCart({
+        name: "Gift",
+        variantLabel: "Standard",
+        productId: 10,
+        skuId: 102,
+        skuLabel: "Standard",
+        price: 15,
+        icon: "ri-gift-line",
+      });
+    });
+
+    expect(result.current.items).toHaveLength(3);
+
+    act(() => {
+      result.current.addToCart({
+        name: "Gift",
+        variantLabel: "Standard",
+        productId: 10,
+        skuId: 101,
+        skuLabel: "Standard",
+        price: 10,
+        icon: "ri-gift-line",
+      });
+    });
+    expect(result.current.items.map((item) => item.quantity)).toEqual([2, 1, 1]);
+
+    act(() => {
+      result.current.updateQuantity(result.current.items[1], 3);
+    });
+    expect(result.current.items.map((item) => item.quantity)).toEqual([2, 3, 1]);
+
+    act(() => {
+      result.current.removeFromCart(result.current.items[0]);
+    });
+    expect(result.current.items.map((item) => item.productId)).toEqual([20, 10]);
   });
 
   it("should clear cart completely", () => {

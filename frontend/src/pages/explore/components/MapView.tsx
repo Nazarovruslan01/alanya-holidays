@@ -20,6 +20,28 @@ const priceRangeLabel: Record<string, string> = {
   "$$$": "Premium",
 };
 
+function getHttpUrl(value: string | undefined): string | undefined {
+  const candidate = value?.trim();
+  if (!candidate) return undefined;
+
+  try {
+    const url = new URL(candidate);
+    return url.protocol === "http:" || url.protocol === "https:" ? candidate : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function getPhoneHref(value: string | undefined): string | undefined {
+  const candidate = value?.trim();
+  if (!candidate || !/^[+\d\s()-]+$/.test(candidate)) return undefined;
+
+  const digits = candidate.replace(/\D/g, "");
+  if (digits.length < 6 || digits.length > 15) return undefined;
+
+  return `tel:${candidate.startsWith("+") ? "+" : ""}${digits}`;
+}
+
 function buildMapUrl(selected: Business | null): string {
   if (selected) {
     const query = encodeURIComponent(`${selected.name}, ${selected.address}`);
@@ -167,29 +189,35 @@ export default function MapView({
                             <i className="ri-map-pin-line text-xs shrink-0"></i>
                             <span>{business.address}</span>
                           </div>
-                          <div className="flex items-center gap-2 text-xs text-foreground-500">
-                            <i className="ri-time-line text-xs shrink-0"></i>
-                            <span>{business.openingHours}</span>
-                          </div>
+                          {business.openingHours && (
+                            <div className="flex items-center gap-2 text-xs text-foreground-500">
+                              <i className="ri-time-line text-xs shrink-0"></i>
+                              <span>{business.openingHours}</span>
+                            </div>
+                          )}
                           <div className="flex items-center gap-2 pt-1 flex-wrap">
-                            <a
-                              href={`tel:${business.phone}`}
-                              onClick={(e) => e.stopPropagation()}
-                              className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-primary-500 text-white text-xs font-medium hover:bg-primary-600 transition-colors whitespace-nowrap cursor-pointer"
-                            >
-                              <i className="ri-phone-line text-xs"></i>
-                              Call
-                            </a>
-                            <a
-                              href={business.website}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-foreground-200 text-foreground-600 text-xs font-medium hover:bg-background-100 transition-colors whitespace-nowrap cursor-pointer"
-                            >
-                              <i className="ri-external-link-line text-xs"></i>
-                              Website
-                            </a>
+                            {getPhoneHref(business.phone) && (
+                              <a
+                                href={getPhoneHref(business.phone)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-primary-500 text-white text-xs font-medium hover:bg-primary-600 transition-colors whitespace-nowrap cursor-pointer"
+                              >
+                                <i className="ri-phone-line text-xs"></i>
+                                Call
+                              </a>
+                            )}
+                            {getHttpUrl(business.website) && (
+                              <a
+                                href={getHttpUrl(business.website)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-foreground-200 text-foreground-600 text-xs font-medium hover:bg-background-100 transition-colors whitespace-nowrap cursor-pointer"
+                              >
+                                <i className="ri-external-link-line text-xs"></i>
+                                Website
+                              </a>
+                            )}
                             <Link
                               to={`/business/${business.id}`}
                               className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-accent-500 text-white text-xs font-medium hover:bg-accent-600 transition-colors whitespace-nowrap cursor-pointer"

@@ -15,6 +15,10 @@ import {
   PaymentGateway,
 } from '../webhooks/domain/payment-gateway.interface';
 import { appUrl } from '../utils/app-url';
+import {
+  ProductOrderCheckoutParams,
+  ProductOrderCheckoutResult,
+} from '../webhooks/domain/payment-gateway.interface';
 
 const ACTIVE_STATUSES = ['active', 'trialing'];
 
@@ -68,6 +72,18 @@ export class BillingService {
       userId,
       userEmail: email,
       plan,
+    });
+  }
+
+  async createProductOrderCheckout(
+    params: Omit<ProductOrderCheckoutParams, 'siteUrl'>,
+  ): Promise<ProductOrderCheckoutResult> {
+    if (!this.paymentGateway) {
+      throw new Error('Payment gateway is not configured');
+    }
+    return this.paymentGateway.createProductOrderCheckoutSession({
+      ...params,
+      siteUrl: appUrl(''),
     });
   }
 
