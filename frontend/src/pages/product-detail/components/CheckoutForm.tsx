@@ -17,6 +17,8 @@ interface CheckoutFormProps {
   onSetPreferredContact: (method: string) => void;
   checkoutSubmitting: boolean;
   checkoutSuccess: boolean;
+  checkoutStatus: string;
+  checkoutOrderId: number | string | null;
   checkoutError: string | null;
   onResetCheckout: () => void;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
@@ -36,6 +38,8 @@ export function CheckoutForm({
   onSetPreferredContact,
   checkoutSubmitting,
   checkoutSuccess,
+  checkoutStatus,
+  checkoutOrderId,
   checkoutError,
   onResetCheckout,
   onSubmit,
@@ -43,6 +47,9 @@ export function CheckoutForm({
   currentStock,
 }: CheckoutFormProps) {
   const { t } = useTranslation();
+  const checkoutStatusLabel = t(`checkout.status.${checkoutStatus}`, {
+    defaultValue: checkoutStatus.replaceAll("_", " "),
+  });
   return (
     <section className="w-full px-4 md:px-8 lg:px-12 pb-16 md:pb-24 bg-background-100">
       <div className="max-w-2xl mx-auto">
@@ -52,7 +59,7 @@ export function CheckoutForm({
               <div className="w-16 h-16 flex items-center justify-center rounded-full bg-green-100 mx-auto mb-5">
                 <i className="ri-check-line text-green-600 text-2xl"></i>
               </div>
-              <h3 className="font-heading text-xl text-foreground-900 mb-2">{t("public.orderConfirmed")}</h3>
+              <h3 className="font-heading text-xl text-foreground-900 mb-2">{t("checkout.orderPlaced")}</h3>
               <p className="text-foreground-500 text-sm mb-2">
                 Thank you for your order —{" "}
                 <strong>
@@ -62,13 +69,20 @@ export function CheckoutForm({
                 (x{quantity}) for <strong>{formatPrice(currentPrice * quantity)}</strong>.
               </p>
               <p className="text-foreground-600 text-sm font-medium">
-                {preferredContact === "whatsapp"
-                  ? t("public.whatsappConfirmation")
-                  : preferredContact === "phone"
-                    ? t("public.phoneConfirmation")
-                    : t("public.emailConfirmation")}
+                {t("checkout.orderStatus", { status: checkoutStatusLabel })}
+                {checkoutStatus === "pending_payment"
+                  ? ` ${t("checkout.pendingPaymentDetails")}`
+                  : ""}
               </p>
               <div className="flex items-center justify-center gap-3 mt-6 flex-wrap">
+                {checkoutOrderId && (
+                  <Link
+                    to={`/orders/${checkoutOrderId}`}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-accent-500 text-background-50 rounded-full text-sm font-medium hover:bg-accent-600 transition-colors whitespace-nowrap cursor-pointer"
+                  >
+                    {t("checkout.viewOrder")}
+                  </Link>
+                )}
                 <button
                   onClick={onResetCheckout}
                   className="inline-flex items-center gap-2 px-5 py-2.5 bg-background-200 text-foreground-700 rounded-full text-sm font-medium hover:bg-background-300 transition-colors whitespace-nowrap cursor-pointer"
@@ -162,7 +176,7 @@ export function CheckoutForm({
                     htmlFor="checkout-phone"
                     className="block text-sm font-medium text-foreground-700 mb-1.5"
                   >
-                    {t("public.phone")}
+                    {t("public.phone")} *
                   </label>
                   <div className="flex gap-2">
                     <div className="relative">
@@ -183,10 +197,25 @@ export function CheckoutForm({
                       id="checkout-phone"
                       name="phone"
                       type="tel"
+                      required
                       placeholder={t("public.phoneNumber")}
                       className="flex-1 px-4 py-2.5 rounded-xl border border-background-300 bg-white text-sm text-foreground-900 placeholder:text-foreground-400 focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-colors"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label htmlFor="checkout-address" className="block text-sm font-medium text-foreground-700 mb-1.5">
+                    {t("checkout.deliveryAddress")} *
+                  </label>
+                  <textarea
+                    id="checkout-address"
+                    name="address"
+                    rows={3}
+                    maxLength={500}
+                    required
+                    className="w-full px-4 py-2.5 rounded-xl border border-background-300 bg-white text-sm text-foreground-900 focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-colors resize-none"
+                  />
                 </div>
 
                 {/* Preferred Contact Method */}

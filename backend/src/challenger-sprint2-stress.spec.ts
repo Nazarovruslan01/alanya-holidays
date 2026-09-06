@@ -6,6 +6,7 @@ import { BookingsService } from './bookings/bookings.service';
 import { NotificationsService } from './notifications/notifications.service';
 import { StripeWebhookService } from './webhooks/stripe-webhook.service';
 import { BookingWebhookHandler } from './webhooks/handlers/booking-webhook.handler';
+import { ProductOrderWebhookHandler } from './webhooks/handlers/product-order-webhook.handler';
 import { SubscriptionWebhookHandler } from './webhooks/handlers/subscription-webhook.handler';
 import { AddonWebhookHandler } from './webhooks/handlers/addon-webhook.handler';
 import { ProcessedStripeEventsRepository } from './webhooks/processed-stripe-events.repository';
@@ -426,6 +427,10 @@ describe('Adversarial Challenger: Sprint 2 Stress, Edge-Case & Concurrency Harne
             useValue: subscriptionHandler,
           },
           { provide: AddonWebhookHandler, useValue: addonHandler },
+          {
+            provide: ProductOrderWebhookHandler,
+            useValue: { handleCheckoutSession: jest.fn() },
+          },
           {
             provide: ProcessedStripeEventsRepository,
             useValue: mockProcessedRepo,

@@ -6,6 +6,7 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import {
   ProductsRepository,
   ProductCategoryRow,
@@ -30,6 +31,7 @@ import {
 } from './dto/product-write.dto';
 import { Money } from '../common/domain/value-objects/money.vo';
 import { BillingService } from '../billing/billing.service';
+import { ConfirmDeliveryQuoteDto } from './dto/confirm-delivery-quote.dto';
 import {
   CreateAdminProductDto,
   UpdateAdminProductDto,
@@ -65,6 +67,8 @@ export interface ShopProductDetailResult {
 
 @Injectable()
 export class ProductsService {
+  private static readonly PAUSED_GIFT_CARD_CATEGORY = 'Gift Cards';
+
   // Allowed seller fulfillment transitions; terminal states map to no exits.
   private static readonly ORDER_STATUS_TRANSITIONS: Record<
     string,
@@ -76,6 +80,15 @@ export class ProductsService {
     completed: [],
     cancelled: [],
   };
+
+  private isPausedGiftCard(product: {
+    product_categories?: { name: string } | null;
+  }): boolean {
+    return (
+      product.product_categories?.name ===
+      ProductsService.PAUSED_GIFT_CARD_CATEGORY
+    );
+  }
 
   constructor(
     private readonly productsRepository: ProductsRepository,
@@ -93,6 +106,27 @@ export class ProductsService {
         'An active premium subscription is required to manage products',
       );
     }
+  }
+
+  private throwOrderPersistenceError(error: unknown): never {
+    if (error instanceof Error) {
+      if (error.message === 'Idempotency key conflict') {
+        throw new ConflictException('Idempotency key conflict');
+      }
+      if (
+        /^(Invalid order|Product unavailable|SKU unavailable|Insufficient stock|Delivery quote|Payment|Cannot cancel|Order reservation)/.test(
+          error.message,
+        )
+      ) {
+        throw new BadRequestException(error.message);
+      }
+    }
+    throw error;
+  }
+
+  private hashGuestAccessToken(token?: string): string | null {
+    if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
+    return createHash('sha256').update(token).digest('hex');
   }
 
   async createProduct(data: CreateProductDto, requestUserId: string) {
@@ -186,7 +220,8 @@ export class ProductsService {
   }
 
   async getFeaturedProducts(limit = 8) {
-    return this.productsRepository.getFeaturedProducts(limit);
+    const products = await this.productsRepository.getFeaturedProducts(limit);
+    return products.filter((product) => !this.isPausedGiftCard(product));
   }
 
   async getProduct(id: string) {
@@ -303,13 +338,25 @@ export class ProductsService {
   // --- Shop Catalog & Orders Methods ---
 
   async getShopCategories(): Promise<ProductCategoryRow[]> {
-    return this.productsRepository.getShopCategories();
+    const categories = await this.productsRepository.getShopCategories();
+    return categories.filter(
+      (category) => category.name !== ProductsService.PAUSED_GIFT_CARD_CATEGORY,
+    );
   }
 
   async getShopCatalog(
     query?: GetShopCatalogQueryDto,
   ): Promise<ShopCatalogResult> {
-    return this.productsRepository.getShopCatalog(query);
+    const catalog = await this.productsRepository.getShopCatalog(query);
+    return {
+      products: catalog.products.filter(
+        (product) => !this.isPausedGiftCard(product),
+      ),
+      categories: catalog.categories.filter(
+        (category) =>
+          category.name !== ProductsService.PAUSED_GIFT_CARD_CATEGORY,
+      ),
+    };
   }
 
   async getShopProductDetails(
@@ -319,6 +366,11 @@ export class ProductsService {
       await this.productsRepository.getShopProductDetails(productId);
     if (!result.product) {
       throw new NotFoundException('Product not found');
+    }
+    if (this.isPausedGiftCard(result.product)) {
+      throw new BadRequestException(
+        'Gift card sales are temporarily unavailable',
+      );
     }
     return {
       product: result.product,
@@ -331,8 +383,53 @@ export class ProductsService {
     dto: CreateProductOrderDto,
     userId?: string,
   ): Promise<CreateOrderResult> {
+    const guestAccessTokenHash = userId
+      ? null
+      : this.hashGuestAccessToken(dto.guestAccessToken);
     if (!dto.items || dto.items.length === 0) {
       throw new BadRequestException('Order must contain at least one item');
+    }
+    if (
+      dto.items.some(
+        (item) => !Number.isInteger(item.quantity) || item.quantity <= 0,
+      )
+    ) {
+      throw new BadRequestException(
+        'Order item quantities must be positive integers',
+      );
+    }
+
+    const requestPayload = dto.requestId
+      ? {
+          currency: dto.currency,
+          subtotal: dto.subtotal,
+          customerNotes: dto.customerNotes ?? null,
+          recipient: { ...dto.recipient },
+          items: dto.items.map((item) => ({ ...item })),
+        }
+      : undefined;
+
+    if (dto.requestId && requestPayload) {
+      if (!userId && !guestAccessTokenHash) {
+        throw new BadRequestException(
+          'A secure guest access token is required for guest orders',
+        );
+      }
+      try {
+        const replay = await this.productsRepository.getProductOrderReplay(
+          dto.requestId,
+          requestPayload,
+          userId,
+          guestAccessTokenHash,
+        );
+        if (replay) {
+          return userId
+            ? replay
+            : { ...replay, guestAccessToken: dto.guestAccessToken };
+        }
+      } catch (error) {
+        this.throwOrderPersistenceError(error);
+      }
     }
 
     const currency = dto.currency || 'EUR';
@@ -345,6 +442,11 @@ export class ProductsService {
         .map((item) => item.skuId)
         .filter((id): id is string | number => id != null),
     );
+    if (dbProducts.some((product) => this.isPausedGiftCard(product))) {
+      throw new BadRequestException(
+        'Gift card sales are temporarily unavailable',
+      );
+    }
     const dbByProductId = new Map(dbProducts.map((p) => [Number(p.id), p]));
 
     let calculatedSubtotal = Money.zero(currency);
@@ -381,7 +483,7 @@ export class ProductsService {
         item.skuId = sku.id;
       }
 
-      if (stockFromDb < item.quantity) {
+      if (!dto.requestId && stockFromDb < item.quantity) {
         throw new BadRequestException(
           `Insufficient stock for product "${dbProduct.name}": requested ${item.quantity}, available ${stockFromDb}`,
         );
@@ -404,26 +506,157 @@ export class ProductsService {
 
     dto.subtotal = calculatedSubtotal.toDatabaseDecimal();
 
-    return this.productsRepository.createProductOrder(dto, userId);
+    if (!userId && !guestAccessTokenHash) {
+      throw new BadRequestException(
+        'A secure guest access token is required for guest orders',
+      );
+    }
+
+    try {
+      const result = await this.productsRepository.createProductOrder(
+        dto,
+        userId,
+        requestPayload,
+        guestAccessTokenHash,
+      );
+      return userId
+        ? result
+        : { ...result, guestAccessToken: dto.guestAccessToken };
+    } catch (error) {
+      this.throwOrderPersistenceError(error);
+    }
   }
 
   async getMyOrders(userId: string) {
-    return this.productsRepository.getMyOrders(userId);
+    const orders = await this.productsRepository.getMyOrders(userId);
+    return orders.map((order: Record<string, unknown>) =>
+      this.toBuyerOrder(order),
+    );
   }
 
-  async getOrderById(orderId: string | number, userId: string) {
-    const role = await this.userRolesRepo.getRole(userId);
+  private toBuyerOrder(order: Record<string, unknown>) {
+    const safeOrder = { ...order };
+    delete safeOrder.customer_id;
+    return safeOrder;
+  }
+
+  async getOrderById(
+    orderId: string | number,
+    userId?: string,
+    guestAccessToken?: string,
+  ) {
     const order = await this.productsRepository.getOrderById(orderId);
 
     if (!order) {
       throw new NotFoundException('Order not found');
     }
 
-    if (order.customer_id !== userId && role !== 'admin') {
-      throw new UnauthorizedException('Not authorized to view this order');
+    if (userId) {
+      const role = await this.userRolesRepo.getRole(userId);
+      if (role === 'admin') return order;
+      if (order.customer_id === userId) return this.toBuyerOrder(order);
     }
 
+    const guestAccessTokenHash = this.hashGuestAccessToken(guestAccessToken);
+    if (guestAccessTokenHash) {
+      const guestOrder = await this.productsRepository.getOrderByGuestAccess(
+        orderId,
+        guestAccessTokenHash,
+      );
+      if (guestOrder) return this.toBuyerOrder(guestOrder);
+    }
+
+    throw new NotFoundException('Order not found');
+  }
+
+  private async requireOrderManager(orderId: string | number, userId: string) {
+    const order = (await this.productsRepository.getOrderById(orderId)) as {
+      id: number;
+      items?: Array<{ product_id: string | number }> | null;
+    } | null;
+    if (!order) throw new NotFoundException('Order not found');
+
+    const role = await this.userRolesRepo.getRole(userId);
+    if (role !== 'admin') {
+      const itemIds = [
+        ...new Set((order.items ?? []).map((item) => String(item.product_id))),
+      ];
+      if (
+        itemIds.length === 0 ||
+        !(await this.productsRepository.sellerOwnsAllCatalogItems(
+          itemIds,
+          userId,
+        ))
+      ) {
+        throw new UnauthorizedException('Not authorized to manage this order');
+      }
+    }
     return order;
+  }
+
+  async confirmDeliveryQuote(
+    orderId: string | number,
+    dto: ConfirmDeliveryQuoteDto,
+    userId: string,
+  ) {
+    await this.requireOrderManager(orderId, userId);
+    try {
+      return await this.productsRepository.confirmDeliveryQuote(
+        orderId,
+        dto.deliveryFee,
+        dto.deliveryEta.trim(),
+      );
+    } catch (error) {
+      this.throwOrderPersistenceError(error);
+    }
+  }
+
+  private async requireBuyerAccess(
+    orderId: string | number,
+    userId?: string,
+    guestAccessToken?: string,
+  ) {
+    return this.getOrderById(orderId, userId, guestAccessToken);
+  }
+
+  async selectManualPayment(
+    orderId: string | number,
+    userId?: string,
+    guestAccessToken?: string,
+  ) {
+    await this.requireBuyerAccess(orderId, userId, guestAccessToken);
+    try {
+      return await this.productsRepository.selectManualPayment(orderId);
+    } catch (error) {
+      this.throwOrderPersistenceError(error);
+    }
+  }
+
+  async createOnlinePayment(
+    orderId: string | number,
+    userId?: string,
+    guestAccessToken?: string,
+  ) {
+    await this.requireBuyerAccess(orderId, userId, guestAccessToken);
+    try {
+      const order = await this.productsRepository.beginOnlinePayment(orderId);
+      const checkout = await this.billingService.createProductOrderCheckout({
+        orderId: order.id,
+        amount: Number(order.total_amount),
+        currency: order.currency,
+        customerEmail: order.recipient?.email,
+        quoteConfirmedAt: order.delivery_quote_confirmed_at,
+        expiresAt: order.checkout_expires_at,
+      });
+      await this.productsRepository.attachOnlinePaymentSession(
+        order.id,
+        checkout.sessionId,
+        checkout.expiresAt,
+      );
+      return { url: checkout.url };
+    } catch (error) {
+      this.throwOrderPersistenceError(error);
+    }
   }
 
   // --- Seller (Business Dashboard) ---
@@ -492,15 +725,144 @@ export class ProductsService {
   async getSellerOrders(sellerId: string) {
     const role = await this.userRolesRepo.getRole(sellerId);
     if (role === 'admin') {
-      return this.productsRepository.getAllOrders();
+      const orders = await this.productsRepository.getAllOrders();
+      return orders.map((order: Record<string, unknown>) => ({
+        ...order,
+        can_manage_order: true,
+      }));
     }
 
     const items = await this.productsRepository.getMyCatalogItems(sellerId);
     if (items.length === 0) return [];
 
-    return this.productsRepository.getOrdersContainingCatalogItems(
-      items.map((item) => item.id),
+    const ownedCatalogItemIds = new Set(items.map((item) => item.id));
+    const orders =
+      (await this.productsRepository.getOrdersContainingCatalogItems([
+        ...ownedCatalogItemIds,
+      ])) as unknown as Array<{
+        id: number;
+        currency: string;
+        status: string;
+        recipient?: Record<string, unknown> | null;
+        created_at: string;
+        items?: Array<{
+          id: number;
+          product_id: string | number;
+          product_name: string;
+          sku_label?: string | null;
+          quantity: number;
+          subtotal: number;
+        }> | null;
+      }>;
+
+    const fullOrders = (await this.productsRepository.getOrdersByIds(
+      orders.map((order) => order.id),
+    )) as Array<Record<string, unknown>>;
+    const fullById = new Map(
+      fullOrders.map((order) => [Number(order.id), order]),
     );
+
+    return orders.flatMap((order): Array<Record<string, unknown>> => {
+      const sellerItems = (order.items ?? [])
+        .filter((item) => {
+          const productId = Number(item.product_id);
+          return (
+            Number.isSafeInteger(productId) &&
+            ownedCatalogItemIds.has(productId)
+          );
+        })
+        .map((item) => ({
+          id: item.id,
+          product_name: item.product_name,
+          sku_label: item.sku_label,
+          quantity: item.quantity,
+          subtotal: item.subtotal,
+        }));
+
+      if (sellerItems.length === 0) return [];
+
+      const fullOrder = fullById.get(Number(order.id));
+      const fullItems = Array.isArray(fullOrder?.items)
+        ? (fullOrder.items as Array<{ product_id: string | number }>)
+        : [];
+      const canManageOrder =
+        fullItems.length > 0 &&
+        fullItems.every((item) => {
+          const productId = Number(item.product_id);
+          return (
+            Number.isSafeInteger(productId) &&
+            ownedCatalogItemIds.has(productId)
+          );
+        });
+      const recipient = order.recipient;
+      if (canManageOrder && fullOrder) {
+        const rawRecipient =
+          fullOrder.recipient && typeof fullOrder.recipient === 'object'
+            ? (fullOrder.recipient as Record<string, unknown>)
+            : null;
+        const fullRecipient = rawRecipient
+          ? {
+              ...(typeof rawRecipient.name === 'string'
+                ? { name: rawRecipient.name }
+                : {}),
+              ...(typeof rawRecipient.email === 'string'
+                ? { email: rawRecipient.email }
+                : {}),
+              ...(typeof rawRecipient.phone === 'string'
+                ? { phone: rawRecipient.phone }
+                : {}),
+              ...(typeof rawRecipient.address === 'string'
+                ? { address: rawRecipient.address }
+                : {}),
+              ...(typeof rawRecipient.contact_method === 'string'
+                ? { contact_method: rawRecipient.contact_method }
+                : {}),
+            }
+          : null;
+        return [
+          {
+            id: fullOrder.id,
+            currency: fullOrder.currency,
+            payment_provider: fullOrder.payment_provider,
+            payment_reconciliation_status:
+              fullOrder.payment_reconciliation_status,
+            status: fullOrder.status,
+            subtotal_items: fullOrder.subtotal_items,
+            delivery_fee: fullOrder.delivery_fee,
+            delivery_eta: fullOrder.delivery_eta,
+            delivery_quote_confirmed_at: fullOrder.delivery_quote_confirmed_at,
+            total_amount: fullOrder.total_amount,
+            reservation_expires_at: fullOrder.reservation_expires_at,
+            recipient: fullRecipient,
+            created_at: fullOrder.created_at,
+            items: fullOrder.items,
+            can_manage_order: true,
+          },
+        ];
+      }
+
+      return [
+        {
+          id: order.id,
+          currency: order.currency,
+          status: order.status,
+          recipient:
+            recipient && typeof recipient === 'object'
+              ? {
+                  ...(typeof recipient.name === 'string'
+                    ? { name: recipient.name }
+                    : {}),
+                  ...(typeof recipient.email === 'string'
+                    ? { email: recipient.email }
+                    : {}),
+                }
+              : null,
+          created_at: order.created_at,
+          items: sellerItems,
+          can_manage_order: false,
+        },
+      ];
+    });
   }
 
   async updateOrderStatus(
@@ -529,11 +891,15 @@ export class ProductsService {
       const itemIds = [
         ...new Set((order.items ?? []).map((item) => String(item.product_id))),
       ];
-      const ownsItem = await this.productsRepository.sellerOwnsAnyCatalogItem(
-        itemIds,
-        userId,
-      );
-      if (!ownsItem) {
+      if (itemIds.length === 0) {
+        throw new UnauthorizedException('Not authorized to update this order');
+      }
+      const ownsEveryItem =
+        await this.productsRepository.sellerOwnsAllCatalogItems(
+          itemIds,
+          userId,
+        );
+      if (!ownsEveryItem) {
         throw new UnauthorizedException('Not authorized to update this order');
       }
     }

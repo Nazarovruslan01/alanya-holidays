@@ -8,6 +8,7 @@ import { AddonWebhookHandler } from './handlers/addon-webhook.handler';
 import { SubscriptionWebhookHandler } from './handlers/subscription-webhook.handler';
 import { BookingWebhookHandler } from './handlers/booking-webhook.handler';
 import { ProcessedStripeEventsRepository } from './processed-stripe-events.repository';
+import { ProductOrderWebhookHandler } from './handlers/product-order-webhook.handler';
 
 @Injectable()
 export class StripeWebhookService {
@@ -19,6 +20,7 @@ export class StripeWebhookService {
     private readonly addonHandler: AddonWebhookHandler,
     private readonly subscriptionHandler: SubscriptionWebhookHandler,
     private readonly bookingHandler: BookingWebhookHandler,
+    private readonly productOrderHandler: ProductOrderWebhookHandler,
     private readonly processedEvents: ProcessedStripeEventsRepository,
   ) {}
 
@@ -62,7 +64,9 @@ export class StripeWebhookService {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object;
-        if (session.metadata?.type === 'listing_addon') {
+        if (session.metadata?.type === 'product_order') {
+          await this.productOrderHandler.handleCheckoutSession(session);
+        } else if (session.metadata?.type === 'listing_addon') {
           await this.addonHandler.handleCheckoutSession(session);
         } else if (session.metadata?.bookingIds) {
           await this.bookingHandler.handleCheckoutSession(session);

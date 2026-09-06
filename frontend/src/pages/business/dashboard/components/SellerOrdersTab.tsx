@@ -12,6 +12,8 @@ import {
   Loader2,
   User,
   Mail,
+  Phone,
+  MapPin,
 } from "lucide-react";
 import {
   ordersService,
@@ -89,6 +91,7 @@ export const SellerOrdersTab: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actingOrderId, setActingOrderId] = useState<string | number | null>(null);
+  const [quoteDrafts, setQuoteDrafts] = useState<Record<string, { fee: string; eta: string }>>({});
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
@@ -121,6 +124,22 @@ export const SellerOrdersTab: React.FC = () => {
     } catch (err) {
       logger.error("Failed to update order status:", err);
       setError(t("merchant.orderUpdateFailed"));
+    } finally {
+      setActingOrderId(null);
+    }
+  };
+
+  const handleQuote = async (order: SellerOrder) => {
+    const draft = quoteDrafts[String(order.id)] ?? { fee: "", eta: "" };
+    if (draft.fee.trim() === "") return;
+    const fee = Number(draft.fee);
+    if (!Number.isFinite(fee) || fee < 0 || !draft.eta.trim()) return;
+    setActingOrderId(order.id);
+    try {
+      await ordersService.confirmDeliveryQuote(order.id, fee, draft.eta.trim());
+      await loadOrders();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("merchant.orderUpdateFailed"));
     } finally {
       setActingOrderId(null);
     }
@@ -173,7 +192,13 @@ export const SellerOrdersTab: React.FC = () => {
           const badge =
             STATUS_BADGES[statusKey] ||
             STATUS_BADGES.pending_payment;
-          const actions = NEXT_ACTIONS[statusKey] || [];
+          const actions = order.can_manage_order
+            ? (NEXT_ACTIONS[statusKey] || []).filter((action) => {
+                if (action.status === "paid") return order.payment_provider === "manual";
+                if (action.status === "cancelled" && order.payment_provider === "stripe") return false;
+                return true;
+              })
+            : [];
           const items = order.items || [];
           const total = items.reduce((sum, item) => sum + Number(item.subtotal ?? 0), 0);
           const recipientName =
@@ -181,6 +206,11 @@ export const SellerOrdersTab: React.FC = () => {
           const recipientEmail =
             typeof order.recipient?.email === "string" ? order.recipient.email : null;
           const isActing = actingOrderId === order.id;
+          const recipientPhone = order.can_manage_order && typeof order.recipient?.phone === "string" ? order.recipient.phone : null;
+          const recipientAddress = order.can_manage_order && typeof order.recipient?.address === "string" ? order.recipient.address : null;
+          const displayedTotal = order.can_manage_order && order.total_amount != null
+            ? Number(order.total_amount)
+            : total;
 
           return (
             <div
@@ -244,7 +274,7 @@ export const SellerOrdersTab: React.FC = () => {
                 <div className="flex items-center justify-between gap-3 px-4 py-2.5 text-xs sm:text-sm bg-secondary-50/60 dark:bg-slate-950/40 rounded-b-xl">
                   <span className="font-semibold text-secondary-700 dark:text-slate-300">{t("merchant.total")}</span>
                   <span className="font-bold text-secondary-900 dark:text-white">
-                    {order.currency || "EUR"} {total.toFixed(2)}
+                    {order.currency || "EUR"} {displayedTotal.toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -264,7 +294,48 @@ export const SellerOrdersTab: React.FC = () => {
                       {recipientEmail}
                     </span>
                   )}
+                  {recipientPhone && <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" />{recipientPhone}</span>}
+                  {recipientAddress && <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" />{recipientAddress}</span>}
                 </div>
+              )}
+
+              {order.can_manage_order && order.payment_reconciliation_status && order.payment_reconciliation_status !== "none" && (
+                <div role="alert" className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-900">
+                  {t("merchant.paymentReview")}
+                </div>
+              )}
+
+              {order.can_manage_order && statusKey === "pending_payment" && !order.delivery_quote_confirmed_at && (
+                <div className="grid sm:grid-cols-[120px_1fr_auto] gap-2 pt-3 border-t border-secondary-100">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    aria-label={t("merchant.deliveryFee")}
+                    placeholder={t("merchant.deliveryFee")}
+                    value={quoteDrafts[String(order.id)]?.fee ?? ""}
+                    onChange={(event) => setQuoteDrafts((current) => ({ ...current, [String(order.id)]: { fee: event.target.value, eta: current[String(order.id)]?.eta ?? "" } }))}
+                    className="px-3 py-2 rounded-xl border border-secondary-200"
+                  />
+                  <input
+                    type="text"
+                    maxLength={200}
+                    aria-label={t("merchant.deliveryEta")}
+                    placeholder={t("merchant.deliveryEta")}
+                    value={quoteDrafts[String(order.id)]?.eta ?? ""}
+                    onChange={(event) => setQuoteDrafts((current) => ({ ...current, [String(order.id)]: { fee: current[String(order.id)]?.fee ?? "", eta: event.target.value } }))}
+                    className="px-3 py-2 rounded-xl border border-secondary-200"
+                  />
+                  <button type="button" disabled={isActing} onClick={() => void handleQuote(order)} className="px-4 py-2 rounded-xl bg-primary-500 text-white font-semibold disabled:opacity-50">
+                    {t("merchant.confirmDelivery")}
+                  </button>
+                </div>
+              )}
+
+              {order.can_manage_order && order.delivery_quote_confirmed_at && (
+                <p className="text-sm text-secondary-600">
+                  {t("merchant.deliveryConfirmed", { fee: Number(order.delivery_fee ?? 0).toFixed(2), currency: order.currency || "EUR", eta: order.delivery_eta })}
+                </p>
               )}
 
               {/* Fulfillment actions */}

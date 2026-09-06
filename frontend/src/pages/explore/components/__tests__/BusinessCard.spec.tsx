@@ -66,7 +66,7 @@ describe("BusinessCard Component (Milestone M2 / R1)", () => {
     expect(screen.getByText("12:00 - 00:00")).toBeInTheDocument();
     expect(screen.getByText("Seafood")).toBeInTheDocument();
     expect(screen.getByText("Sunset View")).toBeInTheDocument();
-    expect(screen.getByText("Call")).toHaveAttribute("href", "tel:+90 242 511 0000");
+    expect(screen.getByText("Call")).toHaveAttribute("href", "tel:+902425110000");
     expect(screen.getByText("Website")).toHaveAttribute("href", "https://alanya-bistro.test");
   });
 

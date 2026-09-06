@@ -18,6 +18,7 @@ describe('ItinerariesController', () => {
     title: '3 Days in Alanya',
     params: { days: 3 },
     itinerary: [{ day: 1, activities: ['Castle visit'] }],
+    is_public: false,
     created_at: '2026-08-19T00:00:00.000Z',
   };
 
@@ -95,11 +96,23 @@ describe('ItinerariesController', () => {
   });
 
   describe('getItineraryById', () => {
-    it('should delegate getItineraryById to service', async () => {
-      const result = await controller.getItineraryById('itin-123');
+    it('delegates the optional viewer identity to the service', async () => {
+      const result = await controller.getItineraryById('itin-123', mockUser);
 
       expect(result).toEqual(mockItinerary);
-      expect(mockService.getItineraryById).toHaveBeenCalledWith('itin-123');
+      expect(mockService.getItineraryById).toHaveBeenCalledWith(
+        'itin-123',
+        'user-1',
+      );
+    });
+
+    it('delegates an anonymous by-id request without an owner identity', async () => {
+      await controller.getItineraryById('itin-123');
+
+      expect(mockService.getItineraryById).toHaveBeenCalledWith(
+        'itin-123',
+        undefined,
+      );
     });
   });
 

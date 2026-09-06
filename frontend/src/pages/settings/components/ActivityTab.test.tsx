@@ -101,14 +101,15 @@ describe("Activity Hub (Milestone 4 — R3)", () => {
       const mockOrders = [
         {
           id: "ORD-9901",
-          status: "completed",
+          status: "paid",
           currency: "EUR",
-          total_price: 145.5,
+          subtotal_items: 145.5,
+          total_price: 999,
           created_at: "2026-03-10T14:30:00Z",
           recipient_name: "Elena Rostova",
           items: [
             {
-              productName: "Alanya Organic Olive Oil Hamper",
+              product_name: "Alanya Organic Olive Oil Hamper",
               quantity: 2,
               unitPrice: 45.0,
             },
@@ -121,7 +122,7 @@ describe("Activity Hub (Milestone 4 — R3)", () => {
         },
         {
           id: "ORD-9902",
-          status: "pending",
+          status: "pending_payment",
           currency: "EUR",
           total_price: 89.0,
           created_at: "2026-04-01T09:15:00Z",
@@ -150,8 +151,10 @@ describe("Activity Hub (Milestone 4 — R3)", () => {
       expect(screen.getByText(/Alanya Organic Olive Oil Hamper/i)).toBeInTheDocument();
       expect(screen.getByText(/ORD-9902/i)).toBeInTheDocument();
       expect(screen.getByText(/Sunset Boat Tour Voucher/i)).toBeInTheDocument();
-      expect(screen.getByText(/Completed/i)).toBeInTheDocument();
-      expect(screen.getByText(/Pending/i)).toBeInTheDocument();
+      expect(screen.getByText(/^Paid$/i)).toBeInTheDocument();
+      expect(screen.getByText(/^Pending payment$/i)).toBeInTheDocument();
+      expect(screen.getByText("145.50 EUR")).toBeInTheDocument();
+      expect(screen.queryByText(/^Completed$/i)).not.toBeInTheDocument();
     });
 
     it("handles order fetch error gracefully and shows error alert", async () => {

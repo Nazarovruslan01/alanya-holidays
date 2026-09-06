@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { PlanItem } from "@/hooks/usePlanner";
 import { itinerariesService, type SavedItinerary } from "@/api-services/itineraries.service";
+import { useAuth } from "@/context/AuthContext";
+import type { RequestOptions } from "@/lib/api-client";
 import { safeStorage } from "@/lib/storage";
 import { logger } from "@/lib/logger";
 
@@ -17,12 +19,10 @@ export interface SharedPlan {
 }
 
 const STORAGE_KEY = "alanya-community-plans";
+const DEMO_SHARE_IDS = new Set(["community-1", "community-2", "community-3"]);
 
-function generateId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return `share-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+function getAuthOptions(accessToken: string): RequestOptions {
+  return { headers: { Authorization: `Bearer ${accessToken}` } };
 }
 
 function seedCommunityPlans(): SharedPlan[] {
@@ -263,8 +263,11 @@ function mapSavedItineraryToSharedPlan(itin: SavedItinerary): SharedPlan {
 }
 
 export function useSharedPlans() {
+  const { user, session } = useAuth();
   const [sharedPlans, setSharedPlans] = useState<SharedPlan[]>(loadSharedPlans);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const activeUserIdRef = useRef(user?.id ?? null);
+  activeUserIdRef.current = user?.id ?? null;
 
   useEffect(() => {
     saveSharedPlans(sharedPlans);
@@ -274,11 +277,13 @@ export function useSharedPlans() {
     setIsLoading(true);
     try {
       const data = await itinerariesService.getCommunityItineraries({ category });
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         const cloudShared = data.map(mapSavedItineraryToSharedPlan);
         setSharedPlans((prev) => {
           const map = new Map<string, SharedPlan>();
-          prev.forEach((p) => map.set(p.shareId, p));
+          prev
+            .filter((plan) => DEMO_SHARE_IDS.has(plan.shareId))
+            .forEach((plan) => map.set(plan.shareId, plan));
           cloudShared.forEach((cp) => map.set(cp.shareId, cp));
           return Array.from(map.values());
         });
@@ -292,7 +297,7 @@ export function useSharedPlans() {
   }, []);
 
   const sharePlan = useCallback(
-    (
+    async (
       plan: {
         id: string;
         name: string;
@@ -300,9 +305,14 @@ export function useSharedPlans() {
         items: PlanItem[];
       },
       authorName?: string,
-    ): SharedPlan => {
+    ): Promise<SharedPlan> => {
+      if (!user || !session?.access_token) {
+        throw new Error("Sign in to publish a plan");
+      }
+
+      const ownerId = user.id;
       const newShared: SharedPlan = {
-        shareId: generateId(),
+        shareId: plan.id,
         originalPlanId: plan.id,
         name: plan.name,
         description: plan.description || "",
@@ -312,33 +322,62 @@ export function useSharedPlans() {
         items: plan.items.map(({ id: _id, ...rest }) => rest),
         copyCount: 0,
       };
-      setSharedPlans((prev) => [newShared, ...prev]);
 
-      // Background cloud save attempt
-      itinerariesService
-        .saveItinerary({
+      const saved = await itinerariesService.updateItinerary(
+        plan.id,
+        {
           title: plan.name,
           params: {
             description: plan.description || "",
             authorName: authorName || "Alanya Traveler",
             category: "Community",
-            shared: true,
             originalPlanId: plan.id,
           },
           itinerary: plan.items,
-        })
-        .catch(() => {
-          // silent offline fallback
-        });
+          is_public: true,
+        },
+        getAuthOptions(session.access_token),
+      );
+      if (saved.id !== plan.id || saved.is_public !== true) {
+        throw new Error("Itinerary publication was not confirmed");
+      }
+
+      if (activeUserIdRef.current === ownerId) {
+        setSharedPlans((previous) => [
+          newShared,
+          ...previous.filter((shared) => shared.shareId !== newShared.shareId),
+        ]);
+      }
 
       return newShared;
     },
-    [],
+    [session?.access_token, user],
   );
 
-  const unsharePlan = useCallback((shareId: string) => {
-    setSharedPlans((prev) => prev.filter((p) => p.shareId !== shareId));
-  }, []);
+  const unsharePlan = useCallback(
+    async (shareId: string): Promise<void> => {
+      if (!user || !session?.access_token) {
+        throw new Error("Sign in to unpublish a plan");
+      }
+
+      const ownerId = user.id;
+      const saved = await itinerariesService.updateItinerary(
+        shareId,
+        { is_public: false },
+        getAuthOptions(session.access_token),
+      );
+      if (saved.id !== shareId || saved.is_public !== false) {
+        throw new Error("Itinerary unpublication was not confirmed");
+      }
+
+      if (activeUserIdRef.current === ownerId) {
+        setSharedPlans((previous) =>
+          previous.filter((shared) => shared.shareId !== shareId),
+        );
+      }
+    },
+    [session?.access_token, user],
+  );
 
   const incrementCopyCount = useCallback((shareId: string) => {
     setSharedPlans((prev) =>
@@ -350,7 +389,9 @@ export function useSharedPlans() {
 
   const isPlanShared = useCallback(
     (planId: string): string | null => {
-      const found = sharedPlans.find((p) => p.originalPlanId === planId);
+      const found = sharedPlans.find(
+        (plan) => plan.originalPlanId === planId || plan.shareId === planId,
+      );
       return found ? found.shareId : null;
     },
     [sharedPlans],

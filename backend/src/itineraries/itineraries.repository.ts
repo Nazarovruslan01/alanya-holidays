@@ -9,6 +9,7 @@ export interface SavedItineraryRow {
   title: string;
   params: Record<string, unknown>;
   itinerary: unknown[];
+  is_public: boolean;
   created_at: string;
 }
 
@@ -27,15 +28,32 @@ export class ItinerariesRepository {
     const { data, error } = await this.client
       .from('saved_itineraries')
       .insert({
+        ...(dto.id ? { id: dto.id } : {}),
         user_id: userId,
         title: dto.title,
         params: dto.params || {},
         itinerary: dto.itinerary || [],
+        is_public: false,
       })
       .select()
       .single();
 
-    if (error) throw new Error(error.message);
+    if (error) {
+      if (error.code === '23505' && dto.id) {
+        const { data: existing, error: lookupError } = await this.client
+          .from('saved_itineraries')
+          .select('*')
+          .eq('id', dto.id)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (!lookupError && existing) {
+          return existing as SavedItineraryRow;
+        }
+      }
+
+      throw new Error(error.message);
+    }
     return data as SavedItineraryRow;
   }
 
@@ -65,6 +83,7 @@ export class ItinerariesRepository {
     const { data, error } = await this.client
       .from('saved_itineraries')
       .select('*')
+      .eq('is_public', true)
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -75,16 +94,19 @@ export class ItinerariesRepository {
   async updateItinerary(
     id: string,
     dto: UpdateItineraryDto,
+    userId: string,
   ): Promise<SavedItineraryRow> {
     const updateData: Record<string, unknown> = {};
     if (dto.title !== undefined) updateData.title = dto.title;
     if (dto.params !== undefined) updateData.params = dto.params;
     if (dto.itinerary !== undefined) updateData.itinerary = dto.itinerary;
+    if (dto.is_public !== undefined) updateData.is_public = dto.is_public;
 
     const { data, error } = await this.client
       .from('saved_itineraries')
       .update(updateData)
       .eq('id', id)
+      .eq('user_id', userId)
       .select()
       .single();
 
@@ -92,11 +114,12 @@ export class ItinerariesRepository {
     return data as SavedItineraryRow;
   }
 
-  async deleteItinerary(id: string): Promise<void> {
+  async deleteItinerary(id: string, userId: string): Promise<void> {
     const { error } = await this.client
       .from('saved_itineraries')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', userId);
 
     if (error) throw new Error(error.message);
   }

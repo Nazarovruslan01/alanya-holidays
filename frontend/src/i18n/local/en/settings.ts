@@ -28,4 +28,11 @@ export default {
   "settings.profileUpdatedDescription": "Your changes have been saved to your account.",
   "settings.passwordChangedTitle": "Password Changed",
   "settings.passwordChangedDescription": "Your password was updated successfully.",
+  "settings.orderStatus.pending_payment": "Pending payment",
+  "settings.orderStatus.paid": "Paid",
+  "settings.orderStatus.shipped": "Shipped",
+  "settings.orderStatus.completed": "Completed",
+  "settings.orderStatus.cancelled": "Cancelled",
+  "settings.orderStatus.expired": "Expired",
+  "settings.orderStatus.placed": "Placed",
 };

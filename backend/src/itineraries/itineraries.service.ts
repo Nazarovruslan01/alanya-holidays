@@ -58,9 +58,12 @@ export class ItinerariesService {
     return this.itinerariesRepository.findCommunity(limit);
   }
 
-  async getItineraryById(id: string): Promise<SavedItineraryRow> {
+  async getItineraryById(
+    id: string,
+    userId?: string,
+  ): Promise<SavedItineraryRow> {
     const itinerary = await this.itinerariesRepository.findById(id);
-    if (!itinerary) {
+    if (!itinerary || (!itinerary.is_public && itinerary.user_id !== userId)) {
       throw new NotFoundException(`Itinerary with ID ${id} not found`);
     }
     return itinerary;
@@ -71,26 +74,26 @@ export class ItinerariesService {
     dto: UpdateItineraryDto,
     userId: string,
   ): Promise<SavedItineraryRow> {
-    const existing = await this.getItineraryById(id);
+    const existing = await this.getItineraryById(id, userId);
     if (existing.user_id !== userId) {
       throw new ForbiddenException(
         'You do not have permission to update this itinerary',
       );
     }
-    return this.itinerariesRepository.updateItinerary(id, dto);
+    return this.itinerariesRepository.updateItinerary(id, dto, userId);
   }
 
   async deleteItinerary(
     id: string,
     userId: string,
   ): Promise<{ success: boolean }> {
-    const existing = await this.getItineraryById(id);
+    const existing = await this.getItineraryById(id, userId);
     if (existing.user_id !== userId) {
       throw new ForbiddenException(
         'You do not have permission to delete this itinerary',
       );
     }
-    await this.itinerariesRepository.deleteItinerary(id);
+    await this.itinerariesRepository.deleteItinerary(id, userId);
     return { success: true };
   }
 }

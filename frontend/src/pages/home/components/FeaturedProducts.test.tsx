@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import "@testing-library/jest-dom";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { productsService, type ShopProduct } from "@/api-services/products.service";
 import FeaturedProducts from "./FeaturedProducts";
 import i18n from "@/i18n";
@@ -26,7 +27,6 @@ describe("FeaturedProducts", () => {
   it("localizes product chrome in Russian while preserving product content", async () => {
     await i18n.changeLanguage("ru");
     vi.spyOn(productsService, "getFeaturedProducts").mockResolvedValue([product]);
-
     render(
       <MemoryRouter>
         <FeaturedProducts />
@@ -51,5 +51,41 @@ describe("FeaturedProducts", () => {
     );
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Products API unavailable");
+  });
+
+  it("keeps ordinary featured products but does not promote gift cards", async () => {
+    vi.spyOn(productsService, "getFeaturedProducts").mockResolvedValue([
+      {
+        ...product,
+        id: 7,
+        name: "Ceramic Vase",
+        description: "Handmade in Alanya",
+        price: 40,
+      },
+      {
+        ...product,
+        id: 99,
+        name: "Gift Voucher",
+        description: "Paused gift card",
+        price: 50,
+        category_id: 9,
+        product_categories: { id: 9, name: "Gift Cards" },
+      },
+    ]);
+
+    render(
+      <MemoryRouter>
+        <FeaturedProducts />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Ceramic Vase" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Gift Voucher" })).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Every purchase helps keep AlanyaHolidays running — from server costs to community events.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Gift cards and community favorites/i)).not.toBeInTheDocument();
   });
 });
