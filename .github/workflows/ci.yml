@@ -63,6 +63,12 @@ jobs:
     - name: Frontend Tests
       run: pnpm --filter @alanya-holidays/frontend test --run
 
+    - name: Install Backend Media Probe
+      run: |
+        sudo apt-get update
+        sudo apt-get install --yes --no-install-recommends ffmpeg
+        ffprobe -version
+
     - name: Backend Tests
       run: pnpm --filter @alanya-holidays/backend test
 

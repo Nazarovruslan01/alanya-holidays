@@ -112,6 +112,23 @@ frontend$ ./node_modules/.bin/eslint src/pages/blog/submit/page.test.tsx --repor
 passed with zero warnings
 ```
 
+Publication run `34050068525` then ran on Ubuntu 24.04 image `20260831.293.1`, whose official
+[installed-software manifest](https://github.com/actions/runner-images/blob/ubuntu24/20260831.293/images/ubuntu/Ubuntu2404-Readme.md)
+does not include ffmpeg. The real probe test failed while the other 2,142 backend tests passed. CI
+now installs the Ubuntu `ffmpeg` package and runs `ffprobe -version` before backend tests; the Docker
+runtime already included ffmpeg. The local real-probe gate passed after the workflow-only repair:
+
+```text
+backend$ ./node_modules/.bin/jest --runInBand media/inline-media.ffprobe.spec.ts
+1 suite, 1 test passed
+
+$ ruby -e "require 'yaml'; workflow = YAML.load_file('.github/workflows/ci.yml'); steps = workflow.fetch('jobs').fetch('ci').fetch('steps'); names = steps.map { |step| step['name'] }; install_index = names.index('Install Backend Media Probe'); test_index = names.index('Backend Tests'); abort('media probe setup missing or ordered after backend tests') unless install_index && test_index && install_index < test_index; run = steps.fetch(install_index).fetch('run'); abort('ffmpeg install missing') unless run.include?('apt-get install --yes --no-install-recommends ffmpeg'); abort('ffprobe preflight missing') unless run.include?('ffprobe -version'); puts 'workflow YAML parsed; ffmpeg install and ffprobe preflight precede backend tests'"
+workflow YAML parsed; ffmpeg install and ffprobe preflight precede backend tests
+```
+
+The GitHub-hosted Ubuntu runner remains the final gate for the package-install step. No backend code,
+probe fixture, test expectation, application dependency, or production runtime changed.
+
 There is no global Jest sanitizer shim. Sanitizer mocks are file-scoped in
 `backend/src/admin/challenger-m3-adversarial.spec.ts`, `backend/src/blog/blog.controller.spec.ts`,
 `backend/src/blog/blog.service.spec.ts`, `backend/src/forum/application/forum-discussion.service.spec.ts`,
