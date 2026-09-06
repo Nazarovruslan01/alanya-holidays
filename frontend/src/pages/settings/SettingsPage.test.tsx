@@ -8,6 +8,7 @@ import { ProfileTab } from "./components/ProfileTab";
 import { SecurityTab } from "./components/SecurityTab";
 import { SettingsHero } from "./components/SettingsHero";
 import type { UserProfile } from "@/context/AuthContext";
+import { apiClient } from "@/lib/api-client";
 
 // Mock AuthContext
 const mockUpdateProfile = vi.fn();
@@ -91,6 +92,7 @@ describe("Settings Hub (Milestone 3)", () => {
     mockNavigate.mockClear();
     mockUpdateProfile.mockResolvedValue({ profile: defaultProfile, error: null });
     mockUpdatePassword.mockResolvedValue({ error: null });
+    vi.spyOn(apiClient, "post");
     mockAuthState = {
       user: defaultUser,
       profile: defaultProfile,
@@ -367,6 +369,180 @@ describe("Settings Hub (Milestone 3)", () => {
       fireEvent.click(resetBtn);
 
       expect(nameInput).toHaveValue("Elena Rostova");
+    });
+
+    it("previews a selected file, drafts the processed URL, and saves it", async () => {
+      const upload = Promise.resolve({
+        originalName: "avatar.png",
+        url: "https://cdn.example/avatar-full.webp",
+        thumbnailUrl: "https://cdn.example/avatar-thumb.webp",
+        format: "webp" as const,
+        sizeBytes: 120,
+      });
+      vi.mocked(apiClient.post).mockResolvedValueOnce(upload);
+      const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:avatar-preview");
+      const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+
+      render(<ProfileTab profile={defaultProfile} onProfileUpdated={vi.fn()} />);
+
+      const file = new File(["avatar"], "avatar.png", { type: "image/png" });
+      fireEvent.change(screen.getByLabelText(/Upload avatar/i), { target: { files: [file] } });
+
+      expect(screen.getByAltText("Avatar preview")).toHaveAttribute("src", "blob:avatar-preview");
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Avatar Image/i)).toHaveValue("https://cdn.example/avatar-full.webp");
+      });
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:avatar-preview");
+
+      fireEvent.click(screen.getByRole("button", { name: /Save Changes/i }));
+      await waitFor(() => {
+        expect(mockUpdateProfile).toHaveBeenCalledWith(expect.objectContaining({
+          avatar_url: "https://cdn.example/avatar-full.webp",
+        }));
+      });
+      createObjectURL.mockRestore();
+      revokeObjectURL.mockRestore();
+    });
+
+    it.each([
+      ["image/svg+xml", 1, /JPEG, PNG, and WebP/i],
+      ["image/png", 5 * 1024 * 1024 + 1, /5 MB/i],
+      ["image/png", 0, /empty/i],
+    ])("shows a local avatar validation error and keeps the previous avatar", async (type, size, message) => {
+      const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:invalid");
+      const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+      const file = new File(["avatar"], "avatar.png", { type });
+      Object.defineProperty(file, "size", { value: size });
+
+      render(<ProfileTab profile={defaultProfile} />);
+      fireEvent.change(screen.getByLabelText(/Upload avatar/i), { target: { files: [file] } });
+
+      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(message));
+      expect(screen.getByLabelText(/Avatar Image/i)).toHaveValue(defaultProfile.avatar_url);
+      expect(apiClient.post).not.toHaveBeenCalled();
+      createObjectURL.mockRestore();
+      revokeObjectURL.mockRestore();
+    });
+
+    it("keeps the previous avatar after an upload error and allows retry", async () => {
+      vi.mocked(apiClient.post)
+        .mockRejectedValueOnce(new Error("Upload unavailable"))
+        .mockResolvedValueOnce({
+          originalName: "avatar.png",
+          url: "https://cdn.example/retry.webp",
+          thumbnailUrl: "https://cdn.example/retry-thumb.webp",
+          format: "webp" as const,
+          sizeBytes: 100,
+        });
+      vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:retry");
+      vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+
+      render(<ProfileTab profile={defaultProfile} />);
+      const input = screen.getByLabelText(/Upload avatar/i);
+      const file = new File(["avatar"], "avatar.png", { type: "image/png" });
+      fireEvent.change(input, { target: { files: [file] } });
+      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Upload unavailable"));
+      expect(screen.getByLabelText(/Avatar Image/i)).toHaveValue(defaultProfile.avatar_url);
+
+      fireEvent.change(input, { target: { files: [file] } });
+      await waitFor(() => expect(screen.getByLabelText(/Avatar Image/i)).toHaveValue("https://cdn.example/retry.webp"));
+    });
+
+    it("blocks save while an avatar upload is pending", async () => {
+      let resolveUpload: (value: unknown) => void = () => undefined;
+      vi.mocked(apiClient.post).mockReturnValueOnce(new Promise((resolve) => { resolveUpload = resolve; }));
+      vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:pending");
+      vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+
+      render(<ProfileTab profile={defaultProfile} />);
+      fireEvent.change(screen.getByLabelText(/Upload avatar/i), {
+        target: { files: [new File(["avatar"], "avatar.png", { type: "image/png" })] },
+      });
+      const saveButton = screen.getByRole("button", { name: /Save Changes/i });
+      expect(saveButton).toBeDisabled();
+      fireEvent.click(saveButton);
+      expect(mockUpdateProfile).not.toHaveBeenCalled();
+
+      resolveUpload({
+        originalName: "avatar.png",
+        url: "https://cdn.example/pending.webp",
+        thumbnailUrl: "https://cdn.example/pending-thumb.webp",
+        format: "webp",
+        sizeBytes: 100,
+      });
+      await waitFor(() => expect(saveButton).not.toBeDisabled());
+    });
+
+    it("ignores a stale upload after a newer preset selection", async () => {
+      let resolveUpload: (value: unknown) => void = () => undefined;
+      vi.mocked(apiClient.post).mockReturnValueOnce(new Promise((resolve) => { resolveUpload = resolve; }));
+      vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:stale");
+      vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+
+      render(<ProfileTab profile={defaultProfile} />);
+      fireEvent.change(screen.getByLabelText(/Upload avatar/i), {
+        target: { files: [new File(["avatar"], "avatar.png", { type: "image/png" })] },
+      });
+      const preset = screen.getByRole("button", { name: "Preset 1" });
+      fireEvent.click(preset);
+      const presetUrl = preset.querySelector("img")?.getAttribute("src");
+
+      resolveUpload({
+        originalName: "avatar.png",
+        url: "https://cdn.example/stale.webp",
+        thumbnailUrl: "https://cdn.example/stale-thumb.webp",
+        format: "webp",
+        sizeBytes: 100,
+      });
+      await waitFor(() => expect(screen.getByLabelText(/Avatar Image/i)).toHaveValue(presetUrl));
+      expect(screen.getByLabelText(/Avatar Image/i)).not.toHaveValue("https://cdn.example/stale.webp");
+    });
+
+    it("clears an old profile during a user switch and ignores its late upload", async () => {
+      let resolveUpload: (value: unknown) => void = () => undefined;
+      vi.mocked(apiClient.post).mockReturnValueOnce(new Promise((resolve) => { resolveUpload = resolve; }));
+      vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:user-a");
+      vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+
+      const { rerender } = render(<ProfileTab profile={defaultProfile} />);
+      fireEvent.change(screen.getByLabelText(/Upload avatar/i), {
+        target: { files: [new File(["avatar"], "avatar.png", { type: "image/png" })] },
+      });
+
+      mockAuthState = {
+        ...mockAuthState,
+        user: { id: "usr_b", email: "b@example.com", created_at: "2026-02-01T00:00:00.000Z" },
+      };
+      rerender(<ProfileTab profile={defaultProfile} />);
+
+      expect(screen.getByLabelText(/Full Name/i)).toHaveValue("");
+      expect(screen.getByLabelText(/Avatar Image/i)).toHaveValue("");
+      expect(screen.getByRole("button", { name: /Save Changes/i })).toBeDisabled();
+      expect(screen.getByLabelText(/Upload avatar/i)).toBeDisabled();
+
+      resolveUpload({
+        originalName: "avatar.png",
+        url: "https://cdn.example/user-a.webp",
+        thumbnailUrl: "https://cdn.example/user-a-thumb.webp",
+        format: "webp",
+        sizeBytes: 100,
+      });
+      await waitFor(() => expect(screen.getByLabelText(/Avatar Image/i)).toHaveValue(""));
+
+      const profileB: UserProfile = {
+        ...defaultProfile,
+        id: "usr_b",
+        email: "b@example.com",
+        full_name: "Traveler B",
+        avatar_url: "https://cdn.example/user-b.webp",
+      };
+      mockAuthState = { ...mockAuthState, profile: profileB };
+      rerender(<ProfileTab profile={profileB} />);
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Full Name/i)).toHaveValue("Traveler B");
+        expect(screen.getByLabelText(/Avatar Image/i)).toHaveValue("https://cdn.example/user-b.webp");
+      });
     });
   });
 

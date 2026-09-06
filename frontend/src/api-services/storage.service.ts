@@ -14,6 +14,7 @@ const EVENT_VIDEO_EXTENSIONS: Record<string, "mp4" | "webm"> = {
   "video/mp4": "mp4",
   "video/webm": "webm",
 };
+const AVATAR_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 export interface UploadedEventImage {
   mediaId: string;
@@ -24,6 +25,14 @@ export interface UploadedEventImage {
 export interface UploadedEventVideo {
   mediaId: string;
   url: string;
+}
+
+export interface UploadedAvatarImage {
+  originalName: string;
+  url: string;
+  thumbnailUrl: string;
+  format: "webp";
+  sizeBytes: number;
 }
 
 function validateEventImage(file: File): void {
@@ -50,6 +59,18 @@ function validateEventVideo(file: File): "mp4" | "webm" {
     throw new Error("Video must not exceed 50 MB");
   }
   return extension;
+}
+
+function validateAvatarImage(file: File): void {
+  if (!AVATAR_IMAGE_TYPES.has(file.type)) {
+    throw new Error("Only JPEG, PNG, and WebP images are allowed");
+  }
+  if (file.size <= 0) {
+    throw new Error("Image file must not be empty");
+  }
+  if (file.size > MAX_EVENT_IMAGE_SIZE_BYTES) {
+    throw new Error("Image must not exceed 5 MB");
+  }
 }
 
 export async function uploadEventImage(
@@ -113,6 +134,17 @@ export async function uploadEventVideo(
     }
     throw error;
   }
+}
+
+export async function uploadAvatarImage(
+  file: File,
+): Promise<UploadedAvatarImage> {
+  validateAvatarImage(file);
+  const body = new FormData();
+  body.append("file", file);
+  body.append("bucket", "forum-media");
+  body.append("folder", "avatars");
+  return apiClient.post<UploadedAvatarImage>("/media/upload", body);
 }
 
 export async function abandonEventMedia(mediaId: string): Promise<void> {
@@ -281,6 +313,7 @@ export const storageService = {
   deleteForumImage,
   uploadEventImage,
   uploadEventVideo,
+  uploadAvatarImage,
   abandonEventMedia,
   uploadBlogImage,
   deleteBlogImage,

@@ -205,7 +205,7 @@ export default {
   "admin.emailField": "Email",
   "admin.phoneField": "Phone",
   "admin.claimSource": "Claim source",
-  "admin.importNotClaimable": "Import (not claimable)",
+  "admin.importNotClaimable": "Import (claimable if published and unclaimed)",
   "admin.merchantNotClaimable": "Merchant (not claimable)",
   "admin.adminCuratedClaimable": "Admin curated (claimable if unclaimed)",
   "admin.price": "Price",

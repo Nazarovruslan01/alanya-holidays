@@ -35,4 +35,8 @@ export default {
   "settings.orderStatus.cancelled": "İptal edildi",
   "settings.orderStatus.expired": "Süresi doldu",
   "settings.orderStatus.placed": "Oluşturuldu",
+  "settings.avatarUpload": "Avatar yükle",
+  "settings.avatarUploading": "Yükleniyor…",
+  "settings.avatarUploadRequirements": "5 MB'a kadar JPEG, PNG veya WebP",
+  "settings.avatarUploadError": "Avatar yüklenemedi. Lütfen tekrar deneyin.",
 };

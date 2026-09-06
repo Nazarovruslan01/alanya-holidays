@@ -61,7 +61,7 @@ export default function SettingsPage() {
   // Render loading skeleton while checking auth session
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col">
+      <div className="min-h-screen bg-slate-50 flex flex-col pt-16 md:pt-20">
         <Navbar />
         <main
           data-testid="settings-loading-skeleton"
@@ -83,7 +83,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/70 flex flex-col font-sans selection:bg-amber-100 selection:text-amber-900">
+    <div className="min-h-screen bg-slate-50/70 flex flex-col pt-16 md:pt-20 font-sans selection:bg-amber-100 selection:text-amber-900">
       <Navbar />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">

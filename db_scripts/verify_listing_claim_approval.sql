@@ -63,10 +63,6 @@ BEGIN
     (v_rejected_listing_id, 'Rejected Listing', 'Rejected Listing', 'claim-rejected-test', 'approved', 'admin'),
     (v_historical_listing_id, 'Historical Listing', 'Historical Listing', 'claim-historical-test', 'approved', 'admin');
 
-  UPDATE public.directory_listings
-  SET owner_user_id = v_second_user_id
-  WHERE id = v_historical_listing_id;
-
   INSERT INTO public.listing_claims (
     id,
     listing_id,
@@ -134,6 +130,12 @@ BEGIN
       '+900000000005',
       'approved'
     );
+
+  -- Model ownership assigned after these historical claims were written. The
+  -- current insert trigger correctly rejects new claims for an owned listing.
+  UPDATE public.directory_listings
+  SET owner_user_id = v_second_user_id
+  WHERE id = v_historical_listing_id;
 
   WITH ranked_approved_claims AS (
     SELECT

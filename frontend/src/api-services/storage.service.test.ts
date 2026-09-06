@@ -47,6 +47,7 @@ import {
   uploadBlogImage,
   uploadEventImage,
   uploadEventVideo,
+  uploadAvatarImage,
   uploadForumImage,
   storageService,
 } from "./storage.service";
@@ -160,6 +161,46 @@ describe("storage.service", () => {
     );
   });
 
+  describe("uploadAvatarImage", () => {
+    it("uploads an avatar through the authenticated media API", async () => {
+      const file = new File(["avatar"], "avatar.png", { type: "image/png" });
+      const uploaded = {
+        originalName: "avatar.png",
+        url: "https://project.supabase.co/storage/v1/object/public/forum-media/user-1/avatars/full.webp",
+        thumbnailUrl:
+          "https://project.supabase.co/storage/v1/object/public/forum-media/user-1/avatars/thumb.webp",
+        format: "webp" as const,
+        sizeBytes: 42,
+      };
+      vi.spyOn(apiClient, "post").mockResolvedValue(uploaded);
+
+      await expect(uploadAvatarImage(file)).resolves.toEqual(uploaded);
+
+      expect(apiClient.post).toHaveBeenCalledTimes(1);
+      const [endpoint, body] = vi.mocked(apiClient.post).mock.calls[0];
+      expect(endpoint).toBe("/media/upload");
+      expect(body).toBeInstanceOf(FormData);
+      const form = body as FormData;
+      expect(form.get("file")).toBe(file);
+      expect(form.get("bucket")).toBe("forum-media");
+      expect(form.get("folder")).toBe("avatars");
+    });
+
+    it.each([
+      ["image/svg+xml", 1, "Only JPEG, PNG, and WebP images are allowed"],
+      ["image/png", 0, "Image file must not be empty"],
+      ["image/png", 5 * 1024 * 1024 + 1, "Image must not exceed 5 MB"],
+    ])("rejects invalid avatar files before the network request", async (type, size, message) => {
+      const file = new File(["avatar"], "avatar.png", { type });
+      Object.defineProperty(file, "size", { value: size });
+      const postSpy = vi.spyOn(apiClient, "post");
+
+      await expect(uploadAvatarImage(file)).rejects.toThrow(message);
+
+      expect(postSpy).not.toHaveBeenCalled();
+    });
+  });
+
   describe("uploadForumImage", () => {
     it("should successfully upload a file to the forum-media bucket and return the public URL", async () => {
       const mockFile = new File(["dummy content"], "photo.jpg", { type: "image/jpeg" });
@@ -233,6 +274,7 @@ describe("storage.service", () => {
       expect(typeof storageService.deleteBlogImage).toBe("function");
       expect(typeof storageService.uploadEventImage).toBe("function");
       expect(typeof storageService.uploadEventVideo).toBe("function");
+      expect(typeof storageService.uploadAvatarImage).toBe("function");
     });
   });
 

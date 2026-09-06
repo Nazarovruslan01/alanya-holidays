@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { eventsService, type ForumEvent } from "@/api-services/events.service";
+import {
+  eventsService,
+  type BackendForumEvent,
+  type CreateEventPayload,
+  type ForumEvent,
+} from "@/api-services/events.service";
 import { forumService, type Category } from "@/api-services/forum.service";
 import {
   storageService,
@@ -15,6 +20,13 @@ interface HostEventModalProps {
   isOpen: boolean;
   onClose: () => void;
   onEventCreated?: (newEvent: ForumEvent) => void;
+  initialEvent?: BackendForumEvent | null;
+  isAdmin?: boolean;
+  onSave?: (
+    payload: CreateEventPayload,
+    idempotencyKey: string,
+  ) => Promise<unknown>;
+  onSaved?: () => void | Promise<void>;
 }
 
 const MAX_EVENT_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -22,8 +34,28 @@ const MAX_EVENT_VIDEO_SIZE_BYTES = 50 * 1024 * 1024;
 const ALLOWED_EVENT_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const ALLOWED_EVENT_VIDEO_TYPES = new Set(["video/mp4", "video/webm"]);
 
-export default function HostEventModal({ isOpen, onClose, onEventCreated }: HostEventModalProps) {
-  const { t } = useTranslation();
+function localEventDateTime(eventDate?: string | null) {
+  if (!eventDate) return { date: "", time: "" };
+  const parsed = new Date(eventDate);
+  if (Number.isNaN(parsed.getTime())) return { date: "", time: "" };
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  const hours = String(parsed.getHours()).padStart(2, "0");
+  const minutes = String(parsed.getMinutes()).padStart(2, "0");
+  return { date: `${year}-${month}-${day}`, time: `${hours}:${minutes}` };
+}
+
+export default function HostEventModal({
+  isOpen,
+  onClose,
+  onEventCreated,
+  initialEvent = null,
+  isAdmin = false,
+  onSave,
+  onSaved,
+}: HostEventModalProps) {
+  const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
@@ -31,6 +63,7 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
   const [eventTime, setEventTime] = useState("");
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
+  const [isPublished, setIsPublished] = useState(true);
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
@@ -42,6 +75,8 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
+  const [removeExistingCover, setRemoveExistingCover] = useState(false);
+  const [removeExistingVideo, setRemoveExistingVideo] = useState(false);
   const [mediaErrors, setMediaErrors] = useState<Record<string, string>>({});
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -52,6 +87,30 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
   const uploadedVideoRef = useRef<UploadedEventVideo | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const initialCategoryId = initialEvent?.category_id ?? initialEvent?.category?.id ?? "";
+  const isLegacyCategorylessEdit = Boolean(initialEvent && !initialCategoryId);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const localDateTime = localEventDateTime(initialEvent?.event_date);
+    setTitle(initialEvent?.title ?? "");
+    setCategory(initialCategoryId);
+    setEventDate(localDateTime.date);
+    setEventTime(localDateTime.time);
+    setLocation(initialEvent?.location ?? "");
+    setDescription(initialEvent?.description ?? "");
+    setIsPublished(initialEvent?.is_published ?? true);
+    setSubmitted(false);
+    setSubmitError(null);
+    setErrors({});
+    setCoverFile(null);
+    setCoverPreview(null);
+    setVideoFile(null);
+    setVideoPreview(null);
+    setRemoveExistingCover(false);
+    setRemoveExistingVideo(false);
+    setMediaErrors({});
+  }, [initialCategoryId, initialEvent, isOpen]);
 
   useEffect(() => {
     return () => {
@@ -90,7 +149,7 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
       } catch (err) {
         logger.warn("Failed to load forum categories for events:", err);
         if (!cancelled) {
-          setCategoriesError("Could not load categories right now. Please try again.");
+          setCategoriesError(t("events.categoriesLoadError"));
           setAvailableCategories([]);
         }
       } finally {
@@ -105,7 +164,7 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
     return () => {
       cancelled = true;
     };
-  }, [isOpen]);
+  }, [isOpen, t]);
 
   useEffect(() => {
     if (!isOpen || !dialogRef.current) return;
@@ -168,6 +227,10 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
   const selectedCategoryLabel = useMemo(() => {
     return availableCategories.find((item) => item.id === category)?.name || category;
   }, [availableCategories, category]);
+  const displayedCover =
+    coverPreview || (!removeExistingCover ? initialEvent?.image_url : null);
+  const displayedVideo =
+    videoPreview || (!removeExistingVideo ? initialEvent?.video_url : null);
 
   if (!isOpen) return null;
 
@@ -179,6 +242,7 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
     setEventTime("");
     setLocation("");
     setDescription("");
+    setIsPublished(true);
     setSubmitted(false);
     setSubmitError(null);
     setErrors({});
@@ -186,6 +250,8 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
     setCoverPreview(null);
     setVideoFile(null);
     setVideoPreview(null);
+    setRemoveExistingCover(false);
+    setRemoveExistingVideo(false);
     setMediaErrors({});
     setIsUploadingMedia(false);
     if (coverInputRef.current) coverInputRef.current.value = "";
@@ -216,6 +282,7 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
     });
     setCoverFile(file);
     setCoverPreview(URL.createObjectURL(file));
+    setRemoveExistingCover(false);
   };
 
   const selectVideoFile = (file?: File) => {
@@ -242,6 +309,7 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
     });
     setVideoFile(file);
     setVideoPreview(URL.createObjectURL(file));
+    setRemoveExistingVideo(false);
   };
 
   const removeCover = () => {
@@ -249,6 +317,7 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
     resetSubmissionAttempt(true);
     setCoverFile(null);
     setCoverPreview(null);
+    setRemoveExistingCover(Boolean(initialEvent?.image_url));
     setMediaErrors((current) => {
       const next = { ...current };
       delete next.cover;
@@ -262,6 +331,7 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
     resetSubmissionAttempt(true);
     setVideoFile(null);
     setVideoPreview(null);
+    setRemoveExistingVideo(Boolean(initialEvent?.video_url));
     setMediaErrors((current) => {
       const next = { ...current };
       delete next.video;
@@ -313,14 +383,34 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
 
   const validate = () => {
     const errs: Record<string, string> = {};
-    if (!title.trim()) errs.title = "Event title is required";
-    else if (title.trim().length < 5) errs.title = "Title must be at least 5 characters";
-    if (!category) errs.category = "Please select a category";
-    if (!eventDate) errs.eventDate = "Date is required";
-    if (!eventTime) errs.eventTime = "Time is required";
-    if (!location.trim()) errs.location = "Location is required";
-    if (!description.trim()) errs.description = "Description is required";
-    else if (description.trim().length < 20) errs.description = "Description must be at least 20 characters";
+    const unchangedLegacyTitle = Boolean(initialEvent && title === initialEvent.title);
+    const unchangedLegacyLocation = Boolean(
+      initialEvent && location === (initialEvent.location ?? ""),
+    );
+    const unchangedLegacyDescription = Boolean(
+      initialEvent && description === (initialEvent.description ?? ""),
+    );
+    if (!title.trim() && !unchangedLegacyTitle) {
+      errs.title = t("events.titleRequired");
+    } else if (title.trim().length < 5 && !unchangedLegacyTitle) {
+      errs.title = t("events.titleTooShort");
+    }
+    if (!category && !isLegacyCategorylessEdit) {
+      errs.category = t("events.categoryRequired");
+    }
+    if (!eventDate) errs.eventDate = t("events.dateRequired");
+    if (!eventTime) errs.eventTime = t("events.timeRequired");
+    if (!location.trim() && !unchangedLegacyLocation) {
+      errs.location = t("events.locationRequired");
+    }
+    if (!description.trim() && !unchangedLegacyDescription) {
+      errs.description = t("events.descriptionRequired");
+    } else if (
+      description.trim().length < 20 &&
+      !unchangedLegacyDescription
+    ) {
+      errs.description = t("events.descriptionTooShort");
+    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -358,25 +448,47 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
       }
       setIsUploadingMedia(false);
       idempotencyKeyRef.current ??= globalThis.crypto.randomUUID();
-      const newEvent = await eventsService.createEvent(
-        {
-          title,
-          categoryId: category,
-          eventDate,
-          eventTime,
-          location,
-          description,
-          image_media_id: uploadedImageRef.current?.mediaId,
-          video_media_id: uploadedVideoRef.current?.mediaId,
-        },
-        idempotencyKeyRef.current,
+      const initialLocalDateTime = localEventDateTime(initialEvent?.event_date);
+      const eventDateIsUnchanged = Boolean(
+        initialEvent?.event_date &&
+          eventDate === initialLocalDateTime.date &&
+          eventTime === initialLocalDateTime.time,
       );
-      onEventCreated?.(newEvent);
+      const payload: CreateEventPayload = {
+        title: title.trim(),
+        event_date: eventDateIsUnchanged
+          ? initialEvent!.event_date
+          : new Date(`${eventDate}T${eventTime}:00`).toISOString(),
+        location: location.trim(),
+        description: description.trim(),
+        is_published: isAdmin ? isPublished : true,
+        ...(category ? { category_id: category } : {}),
+        ...(uploadedImageRef.current
+          ? { image_media_id: uploadedImageRef.current.mediaId }
+          : removeExistingCover
+            ? { image_media_id: null }
+            : {}),
+        ...(uploadedVideoRef.current
+          ? { video_media_id: uploadedVideoRef.current.mediaId }
+          : removeExistingVideo
+            ? { video_media_id: null }
+            : {}),
+      };
+      if (onSave) {
+        await onSave(payload, idempotencyKeyRef.current);
+      } else {
+        const newEvent = await eventsService.createEvent(
+          payload,
+          idempotencyKeyRef.current,
+        );
+        onEventCreated?.(newEvent);
+      }
       resetSubmissionAttempt(false);
-      setSubmitted(true);
+      if (onSaved) await onSaved();
+      else setSubmitted(true);
     } catch (err) {
       logger.warn("Failed to create event:", err);
-      setSubmitError(t("events.publishError"));
+      setSubmitError(t(isAdmin ? "events.saveError" : "events.publishError"));
     } finally {
       submittingRef.current = false;
       setIsSubmitting(false);
@@ -416,11 +528,17 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
               id="host-event-modal-title"
               className="font-heading text-lg text-foreground-900"
             >
-              {submitted ? "Event Published!" : "Host an Event"}
+              {submitted
+                ? t("events.publishedTitle")
+                : t(isAdmin
+                    ? initialEvent
+                      ? "events.editTitle"
+                      : "events.adminCreateTitle"
+                    : "events.hostModalTitle")}
             </h2>
             {!submitted && (
               <p className="text-xs text-foreground-500 mt-0.5">
-                Create a community event and publish it to the events page
+                {t(isAdmin ? "events.adminModalDescription" : "events.hostModalDescription")}
               </p>
             )}
           </div>
@@ -429,7 +547,7 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
             onClick={handleClose}
             disabled={isSubmitting}
             className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-background-100 text-foreground-500 hover:text-foreground-800 transition-colors cursor-pointer"
-            aria-label="Close modal"
+            aria-label={t("events.closeModal")}
           >
             <i className="ri-close-line text-lg"></i>
           </button>
@@ -442,7 +560,7 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
                 <i className="ri-check-line text-3xl text-primary-500"></i>
               </div>
               <h3 className="font-heading text-lg text-foreground-900 mb-2">
-                Event is live
+                {t("events.eventIsLive")}
               </h3>
               <p className="text-sm text-foreground-600 mb-1">
                 <span className="font-semibold text-foreground-900">{title}</span>
@@ -457,7 +575,7 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
                 {eventDate && (
                   <span className="inline-flex items-center gap-1 text-foreground-500 ml-3">
                     <i className="ri-calendar-line"></i>
-                    {new Date(eventDate + "T00:00:00").toLocaleDateString("en-US", {
+                    {new Date(eventDate + "T00:00:00").toLocaleDateString(i18n.language, {
                       month: "short",
                       day: "numeric",
                     })}
@@ -465,7 +583,7 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
                 )}
               </p>
               <p className="text-xs text-foreground-400 mb-8">
-                The event was created successfully and has been added to the page.
+                {t("events.createdSuccess")}
               </p>
               <div className="flex items-center justify-center gap-3 flex-wrap">
                 <button
@@ -473,14 +591,14 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary-500 text-background-50 text-sm font-medium hover:bg-primary-600 transition-colors cursor-pointer whitespace-nowrap"
                 >
                   <i className="ri-calendar-check-line"></i>
-                  Back to Events
+                  {t("events.backToEvents")}
                 </button>
                 <button
                   onClick={handleCreateAnother}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-foreground-200 text-foreground-700 text-sm font-medium hover:bg-background-100 transition-colors cursor-pointer whitespace-nowrap"
                 >
                   <i className="ri-add-line"></i>
-                  Publish Another
+                  {t("events.publishAnother")}
                 </button>
               </div>
             </div>
@@ -497,11 +615,13 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
               )}
 
               <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1">
-                  Event Title <span className="text-primary-500">*</span>
+                <label htmlFor="event-title" className="block text-sm font-medium text-foreground-800 mb-1">
+                  {t("events.eventTitleLabel")} <span className="text-primary-500">*</span>
                 </label>
                 <input
                   type="text"
+                  id="event-title"
+                  aria-label={t("events.eventTitleLabel")}
                   name="title"
                   value={title}
                   onChange={(e) => {
@@ -526,12 +646,14 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1">
-                  Category <span className="text-primary-500">*</span>
+                <label htmlFor="event-category" className="block text-sm font-medium text-foreground-800 mb-1">
+                  {t("events.categoryLabel")} {!isLegacyCategorylessEdit && <span className="text-primary-500">*</span>}
                 </label>
                 <div className="relative">
                   <select
                     name="category"
+                    id="event-category"
+                    aria-label={t("events.categoryLabel")}
                     value={category}
                     onChange={(e) => {
                       if (!markFormChanged()) return;
@@ -544,7 +666,13 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
                     } rounded-lg px-4 py-2.5 pr-10 text-sm text-foreground-900 focus:outline-none focus:border-primary-500 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60`}
                   >
                     <option value="">
-                      {isLoadingCategories ? "Loading categories..." : availableCategories.length > 0 ? "Select a category..." : "No categories available"}
+                      {isLoadingCategories
+                        ? t("events.loadingCategories")
+                        : availableCategories.length > 0
+                          ? t(isLegacyCategorylessEdit
+                              ? "events.legacyNoCategory"
+                              : "events.selectCategory")
+                          : t("events.noCategories")}
                     </option>
                     {availableCategories.map((cat) => (
                       <option key={cat.id} value={cat.id}>
@@ -565,11 +693,13 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-foreground-800 mb-1">
-                    Date <span className="text-primary-500">*</span>
+                  <label htmlFor="event-date" className="block text-sm font-medium text-foreground-800 mb-1">
+                    {t("events.dateLabel")} <span className="text-primary-500">*</span>
                   </label>
                   <input
                     type="date"
+                    id="event-date"
+                    aria-label={t("events.dateLabel")}
                     name="eventDate"
                     value={eventDate}
                     onChange={(e) => {
@@ -586,11 +716,13 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground-800 mb-1">
-                    Time <span className="text-primary-500">*</span>
+                  <label htmlFor="event-time" className="block text-sm font-medium text-foreground-800 mb-1">
+                    {t("events.timeLabel")} <span className="text-primary-500">*</span>
                   </label>
                   <input
                     type="time"
+                    id="event-time"
+                    aria-label={t("events.timeLabel")}
                     name="eventTime"
                     value={eventTime}
                     onChange={(e) => {
@@ -609,11 +741,13 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1">
-                  Location <span className="text-primary-500">*</span>
+                <label htmlFor="event-location" className="block text-sm font-medium text-foreground-800 mb-1">
+                  {t("events.locationLabel")} <span className="text-primary-500">*</span>
                 </label>
                 <input
                   type="text"
+                  id="event-location"
+                  aria-label={t("events.locationLabel")}
                   name="location"
                   value={location}
                   onChange={(e) => {
@@ -633,11 +767,13 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1">
-                  Description <span className="text-primary-500">*</span>
+                <label htmlFor="event-description" className="block text-sm font-medium text-foreground-800 mb-1">
+                  {t("events.descriptionLabel")} <span className="text-primary-500">*</span>
                 </label>
                 <textarea
                   name="description"
+                  id="event-description"
+                  aria-label={t("events.descriptionLabel")}
                   value={description}
                   onChange={(e) => {
                     if (!markFormChanged()) return;
@@ -704,16 +840,16 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
                         selectCoverFile(event.target.files?.[0])
                       }
                     />
-                    {coverPreview ? (
+                    {displayedCover ? (
                       <div className="mt-3 space-y-2">
                         <img
-                          src={coverPreview}
+                          src={displayedCover}
                           alt={t("events.coverPreview")}
                           className="h-28 w-full rounded-lg object-cover"
                         />
                         <div className="flex items-center justify-between gap-2">
                           <span className="truncate text-xs text-foreground-500">
-                            {coverFile?.name}
+                            {coverFile?.name ?? t("events.currentCover")}
                           </span>
                           <button
                             type="button"
@@ -765,10 +901,10 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
                         selectVideoFile(event.target.files?.[0])
                       }
                     />
-                    {videoPreview ? (
+                    {displayedVideo ? (
                       <div className="mt-3 space-y-2">
                         <video
-                          src={videoPreview}
+                          src={displayedVideo}
                           controls
                           preload="metadata"
                           className="h-28 w-full rounded-lg bg-black object-contain"
@@ -777,7 +913,7 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
                         </video>
                         <div className="flex items-center justify-between gap-2">
                           <span className="truncate text-xs text-foreground-500">
-                            {videoFile?.name}
+                            {videoFile?.name ?? t("events.currentVideo")}
                           </span>
                           <button
                             type="button"
@@ -803,27 +939,45 @@ export default function HostEventModal({ isOpen, onClose, onEventCreated }: Host
                 </div>
               </div>
 
+              {isAdmin && (
+                <label className="flex items-center gap-2 text-sm font-medium text-foreground-800">
+                  <input
+                    type="checkbox"
+                    checked={isPublished}
+                    onChange={(event) => {
+                      if (!markFormChanged()) return;
+                      setIsPublished(event.target.checked);
+                    }}
+                  />
+                  {t("events.publishedLabel")}
+                </label>
+              )}
+
               <div className="flex items-center gap-2 text-xs text-foreground-500 bg-background-100/70 rounded-lg px-4 py-2.5">
                 <i className="ri-information-line"></i>
-                <span>
-                  This admin flow publishes the event immediately using supported backend fields and real forum category identifiers.
-                </span>
+                <span>{t(isAdmin ? "events.adminFormNote" : "events.hostFormNote")}</span>
               </div>
 
               <button
                 type="submit"
-                disabled={isSubmitting || isLoadingCategories || availableCategories.length === 0}
+                disabled={
+                  isSubmitting ||
+                  isLoadingCategories ||
+                  (availableCategories.length === 0 && !isLegacyCategorylessEdit)
+                }
                 className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary-500 text-background-50 text-sm font-medium hover:bg-primary-600 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
                   <>
                     <i className="ri-loader-4-line animate-spin"></i>
-                    {isUploadingMedia ? t("events.uploadingMedia") : t("events.publishing")}
+                    {isUploadingMedia
+                      ? t("events.uploadingMedia")
+                      : t(isAdmin ? "events.saving" : "events.publishing")}
                   </>
                 ) : (
                   <>
                     <i className="ri-send-plane-line"></i>
-                    Publish Event
+                    {t(isAdmin ? "events.saveEvent" : "events.publishEvent")}
                   </>
                 )}
               </button>

@@ -8,11 +8,11 @@ import {
   type AdminListingInput,
   type AdminProductInput,
 } from '@/api-services/admin-content.service';
-import {
-  storageService,
-  type UploadedEventImage,
-  type UploadedEventVideo,
-} from '@/api-services/storage.service';
+import type {
+  BackendForumEvent,
+  CreateEventPayload,
+} from '@/api-services/events.service';
+import HostEventModal from '@/pages/events/components/HostEventModal';
 
 type Resource = 'articles' | 'events' | 'listings' | 'products';
 type ManagedItem = Record<string, unknown> & { id: string | number };
@@ -79,85 +79,12 @@ export default function AdminContentLibraryTab() {
   const [productTotal, setProductTotal] = useState(0);
   const [productSearch, setProductSearch] = useState('');
   const [productSearchDraft, setProductSearchDraft] = useState('');
-  const [eventImageFile, setEventImageFile] = useState<File | null>(null);
-  const [eventVideoFile, setEventVideoFile] = useState<File | null>(null);
-  const [removeEventImage, setRemoveEventImage] = useState(false);
-  const [removeEventVideo, setRemoveEventVideo] = useState(false);
-  const eventCreateIdempotencyKeyRef = useRef<string | null>(null);
-  const uploadedEventImageRef = useRef<UploadedEventImage | null>(null);
-  const uploadedEventVideoRef = useRef<UploadedEventVideo | null>(null);
-  const eventSaveAttemptedRef = useRef(false);
   const savingRef = useRef(false);
-
-  const resetEventSubmissionAttempt = useCallback((abandonUploads: boolean) => {
-    const retainedIds = [
-      uploadedEventImageRef.current?.mediaId,
-      uploadedEventVideoRef.current?.mediaId,
-    ].filter((mediaId): mediaId is string => Boolean(mediaId));
-    uploadedEventImageRef.current = null;
-    uploadedEventVideoRef.current = null;
-    eventCreateIdempotencyKeyRef.current = null;
-    eventSaveAttemptedRef.current = false;
-    if (abandonUploads) {
-      retainedIds.forEach((mediaId) => {
-        void storageService.abandonEventMedia(mediaId);
-      });
-    }
-  }, []);
-
-  const resetEventMediaDraft = useCallback(
-    (abandonUploads: boolean) => {
-      resetEventSubmissionAttempt(abandonUploads);
-      setEventImageFile(null);
-      setEventVideoFile(null);
-      setRemoveEventImage(false);
-      setRemoveEventVideo(false);
-    },
-    [resetEventSubmissionAttempt],
-  );
-
-  const markEventDraftChanged = () => {
-    if (
-      resource === 'events' &&
-      (eventSaveAttemptedRef.current ||
-        uploadedEventImageRef.current ||
-        uploadedEventVideoRef.current)
-    ) {
-      resetEventSubmissionAttempt(true);
-    }
-  };
-
-  const replaceEventImageFile = (file: File | null) => {
-    if (savingRef.current) return;
-    markEventDraftChanged();
-    setEventImageFile(file);
-    setRemoveEventImage(false);
-  };
-
-  const replaceEventVideoFile = (file: File | null) => {
-    if (savingRef.current) return;
-    markEventDraftChanged();
-    setEventVideoFile(file);
-    setRemoveEventVideo(false);
-  };
-
-  const removeCurrentEventImage = () => {
-    if (savingRef.current) return;
-    replaceEventImageFile(null);
-    setRemoveEventImage(true);
-  };
-
-  const removeCurrentEventVideo = () => {
-    if (savingRef.current) return;
-    replaceEventVideoFile(null);
-    setRemoveEventVideo(true);
-  };
 
   const closeForm = useCallback(() => {
     if (savingRef.current) return;
-    resetEventMediaDraft(true);
     setIsFormOpen(false);
-  }, [resetEventMediaDraft]);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -192,26 +119,21 @@ export default function AdminContentLibraryTab() {
   }, [load]);
 
   useEffect(() => {
-    if (!isFormOpen) return;
+    if (!isFormOpen || resource === 'events') return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !saving) closeForm();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [closeForm, isFormOpen, saving]);
+  }, [closeForm, isFormOpen, resource, saving]);
 
   const openCreate = () => {
-    resetEventMediaDraft(true);
     setEditing(null);
     setForm(emptyForm());
-    if (resource === 'events') {
-      eventCreateIdempotencyKeyRef.current = globalThis.crypto.randomUUID();
-    }
     setIsFormOpen(true);
   };
 
   const openEdit = (item: ManagedItem) => {
-    resetEventMediaDraft(true);
     setEditing(item);
     const listingOverrides: Record<string, string | boolean> = resource === 'listings'
       ? {
@@ -251,7 +173,6 @@ export default function AdminContentLibraryTab() {
   const field = (name: string) => String(form[name] ?? '');
   const setField = (name: string, value: string | boolean) => {
     if (savingRef.current) return;
-    markEventDraftChanged();
     setForm((current) => ({ ...current, [name]: value }));
   };
 
@@ -292,43 +213,6 @@ export default function AdminContentLibraryTab() {
         };
         if (id) await adminContentService.updateArticle(id, input);
         else await adminContentService.createArticle(input);
-      } else if (resource === 'events') {
-        eventSaveAttemptedRef.current = true;
-        const input: Parameters<typeof adminContentService.updateEvent>[1] = {
-          title: field('title').trim(),
-          description: field('description').trim(),
-          location: field('location').trim(),
-          event_date: new Date(field('event_date')).toISOString(),
-          is_published: form.is_published === true,
-        };
-        if (eventImageFile && !uploadedEventImageRef.current) {
-          uploadedEventImageRef.current =
-            await storageService.uploadEventImage(eventImageFile);
-        }
-        if (eventVideoFile && !uploadedEventVideoRef.current) {
-          uploadedEventVideoRef.current =
-            await storageService.uploadEventVideo(eventVideoFile);
-        }
-        if (uploadedEventImageRef.current) {
-          input.image_media_id = uploadedEventImageRef.current.mediaId;
-        } else if (removeEventImage) {
-          input.image_media_id = null;
-        }
-        if (uploadedEventVideoRef.current) {
-          input.video_media_id = uploadedEventVideoRef.current.mediaId;
-        } else if (removeEventVideo) {
-          input.video_media_id = null;
-        }
-        if (id) {
-          await adminContentService.updateEvent(id, input);
-        } else {
-          eventCreateIdempotencyKeyRef.current ??=
-            globalThis.crypto.randomUUID();
-          await adminContentService.createEvent(
-            input as Parameters<typeof adminContentService.createEvent>[0],
-            eventCreateIdempotencyKeyRef.current,
-          );
-        }
       } else if (resource === 'listings') {
         const input: AdminListingInput = {
           name: field('name').trim(),
@@ -363,7 +247,6 @@ export default function AdminContentLibraryTab() {
         if (id) await adminContentService.updateProduct(id, input);
         else await adminContentService.createProduct(input);
       }
-      resetEventMediaDraft(false);
       setIsFormOpen(false);
       await load();
     } catch (saveError) {
@@ -372,6 +255,23 @@ export default function AdminContentLibraryTab() {
       savingRef.current = false;
       setSaving(false);
     }
+  };
+
+  const saveEvent = async (
+    input: CreateEventPayload,
+    idempotencyKey: string,
+  ) => {
+    setError(null);
+    if (editing) {
+      await adminContentService.updateEvent(String(editing.id), input);
+    } else {
+      await adminContentService.createEvent(input, idempotencyKey);
+    }
+  };
+
+  const finishEventSave = async () => {
+    setIsFormOpen(false);
+    await load();
   };
 
   const remove = async (item: ManagedItem) => {
@@ -463,13 +363,24 @@ export default function AdminContentLibraryTab() {
         </div>
       )}
 
-      {isFormOpen && (
+      {isFormOpen && resource === 'events' && (
+        <HostEventModal
+          isOpen
+          isAdmin
+          initialEvent={editing as unknown as BackendForumEvent | null}
+          onClose={closeForm}
+          onSave={saveEvent}
+          onSaved={finishEventSave}
+        />
+      )}
+
+      {isFormOpen && resource !== 'events' && (
         <div role="dialog" aria-modal="true" aria-labelledby="admin-content-form-title" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) closeForm(); }}>
           <form onSubmit={save} className="max-h-[90vh] w-full max-w-3xl space-y-4 overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900">
             <div className="flex items-center justify-between"><h3 id="admin-content-form-title" className="text-xl font-bold">{formTitle}</h3><button type="button" aria-label={t('admin.closeEditor')} onClick={closeForm} disabled={saving} className="rounded-lg p-2 hover:bg-secondary-100 dark:hover:bg-slate-800">✕</button></div>
             <fieldset disabled={saving} className="m-0 min-w-0 space-y-4 border-0 p-0">
 
-            {(resource === 'articles' || resource === 'events') && <label className="block text-sm font-semibold">{t('admin.title')}<input autoFocus required value={field('title')} onChange={(event) => setField('title', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label>}
+            {resource === 'articles' && <label className="block text-sm font-semibold">{t('admin.title')}<input autoFocus required value={field('title')} onChange={(event) => setField('title', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label>}
             {(resource === 'listings' || resource === 'products') && <label className="block text-sm font-semibold">{t('admin.name')}<input autoFocus required value={field('name')} onChange={(event) => setField('name', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label>}
 
             {resource === 'articles' ? <>
@@ -480,69 +391,6 @@ export default function AdminContentLibraryTab() {
               <label className="block text-sm font-semibold">{t('admin.body')}<RichTextEditor value={field('content')} onChange={(value) => setField('content', value)} insertContent={insertContent} ariaLabel={t('admin.articleBody')} maxLength={100000} /></label>
             </> : <>
               <label className="block text-sm font-semibold">{t('admin.description')}<textarea required={resource === 'products'} value={field('description')} onChange={(event) => setField('description', event.target.value)} className="mt-1 min-h-28 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label>
-              {resource === 'events' && <>
-                <label className="block text-sm font-semibold">{t('admin.dateTime')}<input required type="datetime-local" value={field('event_date').slice(0, 16)} onChange={(event) => setField('event_date', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label>
-                <label className="block text-sm font-semibold">{t('admin.location')}<input value={field('location')} onChange={(event) => setField('location', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl border border-secondary-200 p-3">
-                    <label className="block text-sm font-semibold">
-                      {t('admin.eventCoverImage')}
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        onChange={(event) => {
-                          replaceEventImageFile(event.target.files?.[0] ?? null);
-                        }}
-                        className="mt-2 block w-full text-xs"
-                      />
-                    </label>
-                    {eventImageFile ? (
-                      <p className="mt-2 truncate text-xs text-secondary-500">{eventImageFile.name}</p>
-                    ) : !removeEventImage && field('image_url') ? (
-                      <img src={field('image_url')} alt={t('admin.currentEventCover')} className="mt-2 h-24 w-full rounded-lg object-cover" />
-                    ) : null}
-                    {(eventImageFile || (!removeEventImage && field('image_url'))) && (
-                      <button
-                        type="button"
-                        aria-label={t('admin.removeEventCover')}
-                        onClick={removeCurrentEventImage}
-                        className="mt-2 text-xs font-semibold text-red-600"
-                      >
-                        {t('admin.removeMedia')}
-                      </button>
-                    )}
-                  </div>
-                  <div className="rounded-xl border border-secondary-200 p-3">
-                    <label className="block text-sm font-semibold">
-                      {t('admin.eventVideo')}
-                      <input
-                        type="file"
-                        accept="video/mp4,video/webm"
-                        onChange={(event) => {
-                          replaceEventVideoFile(event.target.files?.[0] ?? null);
-                        }}
-                        className="mt-2 block w-full text-xs"
-                      />
-                    </label>
-                    {eventVideoFile ? (
-                      <p className="mt-2 truncate text-xs text-secondary-500">{eventVideoFile.name}</p>
-                    ) : !removeEventVideo && field('video_url') ? (
-                      <video src={field('video_url')} controls preload="metadata" className="mt-2 h-24 w-full rounded-lg bg-black object-contain" />
-                    ) : null}
-                    {(eventVideoFile || (!removeEventVideo && field('video_url'))) && (
-                      <button
-                        type="button"
-                        aria-label={t('admin.removeEventVideo')}
-                        onClick={removeCurrentEventVideo}
-                        className="mt-2 text-xs font-semibold text-red-600"
-                      >
-                        {t('admin.removeMedia')}
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <label className="flex gap-2 text-sm font-semibold"><input type="checkbox" checked={form.is_published === true} onChange={(event) => setField('is_published', event.target.checked)} /> {t('admin.published')}</label>
-              </>}
               {resource === 'listings' && <><label className="block text-sm font-semibold">{t('admin.categoryId')}<input required value={field('category_id')} onChange={(event) => setField('category_id', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label><label className="block text-sm font-semibold">{t('admin.location')}<input value={field('location')} onChange={(event) => setField('location', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label><div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-semibold">{t('admin.emailField')}<input type="email" value={field('email')} onChange={(event) => setField('email', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label><label className="text-sm font-semibold">{t('admin.phoneField')}<input value={field('phone')} onChange={(event) => setField('phone', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label></div>{editing && <label className="block text-sm font-semibold">{t('admin.claimSource')}<select value={field('creation_source')} onChange={(event) => setField('creation_source', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2"><option value="import">{t('admin.importNotClaimable')}</option><option value="merchant">{t('admin.merchantNotClaimable')}</option><option value="admin">{t('admin.adminCuratedClaimable')}</option></select></label>}</>}
               {resource === 'products' && <div className="grid gap-3 sm:grid-cols-3"><label className="text-sm font-semibold">{t('admin.categoryId')}<input min="1" step="1" type="number" value={field('category_id')} onChange={(event) => setField('category_id', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label><label className="text-sm font-semibold">{t('admin.price')}<input required min="0" step="0.01" type="number" value={field('price')} onChange={(event) => setField('price', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label><label className="text-sm font-semibold">{t('admin.stock')}<input required min="0" step="1" type="number" value={field('stock')} onChange={(event) => setField('stock', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label><label className="text-sm font-semibold">{t('admin.currency')}<input required minLength={3} maxLength={3} value={field('currency')} onChange={(event) => setField('currency', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label><label className="text-sm font-semibold">{t('admin.statusField')}<select value={field('status')} onChange={(event) => setField('status', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2"><option value="active">{t('admin.active')}</option><option value="inactive">{t('admin.inactive')}</option><option value="draft">{t('admin.draft')}</option></select></label></div>}
               {(resource === 'listings' || resource === 'products') && <label className="block text-sm font-semibold">{t('admin.imageUrls')}<textarea value={field('images')} onChange={(event) => setField('images', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label>}

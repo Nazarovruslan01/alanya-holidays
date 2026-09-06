@@ -205,7 +205,7 @@ export default {
   "admin.emailField": "Электронная почта",
   "admin.phoneField": "Телефон",
   "admin.claimSource": "Источник заявки",
-  "admin.importNotClaimable": "Импорт (заявить нельзя)",
+  "admin.importNotClaimable": "Импорт (можно заявить, если опубликовано и свободно)",
   "admin.merchantNotClaimable": "Владелец (заявить нельзя)",
   "admin.adminCuratedClaimable": "Подобрано администратором (можно заявить, если свободно)",
   "admin.price": "Цена",

@@ -46,7 +46,8 @@ vi.mock("@/components/common/TrustBadge", () => ({
 }));
 
 vi.mock("@/components/feature/ClaimListingModal", () => ({
-  default: () => null,
+  default: ({ isOpen }: { isOpen: boolean }) =>
+    isOpen ? <div>Claim modal open</div> : null,
 }));
 
 const business = {
@@ -95,12 +96,22 @@ function RegistrationDestination() {
   return <div>Register destination: {returnPath}</div>;
 }
 
+function LoginDestination() {
+  const location = useLocation();
+  const returnPath = (
+    location.state as { from?: { pathname?: string } } | null
+  )?.from?.pathname;
+
+  return <div>Login destination: {returnPath}</div>;
+}
+
 const renderPage = () =>
   render(
     <MemoryRouter initialEntries={["/business/business-123"]}>
       <Routes>
         <Route path="/business/:businessId" element={<BusinessDetailPage />} />
         <Route path="/register" element={<RegistrationDestination />} />
+        <Route path="/login" element={<LoginDestination />} />
       </Routes>
     </MemoryRouter>
   );
@@ -139,6 +150,30 @@ describe("BusinessDetailPage favorites authentication", () => {
       screen.getByText("Register destination: /business/business-123")
     ).toBeInTheDocument();
     expect(favoritesState.toggleFavorite).not.toHaveBeenCalled();
+  });
+
+  it("sends a guest claim request to login with the business return path", async () => {
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Claim Listing" })
+    );
+
+    expect(
+      screen.getByText("Login destination: /business/business-123")
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Claim modal open")).not.toBeInTheDocument();
+  });
+
+  it("opens the claim modal for an authenticated user", async () => {
+    authState.isAuthenticated = true;
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Claim Listing" })
+    );
+
+    expect(screen.getByText("Claim modal open")).toBeInTheDocument();
   });
 
   it("toggles the favorite immediately for an authenticated user", async () => {
