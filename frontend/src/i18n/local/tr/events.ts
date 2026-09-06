@@ -63,6 +63,33 @@ export default {
   "events.categoriesBackendNote": "Kategoriler forum arka ucundan yüklenir ve gerçek kimlikleriyle gönderilir.",
   "events.locationPlaceholder": "Örn. Kleopatra Plajı, Alanya",
   "events.descriptionPlaceholder": "Etkinliği, neler getirileceğini, ne beklenmesi gerektiğini ve kime uygun olduğunu anlatın...",
+  "events.mediaTitle": "Medya",
+  "events.optional": "(isteğe bağlı)",
+  "events.coverImage": "Etkinlik kapak görseli",
+  "events.coverPreview": "Kapak önizlemesi",
+  "events.coverHelp":
+    "En fazla 5 MB JPEG, PNG veya WebP. Tıklayın ya da dosyayı bırakın.",
+  "events.video": "Etkinlik videosu",
+  "events.videoHelp":
+    "En fazla 50 MB MP4 veya WebM. Tıklayın ya da dosyayı bırakın.",
+  "events.remove": "Kaldır",
+  "events.removeCover": "Kapak görselini kaldır",
+  "events.removeVideo": "Etkinlik videosunu kaldır",
+  "events.imageTypeError":
+    "Yalnızca JPEG, PNG ve WebP görsellerine izin verilir",
+  "events.imageSizeError": "Görsel 5 MB'tan büyük olmamalıdır",
+  "events.videoTypeError": "Yalnızca MP4 ve WebM videolarına izin verilir",
+  "events.videoSizeError": "Video 50 MB'tan büyük olmamalıdır",
+  "events.mediaAuthenticationError":
+    "Etkinlik medyası yüklemeden önce yeniden oturum açın.",
+  "events.publishError":
+    "Etkinlik şu anda yayınlanamadı. Lütfen tekrar deneyin.",
+  "events.uploadingMedia": "Medya yükleniyor...",
+  "events.publishing": "Yayınlanıyor...",
+  "events.playVideoFor": "{{title}} videosunu oynat",
+  "events.eventVideoTitle": "{{title}} videosu",
+  "events.closeVideo": "Videoyu kapat",
+  "events.videoUnsupported": "Tarayıcınız video oynatmayı desteklemiyor.",
   "events.resultsFound": "{{count}} etkinlik bulundu",
   "events.clearSavedFilter": "Kayıtlı etkinlik filtresini temizle",
   "events.clearAllFilters": "Tüm filtreleri temizle",

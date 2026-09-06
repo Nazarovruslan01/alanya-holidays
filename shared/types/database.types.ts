@@ -749,6 +749,187 @@ export type Database = {
           }
         ];
       };
+      forum_events: {
+        Row: {
+          id: string;
+          title: string;
+          slug: string;
+          description: string | null;
+          location: string | null;
+          event_date: string;
+          image_url: string | null;
+          video_url: string | null;
+          host_id: string | null;
+          category_id: string | null;
+          attendee_count: number;
+          is_published: boolean;
+          created_by: string | null;
+          created_at: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          slug: string;
+          description?: string | null;
+          location?: string | null;
+          event_date: string;
+          image_url?: string | null;
+          video_url?: string | null;
+          host_id?: string | null;
+          category_id?: string | null;
+          attendee_count?: number;
+          is_published?: boolean;
+          created_by?: string | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          title?: string;
+          slug?: string;
+          description?: string | null;
+          location?: string | null;
+          event_date?: string;
+          image_url?: string | null;
+          video_url?: string | null;
+          host_id?: string | null;
+          category_id?: string | null;
+          attendee_count?: number;
+          is_published?: boolean;
+          created_by?: string | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Relationships: any[];
+      };
+      event_media: {
+        Row: {
+          id: string;
+          owner_id: string;
+          event_id: string | null;
+          kind: 'image' | 'video';
+          bucket: 'forum-media' | 'event-media-staging' | 'event-media';
+          object_path: string;
+          thumbnail_path: string | null;
+          public_url: string;
+          thumbnail_url: string | null;
+          mime_type: string;
+          size_bytes: number;
+          content_sha256: string | null;
+          state: 'pending' | 'promoting' | 'ready' | 'attached' | 'cleanup_pending' | 'failed';
+          expires_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          event_id?: string | null;
+          kind: 'image' | 'video';
+          bucket: 'forum-media' | 'event-media-staging' | 'event-media';
+          object_path: string;
+          thumbnail_path?: string | null;
+          public_url: string;
+          thumbnail_url?: string | null;
+          mime_type: string;
+          size_bytes: number;
+          content_sha256?: string | null;
+          state?: 'pending' | 'promoting' | 'ready' | 'attached' | 'cleanup_pending' | 'failed';
+          expires_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          event_id?: string | null;
+          kind?: 'image' | 'video';
+          bucket?: 'forum-media' | 'event-media-staging' | 'event-media';
+          object_path?: string;
+          thumbnail_path?: string | null;
+          public_url?: string;
+          thumbnail_url?: string | null;
+          mime_type?: string;
+          size_bytes?: number;
+          content_sha256?: string | null;
+          state?: 'pending' | 'promoting' | 'ready' | 'attached' | 'cleanup_pending' | 'failed';
+          expires_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: any[];
+      };
+      forum_event_create_requests: {
+        Row: {
+          actor_id: string;
+          idempotency_key: string;
+          request_fingerprint: string;
+          event_id: string | null;
+          response_payload: Json;
+          created_at: string;
+        };
+        Insert: {
+          actor_id: string;
+          idempotency_key: string;
+          request_fingerprint: string;
+          event_id?: string | null;
+          response_payload: Json;
+          created_at?: string;
+        };
+        Update: {
+          actor_id?: string;
+          idempotency_key?: string;
+          request_fingerprint?: string;
+          event_id?: string | null;
+          response_payload?: Json;
+          created_at?: string;
+        };
+        Relationships: any[];
+      };
+      event_media_cleanup_outbox: {
+        Row: {
+          id: number;
+          media_id: string | null;
+          bucket: 'forum-media' | 'event-media-staging' | 'event-media';
+          object_paths: string[];
+          status: 'pending' | 'processing' | 'completed' | 'failed';
+          attempts: number;
+          next_attempt_at: string;
+          claimed_at: string | null;
+          last_error: string | null;
+          created_at: string;
+          updated_at: string;
+          completed_at: string | null;
+        };
+        Insert: {
+          id?: number;
+          media_id?: string | null;
+          bucket: 'forum-media' | 'event-media-staging' | 'event-media';
+          object_paths: string[];
+          status?: 'pending' | 'processing' | 'completed' | 'failed';
+          attempts?: number;
+          next_attempt_at?: string;
+          claimed_at?: string | null;
+          last_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          completed_at?: string | null;
+        };
+        Update: {
+          media_id?: string | null;
+          bucket?: 'forum-media' | 'event-media-staging' | 'event-media';
+          object_paths?: string[];
+          status?: 'pending' | 'processing' | 'completed' | 'failed';
+          attempts?: number;
+          next_attempt_at?: string;
+          claimed_at?: string | null;
+          last_error?: string | null;
+          updated_at?: string;
+          completed_at?: string | null;
+        };
+        Relationships: any[];
+      };
       [key: string]: GenericTable;
     };
     Views: {

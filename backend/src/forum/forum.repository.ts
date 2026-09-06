@@ -34,6 +34,20 @@ export const EVENT_SELECT = `
     category:forum_categories!forum_events_category_id_fkey(id, name, slug)
 `;
 
+export class ForumEventPersistenceException extends Error {
+  constructor(
+    message: string,
+    readonly code?: string,
+  ) {
+    super(message);
+  }
+}
+
+interface ForumEventRpcResult<T> {
+  data: T | null;
+  error: { message: string; code?: string } | null;
+}
+
 @Injectable()
 export class ForumRepository {
   private readonly logger = new Logger(ForumRepository.name);
@@ -776,10 +790,12 @@ export class ForumRepository {
     host_id: string | null;
     created_by: string | null;
     is_published: boolean;
+    image_url: string | null;
+    video_url: string | null;
   } | null> {
     const { data, error } = await this.client
       .from('forum_events')
-      .select('host_id, created_by, is_published')
+      .select('host_id, created_by, is_published, image_url, video_url')
       .eq('id', id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -794,6 +810,73 @@ export class ForumRepository {
       .single();
     if (error) throw new Error(error.message);
     return event as unknown as ForumEvent;
+  }
+
+  async createEventWithMedia(
+    data: InsertForumEventDbInput,
+    actorId: string,
+    media: { imageMediaId: string | null; videoMediaId: string | null },
+    idempotency: {
+      idempotencyKey: string;
+      requestFingerprint: string;
+    },
+  ): Promise<ForumEvent> {
+    const { data: event, error } = (await this.client.rpc(
+      'create_forum_event_with_media',
+      {
+        p_actor_id: actorId,
+        p_event: data,
+        p_image_media_id: media.imageMediaId,
+        p_video_media_id: media.videoMediaId,
+        p_idempotency_key: idempotency.idempotencyKey,
+        p_request_fingerprint: idempotency.requestFingerprint,
+      },
+    )) as unknown as ForumEventRpcResult<ForumEvent>;
+    if (error) {
+      throw new ForumEventPersistenceException(error.message, error.code);
+    }
+    if (!event) throw new ForumEventPersistenceException('No event returned');
+    return event;
+  }
+
+  async updateEventWithMedia(
+    id: string,
+    updates: UpdateForumEventDbInput,
+    actorId: string,
+    media: {
+      replaceImage: boolean;
+      imageMediaId: string | null;
+      replaceVideo: boolean;
+      videoMediaId: string | null;
+    },
+  ): Promise<ForumEvent | null> {
+    const { data: event, error } = (await this.client.rpc(
+      'update_forum_event_with_media',
+      {
+        p_actor_id: actorId,
+        p_event_id: id,
+        p_updates: updates,
+        p_replace_image: media.replaceImage,
+        p_image_media_id: media.imageMediaId,
+        p_replace_video: media.replaceVideo,
+        p_video_media_id: media.videoMediaId,
+      },
+    )) as unknown as ForumEventRpcResult<ForumEvent>;
+    if (error) {
+      throw new ForumEventPersistenceException(error.message, error.code);
+    }
+    return event ?? null;
+  }
+
+  async deleteEventWithMedia(id: string, actorId: string): Promise<boolean> {
+    const { data, error } = (await this.client.rpc(
+      'delete_forum_event_with_media',
+      { p_actor_id: actorId, p_event_id: id },
+    )) as unknown as ForumEventRpcResult<boolean>;
+    if (error) {
+      throw new ForumEventPersistenceException(error.message, error.code);
+    }
+    return data === true;
   }
 
   async updateEvent(

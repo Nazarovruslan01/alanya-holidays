@@ -156,6 +156,12 @@ jobs:
       run: |
         psql -h localhost -U postgres -d alanya_holidays -v ON_ERROR_STOP=1 -f db_scripts/verify_rls_security.sql
 
+    - name: Verify Event Media Isolation and Cleanup
+      env:
+        PGPASSWORD: postgrespassword
+      run: |
+        psql -h localhost -U postgres -d alanya_holidays -v ON_ERROR_STOP=1 -f supabase/tests/event_media_rls.sql
+
     - name: Verify Listing Claim Approval Integrity
       env:
         PGPASSWORD: postgrespassword

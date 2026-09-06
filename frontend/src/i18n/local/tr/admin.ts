@@ -280,4 +280,10 @@ export default {
   "admin.verifyListing": "{{name}} doğrula",
   "admin.verifiedTitle": "Doğrulanmış işletme rozeti (kaldırmak için tıklayın)",
   "admin.unverifiedTitle": "Doğrulanmadı (doğrulamak için tıklayın)",
+  "admin.eventCoverImage": "Etkinlik kapak görseli",
+  "admin.currentEventCover": "Mevcut etkinlik kapağı",
+  "admin.eventVideo": "Etkinlik videosu",
+  "admin.removeEventCover": "Etkinlik kapağını kaldır",
+  "admin.removeEventVideo": "Etkinlik videosunu kaldır",
+  "admin.removeMedia": "Kaldır",
 } as const;

@@ -25,6 +25,7 @@ describe('Forum Invariants Safety Net (PR-1 Invariant Spec)', () => {
   const postId = '44444444-4444-4444-a444-444444444444';
   const commentId = '55555555-5555-4555-a555-555555555555';
   const eventId = '66666666-6666-4666-a666-666666666666';
+  const idempotencyKey = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
   beforeEach(async () => {
     mockUserRolesRepo = {
@@ -88,10 +89,19 @@ describe('Forum Invariants Safety Net (PR-1 Invariant Spec)', () => {
         .mockImplementation((data) =>
           Promise.resolve({ id: 'evt-1', ...data }),
         ),
+      createEventWithMedia: jest
+        .fn()
+        .mockImplementation((data) =>
+          Promise.resolve({ id: 'evt-1', ...data }),
+        ),
       updateEvent: jest
         .fn()
         .mockImplementation((id, data) => Promise.resolve({ id, ...data })),
+      updateEventWithMedia: jest
+        .fn()
+        .mockImplementation((id, data) => Promise.resolve({ id, ...data })),
       deleteEvent: jest.fn().mockResolvedValue(true),
+      deleteEventWithMedia: jest.fn().mockResolvedValue(true),
       getEventRsvpAttendees: jest.fn().mockResolvedValue([]),
       checkEventRsvp: jest.fn(),
       insertEventRsvp: jest.fn().mockResolvedValue(undefined),
@@ -184,6 +194,7 @@ describe('Forum Invariants Safety Net (PR-1 Invariant Spec)', () => {
               is_published: true,
             },
             userAlice,
+            idempotencyKey,
           ),
         ).resolves.toEqual(
           expect.objectContaining({
@@ -278,6 +289,7 @@ describe('Forum Invariants Safety Net (PR-1 Invariant Spec)', () => {
           eventService.createForumEvent(
             { title: 'Party', event_date: '2026-09-01' },
             adminUser,
+            idempotencyKey,
           ),
         ).resolves.toBeDefined();
         await expect(
@@ -579,13 +591,17 @@ describe('Forum Invariants Safety Net (PR-1 Invariant Spec)', () => {
       await eventService.createForumEvent(
         { title: 'Beach Volleyball Tournament', event_date: '2026-08-30' },
         adminUser,
+        idempotencyKey,
       );
 
-      expect(mockRepository.insertEvent).toHaveBeenCalledWith(
+      expect(mockRepository.createEventWithMedia).toHaveBeenCalledWith(
         expect.objectContaining({
           slug: 'beach-volleyball-tournament-1',
           created_by: adminUser,
         }),
+        adminUser,
+        { imageMediaId: null, videoMediaId: null },
+        expect.objectContaining({ idempotencyKey }),
       );
     });
   });

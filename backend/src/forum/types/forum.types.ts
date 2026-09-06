@@ -79,6 +79,7 @@ export interface ForumEvent {
   location?: string | null;
   event_date: string;
   image_url?: string | null;
+  video_url?: string | null;
   host_id?: string | null;
   host?: ForumPostAuthor | null;
   category_id?: string | null;
@@ -220,6 +221,7 @@ export interface InsertForumEventDbInput {
   location?: string | null;
   event_date: string;
   image_url?: string | null;
+  video_url?: string | null;
   host_id?: string | null;
   category_id?: string | null;
   is_published?: boolean;
@@ -233,6 +235,7 @@ export interface UpdateForumEventDbInput {
   location?: string | null;
   event_date?: string;
   image_url?: string | null;
+  video_url?: string | null;
   host_id?: string | null;
   category_id?: string | null;
   is_published?: boolean;

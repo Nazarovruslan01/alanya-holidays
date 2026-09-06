@@ -280,4 +280,10 @@ export default {
   "admin.verifyListing": "Подтвердить {{name}}",
   "admin.verifiedTitle": "Значок подтверждённой компании (нажмите, чтобы снять)",
   "admin.unverifiedTitle": "Не подтверждено (нажмите, чтобы подтвердить)",
+  "admin.eventCoverImage": "Обложка мероприятия",
+  "admin.currentEventCover": "Текущая обложка мероприятия",
+  "admin.eventVideo": "Видео мероприятия",
+  "admin.removeEventCover": "Удалить обложку мероприятия",
+  "admin.removeEventVideo": "Удалить видео мероприятия",
+  "admin.removeMedia": "Удалить",
 } as const;

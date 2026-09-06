@@ -12,7 +12,17 @@ import {
 } from "./events.service";
 import { apiClient, ApiError } from "@/lib/api-client";
 
+vi.mock("@/lib/supabase", () => ({
+  supabase: {
+    auth: {
+      getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
+    },
+  },
+}));
+
 describe("events.service", () => {
+  const idempotencyKey = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -56,6 +66,7 @@ describe("events.service", () => {
           location: "Cleopatra Beach",
           event_date: "2026-06-10T08:00:00Z",
           image_url: "https://example.com/yoga.jpg",
+          video_url: "https://example.com/yoga.mp4",
           is_published: true,
           attendees_count: 15,
           max_attendees: 30,
@@ -87,6 +98,7 @@ describe("events.service", () => {
       expect(result[0].host).toBe("Elena Kowalski");
       expect(result[0].hostAvatar).toBe("https://example.com/elena.jpg");
       expect(result[0].going_by_me).toBe(true);
+      expect(result[0].videoUrl).toBe("https://example.com/yoga.mp4");
     });
 
     it("should throw ApiError when API fails", async () => {
@@ -161,6 +173,7 @@ describe("events.service", () => {
         location: "Cleopatra Beach",
         event_date: "2026-07-10T17:00:00Z",
         image_url: "https://example.com/kayak.jpg",
+        video_url: "https://example.com/kayak.mp4",
       };
 
       vi.spyOn(apiClient, "post").mockResolvedValueOnce(mockCreated);
@@ -172,15 +185,23 @@ describe("events.service", () => {
         eventTime: "17:00",
         location: "Cleopatra Beach",
         description: "Kayaking along Cleopatra Beach at dusk.",
+        image_media_id: "11111111-1111-4111-a111-111111111111",
+        video_media_id: "22222222-2222-4222-a222-222222222222",
       };
 
-      const result = await createEvent(payload);
-      expect(apiClient.post).toHaveBeenCalledWith("/forum/events", expect.objectContaining({
-        title: "Sunset Kayak Meetup",
-        location: "Cleopatra Beach",
-        description: "Kayaking along Cleopatra Beach at dusk.",
-        category_id: "11111111-2222-4333-8444-555555555555",
-      }));
+      const result = await createEvent(payload, idempotencyKey);
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/forum/events",
+        expect.objectContaining({
+          title: "Sunset Kayak Meetup",
+          location: "Cleopatra Beach",
+          description: "Kayaking along Cleopatra Beach at dusk.",
+          category_id: "11111111-2222-4333-8444-555555555555",
+          image_media_id: "11111111-1111-4111-a111-111111111111",
+          video_media_id: "22222222-2222-4222-a222-222222222222",
+        }),
+        { headers: { "Idempotency-Key": idempotencyKey } },
+      );
       expect(result).not.toBeNull();
       expect(result.title).toBe("Sunset Kayak Meetup");
     });
@@ -192,17 +213,23 @@ describe("events.service", () => {
         event_date: "2026-08-05T09:00:00Z",
       });
 
-      await createEvent({
-        title: "Beach Coding Session",
-        eventDate: "2026-08-05",
-        eventTime: "09:00",
-        location: "Cleopatra Beach",
-        description: "Bring your laptop and join a casual coworking meetup by the sea.",
-      });
+      await createEvent(
+        {
+          title: "Beach Coding Session",
+          eventDate: "2026-08-05",
+          eventTime: "09:00",
+          location: "Cleopatra Beach",
+          description:
+            "Bring your laptop and join a casual coworking meetup by the sea.",
+        },
+        idempotencyKey,
+      );
 
-      expect(apiClient.post).toHaveBeenCalledWith("/forum/events", expect.objectContaining({
-        category_id: null,
-      }));
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/forum/events",
+        expect.objectContaining({ category_id: null }),
+        { headers: { "Idempotency-Key": idempotencyKey } },
+      );
     });
 
     it("should throw ApiError when createEvent API fails", async () => {
@@ -219,7 +246,9 @@ describe("events.service", () => {
         description: "A fun gathering for expats.",
       };
 
-      await expect(createEvent(payload)).rejects.toThrow(ApiError);
+      await expect(createEvent(payload, idempotencyKey)).rejects.toThrow(
+        ApiError,
+      );
     });
   });
 
@@ -273,12 +302,14 @@ describe("events.service", () => {
       await updateEvent("event-owned", {
         title: "Updated meetup",
         location: "Harbor",
+        video_media_id: null,
         host_id: "forged-owner",
       });
 
       expect(apiClient.put).toHaveBeenCalledWith("/forum/events/event-owned", {
         title: "Updated meetup",
         location: "Harbor",
+        video_media_id: null,
       });
     });
   });

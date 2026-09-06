@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import type { ForumEvent } from "@/api-services/events.service";
 import { generateGoogleCalendarUrl, downloadIcalFile } from "../calendarExport";
 import { copyEventLink, shareViaWhatsapp, shareViaTelegram } from "../shareUtils";
@@ -19,10 +20,14 @@ interface EventCardProps {
 export default function EventCard({ event, isRsvpd, isSaved, onRsvp, onCancelRsvp, onSave, onUnsave }: EventCardProps) {
   const { t } = useTranslation();
   const [showShareMenu, setShowShareMenu] = useState(false);
+  const [showVideo, setShowVideo] = useState(false);
   const [copied, setCopied] = useState(false);
   const shareMenuRef = useRef<HTMLDivElement>(null);
   const shareBtnRef = useRef<HTMLButtonElement>(null);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const videoButtonRef = useRef<HTMLButtonElement>(null);
+  const videoDialogRef = useRef<HTMLDivElement>(null);
+  const videoCloseButtonRef = useRef<HTMLButtonElement>(null);
 
   const effectiveAttendees = event.attendees;
   const safeMaxAttendees = Math.max(1, event.maxAttendees);
@@ -57,6 +62,72 @@ export default function EventCard({ event, isRsvpd, isSaved, onRsvp, onCancelRsv
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [showShareMenu]);
+
+  useEffect(() => {
+    if (!showVideo) return;
+    const dialog = videoDialogRef.current;
+    if (!dialog) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const videoTrigger = videoButtonRef.current;
+    const backgroundElements = Array.from(document.body.children).filter(
+      (element) => element !== dialog,
+    );
+    const backgroundState = backgroundElements.map((element) => ({
+      element,
+      ariaHidden: element.getAttribute("aria-hidden"),
+      hadInert: element.hasAttribute("inert"),
+    }));
+    backgroundElements.forEach((element) => {
+      element.setAttribute("aria-hidden", "true");
+      element.setAttribute("inert", "");
+    });
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    videoCloseButtonRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowVideo(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), video[controls], [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      } else if (!dialog.contains(document.activeElement)) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      backgroundState.forEach(({ element, ariaHidden, hadInert }) => {
+        if (ariaHidden === null) element.removeAttribute("aria-hidden");
+        else element.setAttribute("aria-hidden", ariaHidden);
+        if (!hadInert) element.removeAttribute("inert");
+      });
+      document.body.style.overflow = previousOverflow;
+      const returnTarget = videoTrigger || previousFocus;
+      if (returnTarget && document.contains(returnTarget)) {
+        returnTarget.focus();
+      }
+    };
+  }, [showVideo]);
 
   useEffect(() => {
     return () => {
@@ -134,6 +205,7 @@ export default function EventCard({ event, isRsvpd, isSaved, onRsvp, onCancelRsv
   };
 
   return (
+    <>
     <article className="group bg-background-50 rounded-xl border border-background-200/70 overflow-hidden hover:border-primary-200/60 transition-all duration-200">
       {/* Image with date badge */}
       <div className="relative h-48 overflow-hidden">
@@ -144,6 +216,21 @@ export default function EventCard({ event, isRsvpd, isSaved, onRsvp, onCancelRsv
           loading="lazy"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-foreground-950/40 to-transparent"></div>
+
+        {event.videoUrl && (
+          <button
+            ref={videoButtonRef}
+            type="button"
+            onClick={(clickEvent) => {
+              clickEvent.stopPropagation();
+              setShowVideo(true);
+            }}
+            className="absolute left-1/2 top-1/2 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-background-50/90 text-primary-600 shadow-lg transition-transform hover:scale-105 cursor-pointer"
+            aria-label={t("events.playVideoFor", { title: event.title })}
+          >
+            <i className="ri-play-fill text-2xl" aria-hidden="true"></i>
+          </button>
+        )}
 
         {/* Date badge */}
         <div className="absolute top-3 left-3 flex items-center gap-3">
@@ -373,6 +460,51 @@ export default function EventCard({ event, isRsvpd, isSaved, onRsvp, onCancelRsv
           )}
         </button>
       </div>
+
     </article>
+
+      {showVideo && event.videoUrl && typeof document !== "undefined" && createPortal(
+        <div
+          ref={videoDialogRef}
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={`event-video-title-${event.id}`}
+          onMouseDown={(mouseEvent) => {
+            if (mouseEvent.target === mouseEvent.currentTarget) {
+              setShowVideo(false);
+            }
+          }}
+        >
+          <div className="pointer-events-none absolute inset-0 bg-foreground-950/75 backdrop-blur-sm" aria-hidden="true"></div>
+          <div className="relative z-10 w-full max-w-4xl overflow-hidden rounded-2xl bg-foreground-950 shadow-2xl">
+            <div className="flex items-center justify-between gap-4 px-4 py-3 text-white">
+              <h2 id={`event-video-title-${event.id}`} className="font-heading text-base">
+                {t("events.eventVideoTitle", { title: event.title })}
+              </h2>
+              <button
+                ref={videoCloseButtonRef}
+                type="button"
+                onClick={() => setShowVideo(false)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/80 hover:bg-white/10 hover:text-white cursor-pointer"
+                aria-label={t("events.closeVideo")}
+              >
+                <i className="ri-close-line text-xl" aria-hidden="true"></i>
+              </button>
+            </div>
+            <video
+              src={event.videoUrl}
+              controls
+              preload="metadata"
+              tabIndex={0}
+              className="max-h-[75vh] w-full bg-black"
+            >
+              {t("events.videoUnsupported")}
+            </video>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }

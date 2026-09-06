@@ -1,6 +1,8 @@
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsDateString,
+  IsEmpty,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -46,11 +48,24 @@ export class CreateForumEventDto {
 
   @IsString()
   @IsNotEmpty()
+  @IsDateString()
   event_date!: string;
 
   @IsOptional()
-  @IsString()
-  image_url?: string | null;
+  @IsUUID()
+  image_media_id?: string | null;
+
+  @IsOptional()
+  @IsUUID()
+  video_media_id?: string | null;
+
+  @IsOptional()
+  @IsEmpty({ message: 'Direct event image URLs are not accepted' })
+  image_url?: unknown;
+
+  @IsOptional()
+  @IsEmpty({ message: 'Direct event video URLs are not accepted' })
+  video_url?: unknown;
 
   @IsOptional()
   @IsString()
@@ -81,11 +96,24 @@ export class UpdateForumEventDto {
 
   @IsOptional()
   @IsString()
+  @IsDateString()
   event_date?: string;
 
   @IsOptional()
-  @IsString()
-  image_url?: string | null;
+  @IsUUID()
+  image_media_id?: string | null;
+
+  @IsOptional()
+  @IsUUID()
+  video_media_id?: string | null;
+
+  @IsOptional()
+  @IsEmpty({ message: 'Direct event image URLs are not accepted' })
+  image_url?: unknown;
+
+  @IsOptional()
+  @IsEmpty({ message: 'Direct event video URLs are not accepted' })
+  video_url?: unknown;
 
   @IsOptional()
   @IsString()

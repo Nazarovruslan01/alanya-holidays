@@ -1,10 +1,13 @@
 import {
   Controller,
+  Delete,
+  Param,
   Post,
   UseInterceptors,
   UploadedFile,
   Body,
   BadRequestException,
+  ParseUUIDPipe,
   UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -23,6 +26,13 @@ import {
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthUser } from '../auth/types/auth-user.interface';
+import { CreateEventVideoIntentDto } from './dto/event-media.dto';
+import { EventMediaService } from './event-media.service';
+import {
+  EventImageUploadResult,
+  EventVideoIntentResult,
+  FinalizedEventVideoResult,
+} from './event-media.types';
 
 const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -43,7 +53,49 @@ export class UploadMediaDto {
 export class MediaController {
   constructor(
     private readonly mediaProcessingService: MediaProcessingService,
+    private readonly eventMediaService: EventMediaService,
   ) {}
+
+  @Post('events/image')
+  @UseGuards(AuthGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_UPLOAD_SIZE_BYTES },
+    }),
+  )
+  uploadEventImage(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthUser,
+  ): Promise<EventImageUploadResult> {
+    return this.eventMediaService.uploadImage(file, user.id);
+  }
+
+  @Post('events/video-intent')
+  @UseGuards(AuthGuard)
+  createEventVideoIntent(
+    @Body() dto: CreateEventVideoIntentDto,
+    @CurrentUser() user: AuthUser,
+  ): Promise<EventVideoIntentResult> {
+    return this.eventMediaService.createVideoIntent(dto, user.id);
+  }
+
+  @Post('events/:mediaId/finalize')
+  @UseGuards(AuthGuard)
+  finalizeEventVideo(
+    @Param('mediaId', new ParseUUIDPipe({ version: '4' })) mediaId: string,
+    @CurrentUser() user: AuthUser,
+  ): Promise<FinalizedEventVideoResult> {
+    return this.eventMediaService.finalizeVideo(mediaId, user.id);
+  }
+
+  @Delete('events/:mediaId')
+  @UseGuards(AuthGuard)
+  abandonEventMedia(
+    @Param('mediaId', new ParseUUIDPipe({ version: '4' })) mediaId: string,
+    @CurrentUser() user: AuthUser,
+  ): Promise<void> {
+    return this.eventMediaService.abandon(mediaId, user.id);
+  }
 
   @Post('upload')
   @UseGuards(AuthGuard)

@@ -30,6 +30,11 @@ export interface UploadedFile {
   mimetype: string;
 }
 
+export interface ProcessedImageBuffers {
+  full: Buffer;
+  thumbnail: Buffer;
+}
+
 @Injectable()
 export class MediaProcessingService {
   private static readonly INVALID_IMAGE_MESSAGE = 'Invalid image content';
@@ -57,27 +62,11 @@ export class MediaProcessingService {
     file: UploadedFile,
     options: ImageProcessingOptions,
   ): Promise<ProcessedMediaResult> {
-    const quality = options.quality ?? 80;
-    const maxFullWidth = options.maxFullWidth ?? 1920;
-    const maxThumbWidth = options.maxThumbWidth ?? 300;
-
     let operation = 'validate';
 
     try {
-      // 1. Decode and process full resolution WebP image first
-      const pipeline = sharp(file.buffer);
-      const fullBuffer = await pipeline
-        .resize({ width: maxFullWidth, withoutEnlargement: true })
-        .webp({ quality })
-        .toBuffer();
-
+      const processed = await this.processImageBuffers(file, options);
       operation = 'process';
-
-      // 2. Downscale thumbnail from already downscaled fullBuffer (bounded RAM & fast transform)
-      const thumbBuffer = await sharp(fullBuffer)
-        .resize({ width: maxThumbWidth, withoutEnlargement: true })
-        .webp({ quality })
-        .toBuffer();
 
       // 3. Generate unique filenames
       const fileId = randomUUID();
@@ -93,26 +82,42 @@ export class MediaProcessingService {
         .storage.from(options.bucket);
 
       const [fullUpload, thumbUpload] = await Promise.all([
-        storage.upload(fullPath, fullBuffer, {
+        storage.upload(fullPath, processed.full, {
           contentType: 'image/webp',
           upsert: true,
         }),
-        storage.upload(thumbPath, thumbBuffer, {
+        storage.upload(thumbPath, processed.thumbnail, {
           contentType: 'image/webp',
           upsert: true,
         }),
       ]);
 
-      if (fullUpload.error) {
-        throw new Error(
-          fullUpload.error.message || 'Failed to upload full image',
-        );
-      }
-
-      if (thumbUpload.error) {
-        throw new Error(
-          thumbUpload.error.message || 'Failed to upload thumbnail',
-        );
+      if (fullUpload.error || thumbUpload.error) {
+        const successfulPaths = [
+          ...(fullUpload.error ? [] : [fullPath]),
+          ...(thumbUpload.error ? [] : [thumbPath]),
+        ];
+        if (successfulPaths.length > 0) {
+          try {
+            const { error: cleanupError } =
+              await storage.remove(successfulPaths);
+            if (cleanupError) {
+              this.logger.error('Partial image upload cleanup failed', {
+                bucket: options.bucket,
+                paths: successfulPaths,
+                error: this.describeError(cleanupError),
+              });
+            }
+          } catch (cleanupError) {
+            this.logger.error('Partial image upload cleanup failed', {
+              bucket: options.bucket,
+              paths: successfulPaths,
+              error: this.describeError(cleanupError),
+            });
+          }
+        }
+        const uploadError = fullUpload.error || thumbUpload.error;
+        throw new Error(uploadError?.message || 'Failed to upload image');
       }
 
       // 5. Get Public URLs
@@ -124,7 +129,7 @@ export class MediaProcessingService {
         url: fullPublicUrlData.data.publicUrl,
         thumbnailUrl: thumbPublicUrlData.data.publicUrl,
         format: 'webp',
-        sizeBytes: fullBuffer.length,
+        sizeBytes: processed.full.length,
       };
     } catch (error: unknown) {
       const context = {
@@ -147,6 +152,31 @@ export class MediaProcessingService {
         MediaProcessingService.PROCESSING_FAILED_MESSAGE,
       );
     }
+  }
+
+  async processImageBuffers(
+    file: UploadedFile,
+    options: Pick<
+      ImageProcessingOptions,
+      'quality' | 'maxFullWidth' | 'maxThumbWidth'
+    > = {},
+  ): Promise<ProcessedImageBuffers> {
+    const quality = options.quality ?? 80;
+    const full = await sharp(file.buffer)
+      .resize({
+        width: options.maxFullWidth ?? 1920,
+        withoutEnlargement: true,
+      })
+      .webp({ quality })
+      .toBuffer();
+    const thumbnail = await sharp(full)
+      .resize({
+        width: options.maxThumbWidth ?? 300,
+        withoutEnlargement: true,
+      })
+      .webp({ quality })
+      .toBuffer();
+    return { full, thumbnail };
   }
 
   private isMalformedImageError(error: unknown): boolean {

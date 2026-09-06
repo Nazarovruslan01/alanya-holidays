@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   Param,
   Post,
   Put,
@@ -428,8 +429,9 @@ export class ForumController {
   async createForumEvent(
     @Body() body: CreateForumEventDto,
     @CurrentUser() user: AuthUser,
+    @Headers('idempotency-key') idempotencyKey: string,
   ): Promise<ForumEvent> {
-    return this.eventService.createForumEvent(body, user.id);
+    return this.eventService.createForumEvent(body, user.id, idempotencyKey);
   }
 
   @Put('events/:id')
