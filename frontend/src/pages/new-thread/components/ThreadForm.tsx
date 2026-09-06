@@ -28,6 +28,7 @@ export default function ThreadForm() {
   const [coverPreviewUrl, setCoverPreviewUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [mediaUploadPending, setMediaUploadPending] = useState(false);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [createdThread, setCreatedThread] = useState<{ id: string; slug: string; title: string } | null>(null);
@@ -189,7 +190,7 @@ export default function ThreadForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate() || isSubmitting) return;
+    if (!validate() || isSubmitting || mediaUploadPending) return;
 
     setIsSubmitting(true);
     let uploadedImageUrl: string | undefined;
@@ -432,6 +433,8 @@ export default function ThreadForm() {
               }
             }}
             placeholder={t("public.storyPlaceholder")}
+            userId={user?.id}
+            onUploadStateChange={setMediaUploadPending}
           />
           {errors.content && (
             <p className="mt-2 text-xs text-primary-500">{errors.content}</p>
@@ -546,7 +549,7 @@ export default function ThreadForm() {
 
       <button
         type="submit"
-        disabled={isSubmitting || isLoadingCategories}
+        disabled={isSubmitting || isLoadingCategories || mediaUploadPending}
         className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-semibold rounded-xl bg-primary-600 text-white hover:bg-primary-700 active:scale-[0.99] transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
       >
         {isSubmitting ? (

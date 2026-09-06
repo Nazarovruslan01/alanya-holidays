@@ -901,3 +901,4 @@ describe('Challenger M3: Adversarial & Empirical Stress Suite for Audit Logging'
     });
   });
 });
+jest.mock('sanitize-html', () => jest.fn((dirty: string) => dirty));

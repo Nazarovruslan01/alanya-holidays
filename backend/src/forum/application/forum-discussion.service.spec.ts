@@ -5,6 +5,15 @@ import {
   HttpStatus,
   UnauthorizedException,
 } from '@nestjs/common';
+
+jest.mock('sanitize-html', () =>
+  jest.fn((dirty: string) =>
+    dirty
+      .replace(/<script.*?>.*?<\/script>/gi, '')
+      .replace(/\s+on\w+=("[^"]*"|'[^']*')/gi, ''),
+  ),
+);
+
 import { ForumDiscussionService } from './forum-discussion.service';
 import { ForumRepository } from '../forum.repository';
 import { UserRolesRepository } from '../../common/auth/user-roles.repository';

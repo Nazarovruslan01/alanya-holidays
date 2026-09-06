@@ -63,6 +63,12 @@ jobs:
     - name: Frontend Tests
       run: pnpm --filter @alanya-holidays/frontend test --run
 
+    - name: Install Backend Media Probe
+      run: |
+        sudo apt-get update
+        sudo apt-get install --yes --no-install-recommends ffmpeg
+        ffprobe -version
+
     - name: Backend Tests
       run: pnpm --filter @alanya-holidays/backend test
 
@@ -161,6 +167,12 @@ jobs:
         PGPASSWORD: postgrespassword
       run: |
         psql -h localhost -U postgres -d alanya_holidays -v ON_ERROR_STOP=1 -f supabase/tests/event_media_rls.sql
+
+    - name: Verify Inline Media Storage Isolation
+      env:
+        PGPASSWORD: postgrespassword
+      run: |
+        psql -h localhost -U postgres -d alanya_holidays -v ON_ERROR_STOP=1 -f supabase/tests/inline_media_rls.sql
 
     - name: Verify Listing Claim Approval Integrity
       env:

@@ -1331,4 +1331,13 @@ export default {
   "public.communityReviewsEmpty": "Отзывов сообщества пока нет",
   "public.communityReviewsCount": "Отзывов сообщества: {{count}}",
   "public.approvedOfferProvenance": "Показаны только одобренные объявления. Наличие и точная стоимость подтверждаются после запроса.",
+  "public.richTextSignInToUpload": "Войдите, чтобы загружать медиафайлы.",
+  "public.richTextImageUploadFailed": "Не удалось загрузить изображение. Попробуйте ещё раз.",
+  "public.richTextVideoUploadFailed": "Не удалось загрузить видео. Попробуйте ещё раз.",
+  "public.richTextInvalidVideoUrl": "Введите корректную ссылку YouTube или Vimeo.",
+  "public.richTextVideoUrlPlaceholder": "Ссылка YouTube или Vimeo",
+  "public.richTextVideoUrl": "Ссылка на видео",
+  "public.richTextInsertVideo": "Вставить видео",
+  "public.richTextUploadVideo": "Загрузить MP4 или WebM",
+  "public.richTextUploadPending": "Медиафайл загружается…",
 };

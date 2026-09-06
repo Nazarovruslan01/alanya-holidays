@@ -29,12 +29,17 @@ import { AuthUser } from '../auth/types/auth-user.interface';
 import { CreateEventVideoIntentDto } from './dto/event-media.dto';
 import { EventMediaService } from './event-media.service';
 import {
+  InlineMediaService,
+  UploadedInlineVideo,
+} from './inline-media.service';
+import {
   EventImageUploadResult,
   EventVideoIntentResult,
   FinalizedEventVideoResult,
 } from './event-media.types';
 
 const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_INLINE_VIDEO_SIZE_BYTES = 50 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 export class UploadMediaDto {
@@ -54,7 +59,25 @@ export class MediaController {
   constructor(
     private readonly mediaProcessingService: MediaProcessingService,
     private readonly eventMediaService: EventMediaService,
+    private readonly inlineMediaService: InlineMediaService,
   ) {}
+
+  @Post('content/video')
+  @UseGuards(AuthGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_INLINE_VIDEO_SIZE_BYTES },
+    }),
+  )
+  uploadInlineVideo(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthUser,
+  ): Promise<UploadedInlineVideo> {
+    if (!file) {
+      throw new BadRequestException('File is required for video upload');
+    }
+    return this.inlineMediaService.uploadVideo(file, user.id);
+  }
 
   @Post('events/image')
   @UseGuards(AuthGuard)

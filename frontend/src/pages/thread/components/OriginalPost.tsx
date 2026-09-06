@@ -42,6 +42,7 @@ export default function OriginalPost({
   const [editCoverFile, setEditCoverFile] = useState<File | null>(null);
   const [coverError, setCoverError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [mediaUploadPending, setMediaUploadPending] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(Boolean(thread.isBookmarked));
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
@@ -67,7 +68,7 @@ export default function OriginalPost({
   const canEdit = isAuthor || isAdmin;
 
   const handleSave = async () => {
-    if (!editContent.trim() || editContent === "<p></p>" || coverError) return;
+    if (!editContent.trim() || editContent === "<p></p>" || coverError || mediaUploadPending) return;
     const prevContent = content;
     let uploadedImageUrl: string | undefined;
     setIsSaving(true);
@@ -274,6 +275,7 @@ export default function OriginalPost({
               onChange={setEditContent}
               placeholder={t("public.editPostPlaceholder")}
               userId={user?.id}
+              onUploadStateChange={setMediaUploadPending}
             />
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
@@ -287,7 +289,7 @@ export default function OriginalPost({
               <button
                 type="button"
                 onClick={handleSave}
-                disabled={isSaving || !editContent.trim() || Boolean(coverError)}
+                disabled={isSaving || mediaUploadPending || !editContent.trim() || Boolean(coverError)}
                 className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-primary-500 text-white text-xs font-medium hover:bg-primary-600 disabled:opacity-50 transition-colors cursor-pointer shadow-xs"
               >
                 {isSaving && <i className="ri-loader-4-line animate-spin text-sm"></i>}

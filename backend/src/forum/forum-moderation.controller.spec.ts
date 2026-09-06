@@ -142,3 +142,4 @@ describe('ForumModerationController', () => {
     expect(mockService.getRemovedComments).toHaveBeenCalledWith(50, 'admin-1');
   });
 });
+jest.mock('sanitize-html', () => jest.fn((dirty: string) => dirty));

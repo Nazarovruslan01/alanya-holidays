@@ -639,3 +639,4 @@ describe('Forum Invariants Safety Net (PR-1 Invariant Spec)', () => {
     });
   });
 });
+jest.mock('sanitize-html', () => jest.fn((dirty: string) => dirty));

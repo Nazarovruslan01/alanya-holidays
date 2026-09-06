@@ -29,6 +29,7 @@ export default function SubmitGuideModal({
   const [authorEmail, setAuthorEmail] = useState("");
   const [content, setContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [mediaUploadPending, setMediaUploadPending] = useState(false);
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -67,7 +68,7 @@ export default function SubmitGuideModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const strippedContent = content.replace(/<[^>]*>?/gm, "").trim();
-    if (!title.trim() || !strippedContent) {
+    if (!title.trim() || !strippedContent || mediaUploadPending) {
       setErrorMsg(t("public.guides.submitValidation"));
       return;
     }
@@ -257,6 +258,7 @@ export default function SubmitGuideModal({
                   onChange={setContent}
                   placeholder={t("public.guides.contentPlaceholder")}
                   userId={user?.id}
+                  onUploadStateChange={setMediaUploadPending}
                 />
               </div>
 
@@ -264,7 +266,7 @@ export default function SubmitGuideModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || mediaUploadPending}
                   className="px-5 py-2.5 rounded-full border border-background-300 hover:bg-background-100 text-foreground-700 text-sm font-medium transition-colors cursor-pointer"
                 >
                   {t("common.cancel")}

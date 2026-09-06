@@ -1,6 +1,7 @@
 import { useState } from "react";
 import RichTextEditor from "@/components/base/RichTextEditor";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "@/context/AuthContext";
 import "@/i18n";
 
 interface ReplyInputProps {
@@ -13,18 +14,20 @@ interface ReplyInputProps {
 const replyModules = {
   toolbar: [
     ['bold', 'italic', 'strike'],
-    ['link', 'image'],
+    ['link', 'image', 'video'],
     ['clean'],
   ],
 };
 
 export default function ReplyInput({ replyTo, replyToAuthor, onSubmit, onCancel }: ReplyInputProps) {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [content, setContent] = useState("");
+  const [mediaUploadPending, setMediaUploadPending] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim()) return;
+    if (!content.trim() || mediaUploadPending) return;
     onSubmit(content.trim(), replyTo);
     setContent("");
   };
@@ -57,6 +60,8 @@ export default function ReplyInput({ replyTo, replyToAuthor, onSubmit, onCancel 
         onChange={setContent}
         placeholder={replyTo ? t("public.replyTo", { name: replyToAuthor }) : t("public.shareThoughts")}
         modules={replyModules}
+        userId={user?.id}
+        onUploadStateChange={setMediaUploadPending}
       />
 
       <div className="flex items-center justify-end mt-3">
@@ -72,7 +77,7 @@ export default function ReplyInput({ replyTo, replyToAuthor, onSubmit, onCancel 
           )}
           <button
             type="submit"
-            disabled={!content.trim()}
+            disabled={!content.trim() || mediaUploadPending}
             className="px-4 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-background-50 hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all whitespace-nowrap"
           >
             {replyTo ? t("public.postReply") : t("public.postComment")}

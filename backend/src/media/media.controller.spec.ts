@@ -5,6 +5,7 @@ import { BadRequestException } from '@nestjs/common';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { AuthGuard } from '../auth/auth.guard';
 import { EventMediaService } from './event-media.service';
+import { InlineMediaService } from './inline-media.service';
 
 describe('MediaController', () => {
   let controller: MediaController;
@@ -17,6 +18,7 @@ describe('MediaController', () => {
     finalizeVideo: jest.Mock;
     abandon: jest.Mock;
   };
+  let inlineMediaServiceMock: { uploadVideo: jest.Mock };
 
   beforeEach(async () => {
     serviceMock = {
@@ -45,6 +47,13 @@ describe('MediaController', () => {
       }),
       abandon: jest.fn().mockResolvedValue(undefined),
     };
+    inlineMediaServiceMock = {
+      uploadVideo: jest.fn().mockResolvedValue({
+        url: 'https://project-ref.supabase.co/storage/v1/object/public/inline-media/owner/videos/video.mp4',
+        mimeType: 'video/mp4',
+        sizeBytes: 2048,
+      }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [MediaController],
@@ -56,6 +65,10 @@ describe('MediaController', () => {
         {
           provide: EventMediaService,
           useValue: eventMediaServiceMock,
+        },
+        {
+          provide: InlineMediaService,
+          useValue: inlineMediaServiceMock,
         },
       ],
     })
@@ -208,5 +221,29 @@ describe('MediaController', () => {
       'media-2',
       'owner-1',
     );
+  });
+
+  it('uses an authenticated owner-derived endpoint for inline videos', async () => {
+    const file = {
+      buffer: Buffer.from('video'),
+      originalname: 'clip.mp4',
+      mimetype: 'video/mp4',
+      size: 2048,
+    } as Express.Multer.File;
+
+    await expect(
+      controller.uploadInlineVideo(file, { id: 'owner-1' }),
+    ).resolves.toEqual(expect.objectContaining({ mimeType: 'video/mp4' }));
+    expect(inlineMediaServiceMock.uploadVideo).toHaveBeenCalledWith(
+      file,
+      'owner-1',
+    );
+
+    const handler = Object.getOwnPropertyDescriptor(
+      MediaController.prototype,
+      'uploadInlineVideo',
+    )?.value as object;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as unknown[];
+    expect(guards).toContain(AuthGuard);
   });
 });

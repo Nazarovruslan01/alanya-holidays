@@ -14,6 +14,7 @@ import {
   assertAuthorOrAdmin,
   assertAdmin,
 } from '../domain/forum-authorization.helper';
+import { sanitizeRichTextHtml } from '../../utils/rich-text-html';
 import {
   CreateForumCategoryDto,
   UpdateForumCategoryDto,
@@ -422,8 +423,8 @@ export class ForumDiscussionService {
     return this.forumRepository.insertPost({
       title: input.title,
       slug: uniqueSlug,
-      body: input.body ?? input.content ?? '',
-      content: input.content ?? input.body ?? '',
+      body: sanitizeRichTextHtml(input.body ?? input.content ?? ''),
+      content: sanitizeRichTextHtml(input.content ?? input.body ?? ''),
       category_id: resolvedCategoryId,
       image_url: input.image_url || null,
       author_id: userId,
@@ -446,8 +447,10 @@ export class ForumDiscussionService {
 
     const safe: UpdateForumPostDbInput = {};
     if (updates.title !== undefined) safe.title = updates.title;
-    if (updates.body !== undefined) safe.body = updates.body;
-    if (updates.content !== undefined) safe.content = updates.content;
+    if (updates.body !== undefined)
+      safe.body = sanitizeRichTextHtml(updates.body);
+    if (updates.content !== undefined)
+      safe.content = sanitizeRichTextHtml(updates.content);
     if (updates.image_url !== undefined)
       safe.image_url = updates.image_url || null;
     if (updates.category_id !== undefined) {
@@ -589,8 +592,8 @@ export class ForumDiscussionService {
     return this.forumRepository.insertComment({
       post_id: postId,
       author_id: userId,
-      body,
-      content: body,
+      body: sanitizeRichTextHtml(body),
+      content: sanitizeRichTextHtml(body),
       parent_id: parentId || null,
     });
   }
@@ -607,7 +610,11 @@ export class ForumDiscussionService {
     if (!existing) throw new NotFoundException('Comment not found');
     assertAuthorOrAdmin(existing.author_id, userId, role);
 
-    return this.forumRepository.updateComment(id, { body, content: body });
+    const sanitizedBody = sanitizeRichTextHtml(body);
+    return this.forumRepository.updateComment(id, {
+      body: sanitizedBody,
+      content: sanitizedBody,
+    });
   }
 
   async deleteForumComment(

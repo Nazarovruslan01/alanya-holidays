@@ -1,4 +1,9 @@
 import type { ArticleBlockNode } from "./types";
+import {
+  isApprovedInlineVideoUrl,
+  isSafeImageUrl,
+  normalizeVideoEmbedUrl,
+} from "@/utils/richTextMedia";
 
 const KNOWN_SHORTCODES = new Set([
   "venue",
@@ -132,11 +137,20 @@ export function parseArticleContent(rawContent: string): ArticleBlockNode[] {
     .replace(/<img\b[^>]*>/gi, (tag) => {
       const src = htmlAttribute(tag, 'src');
       const alt = htmlAttribute(tag, 'alt');
-      return `\n[figure src="${src}" alt="${alt}"]\n`;
+      return isSafeImageUrl(src)
+        ? `\n[figure src="${src}" alt="${alt}"]\n`
+        : '';
     })
     .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>|<iframe\b[^>]*\/>/gi, (tag) => {
       const src = htmlAttribute(tag, 'src');
-      return `\n[video src="${src}"]\n`;
+      const normalized = normalizeVideoEmbedUrl(src);
+      return normalized ? `\n[video src="${normalized}"]\n` : '';
+    })
+    .replace(/<video\b[^>]*>[\s\S]*?<\/video>|<video\b[^>]*\/>/gi, (tag) => {
+      const src = htmlAttribute(tag, 'src');
+      return isApprovedInlineVideoUrl(src)
+        ? `\n[video src="${src}" provider="html5"]\n`
+        : '';
     });
 
   const nodes: ArticleBlockNode[] = [];
