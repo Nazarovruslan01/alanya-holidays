@@ -162,12 +162,13 @@ describe("HostEventModal", () => {
     const onSave = vi.fn(
       async (_payload: CreateEventPayload, _idempotencyKey: string) => undefined,
     );
+    const initialEventInstant = new Date(2026, 8, 1, 21, 0, 0, 456).toISOString();
     const initialEvent: BackendForumEvent = {
       id: "event-1",
       title: "Harbour Meetup",
       description: "Meet the community beside the harbour in Alanya.",
       location: "Alanya Harbour",
-      event_date: "2026-09-01T18:00:00.456Z",
+      event_date: initialEventInstant,
       category_id: categoryId,
       category: {
         id: categoryId,
@@ -198,7 +199,7 @@ describe("HostEventModal", () => {
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
         expect.objectContaining({
-          event_date: "2026-09-01T18:00:00.456Z",
+          event_date: initialEventInstant,
           category_id: categoryId,
           is_published: false,
         }),

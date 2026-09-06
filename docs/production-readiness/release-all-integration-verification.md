@@ -47,6 +47,17 @@ untracked `node_modules` symlinks; no dependency install or lockfile change occu
 The first sandboxed E2E invocation could not bind an ephemeral local port (`listen EPERM`). The
 same unchanged command passed with local-listener permission; the failure was environmental.
 
+### CI timezone repair
+
+GitHub Actions run `34039842371` at head `5ba29961f97f7630bda488e3ff68399d4d36c522`
+passed PostgreSQL 16 migrations and RLS verification, backend E2E, and Docker validation. Its only
+failure was one of 1,556 frontend tests: the existing-event modal test expected Istanbul's `21:00`
+for a fixed `18:00Z` instant while the runner used UTC. The test fixture now constructs `21:00`
+in the runtime's local timezone and continues to assert that submitting unchanged fields preserves
+the exact generated ISO instant. The focused file passed 14 tests with both `TZ=UTC` and
+`TZ=Europe/Istanbul`; the full UTC frontend suite passed 149 files and 1,556 tests. Frontend
+typecheck, no-fix ESLint, and build also passed after the repair.
+
 ## PostgreSQL gates
 
 The authorized local PostgreSQL 14 cluster used socket `/private/tmp`, port `55439`. Product
@@ -100,9 +111,8 @@ transaction; each script's final `ROLLBACK` removed it.
 
 `supabase/tests/event_media_rls.sql` ran its rollback-wrapped RLS, cleanup, and idempotency
 assertions locally, then PostgreSQL 14 `psql` exited 3 at line 1422 because that client does not
-support the final phase's `\getenv` meta-command. The final dblink concurrency phase remains a
-mandatory PostgreSQL 16 CI gate before merge. PostgreSQL 16 CI is also the authoritative full
-migration compatibility result.
+support the final phase's `\getenv` meta-command. GitHub Actions run `34039842371` subsequently
+passed the authoritative PostgreSQL 16 full-migration, RLS, and event-media SQL job.
 
 ## Release condition
 
@@ -111,5 +121,5 @@ The repository's CD workflow deploys the application after main-branch CI and E2
 apply database migrations. Imported listing claims therefore require a separate, manual production
 application of `20260906020000_enable_imported_listing_claims.sql` using the rollout, verification,
 cache invalidation, and forward-rollback procedure in
-`docs/production-readiness/imported-listing-claim-rollout.md`. Merge must wait for the PostgreSQL 16
-CI migration and event-media SQL gates.
+`docs/production-readiness/imported-listing-claim-rollout.md`. Merge must wait for the repaired head
+to pass the required GitHub checks.
