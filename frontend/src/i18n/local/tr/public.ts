@@ -1331,4 +1331,13 @@ export default {
   "public.communityReviewsEmpty": "Henüz topluluk yorumu yok",
   "public.communityReviewsCount": "Topluluk yorumları: {{count}}",
   "public.approvedOfferProvenance": "Yalnızca onaylanmış ilanlar gösterilir. Uygunluk ve kesin fiyatlandırma talepten sonra teyit edilir.",
+  "public.richTextSignInToUpload": "Medya yüklemek için giriş yapın.",
+  "public.richTextImageUploadFailed": "Görsel yüklenemedi. Lütfen tekrar deneyin.",
+  "public.richTextVideoUploadFailed": "Video yüklenemedi. Lütfen tekrar deneyin.",
+  "public.richTextInvalidVideoUrl": "Geçerli bir YouTube veya Vimeo bağlantısı girin.",
+  "public.richTextVideoUrlPlaceholder": "YouTube veya Vimeo bağlantısı",
+  "public.richTextVideoUrl": "Video bağlantısı",
+  "public.richTextInsertVideo": "Videoyu ekle",
+  "public.richTextUploadVideo": "MP4 veya WebM yükle",
+  "public.richTextUploadPending": "Medya yükleniyor…",
 };

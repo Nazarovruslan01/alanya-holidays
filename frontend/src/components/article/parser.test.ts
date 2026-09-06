@@ -305,6 +305,52 @@ describe("Article Shortcode AST Parser (parseArticleContent)", () => {
   });
 
   describe("Tier 4: Mixed Real-World Document Parsing", () => {
+    it("converts approved rich-text media HTML into renderable video nodes", () => {
+      const supabaseOrigin =
+        import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_PUBLIC_SUPABASE_URL;
+      const storageUrl =
+        `${supabaseOrigin}/storage/v1/object/public/inline-media/11111111-1111-4111-8111-111111111111/videos/22222222-2222-4222-8222-222222222222.mp4`;
+      const result = parseArticleContent(
+        `<p>Before</p><img src="https://images.example.com/beach.webp" alt="Beach"><img src="data:text/html,boom"><iframe src="https://youtu.be/dQw4w9WgXcQ"></iframe><video src="${storageUrl}" controls></video><p>After</p>`,
+      );
+
+      expect(result).toEqual<ArticleBlockNode[]>([
+        { type: "html", content: "<p>Before</p>" },
+        {
+          type: "figure",
+          src: "https://images.example.com/beach.webp",
+          caption: undefined,
+          credit: undefined,
+          alt: "Beach",
+        },
+        {
+          type: "video",
+          src: "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+          provider: "youtube",
+          caption: undefined,
+          trackSrc: undefined,
+          poster: undefined,
+        },
+        {
+          type: "video",
+          src: storageUrl,
+          provider: "html5",
+          caption: undefined,
+          trackSrc: undefined,
+          poster: undefined,
+        },
+        { type: "html", content: "<p>After</p>" },
+      ]);
+    });
+
+    it("drops arbitrary iframe and native video sources from rich text", () => {
+      expect(
+        parseArticleContent(
+          '<p>Before</p><iframe src="https://evil.example/embed"></iframe><video src="https://evil.example/video.mp4"></video><p>After</p>',
+        ),
+      ).toEqual([{ type: "html", content: "<p>Before</p><p>After</p>" }]);
+    });
+
     it("preserves rich HTML while extracting Quill-wrapped platform embeds in document order", () => {
       const result = parseArticleContent(
         '<p><strong>Opening</strong> paragraph</p><p>[cta category="restaurants" label="Book dinner"]</p><p>Closing paragraph</p>',

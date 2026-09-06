@@ -39,7 +39,7 @@ export default function SubmitContentModal({
 }: SubmitContentModalProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { isAuthenticated, loading: authLoading, user } = useAuth();
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryId, setCategoryId] = useState("");
@@ -48,6 +48,7 @@ export default function SubmitContentModal({
   const [body, setBody] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [mediaUploadPending, setMediaUploadPending] = useState(false);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -126,6 +127,8 @@ export default function SubmitContentModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
+
+    if (mediaUploadPending) return;
 
     if (!isAuthenticated) {
       const message = "Please sign in to share a post with the community.";
@@ -379,6 +382,8 @@ export default function SubmitContentModal({
                 value={body}
                 onChange={setBody}
                 placeholder={t("public.storyPlaceholder")}
+                userId={user?.id}
+                onUploadStateChange={setMediaUploadPending}
               />
             </div>
 
@@ -410,7 +415,7 @@ export default function SubmitContentModal({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || isLoadingCategories}
+              disabled={isSubmitting || isLoadingCategories || mediaUploadPending}
               className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold rounded-xl bg-primary-600 text-white hover:bg-primary-700 active:scale-95 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {isSubmitting ? (

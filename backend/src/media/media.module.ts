@@ -5,11 +5,17 @@ import { SupabaseModule } from '../supabase/supabase.module';
 import { BusinessApplicationsModule } from '../business-applications/business-applications.module';
 import { EventMediaRepository } from './event-media.repository';
 import { EventMediaService } from './event-media.service';
+import { InlineMediaService } from './inline-media.service';
 
 @Module({
   imports: [SupabaseModule, BusinessApplicationsModule],
   controllers: [MediaController],
-  providers: [MediaProcessingService, EventMediaRepository, EventMediaService],
+  providers: [
+    MediaProcessingService,
+    EventMediaRepository,
+    EventMediaService,
+    InlineMediaService,
+  ],
   exports: [MediaProcessingService, EventMediaService],
 })
 export class MediaModule {}

@@ -561,3 +561,4 @@ describe('ForumController', () => {
     });
   });
 });
+jest.mock('sanitize-html', () => jest.fn((dirty: string) => dirty));

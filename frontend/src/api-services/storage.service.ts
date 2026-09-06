@@ -35,6 +35,12 @@ export interface UploadedAvatarImage {
   sizeBytes: number;
 }
 
+export interface UploadedInlineVideo {
+  url: string;
+  mimeType: "video/mp4" | "video/webm";
+  sizeBytes: number;
+}
+
 function validateEventImage(file: File): void {
   if (!EVENT_IMAGE_TYPES.has(file.type)) {
     throw new Error("Only JPEG, PNG, and WebP images are allowed");
@@ -153,55 +159,29 @@ export async function abandonEventMedia(mediaId: string): Promise<void> {
 
 /**
  * Uploads an image for forum threads, replies, or rich text content to the 'forum-media' bucket.
- * 
+ *
  * @param file The image File to upload
- * @param userId The ID of the authenticated owner
+ * @param _userId Deprecated compatibility argument; the backend derives ownership from auth
  * @returns The public CDN URL of the uploaded image
  */
-export async function uploadForumImage(file: File, userId: string): Promise<string> {
-  const sanitizedUserId = userId.trim();
-  if (!sanitizedUserId) {
-    throw new Error("A user ID is required to upload a forum image");
-  }
-  
-  // Extract and sanitize extension
-  const parts = file.name.split(".");
-  const rawExt = parts.length > 1 ? parts.pop()?.toLowerCase() || "png" : "png";
-  const sanitizedExt = rawExt.replace(/[^a-z0-9]/g, "") || "png";
-  
-  // Generate random unique identifier
-  const uniqueId = typeof crypto !== "undefined" && crypto.randomUUID
-    ? crypto.randomUUID()
-    : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-  
-  const filePath = `${sanitizedUserId}/${uniqueId}.${sanitizedExt}`;
+export async function uploadForumImage(
+  file: File,
+  _userId?: string,
+): Promise<string> {
+  validateEventImage(file);
+  const body = new FormData();
+  body.append("file", file);
+  body.append("bucket", "forum-media");
+  body.append("folder", "inline");
+  const result = await apiClient.post<UploadedAvatarImage>("/media/upload", body);
+  return result.url;
+}
 
-  try {
-    const { error: uploadError } = await supabase.storage
-      .from("forum-media")
-      .upload(filePath, file, {
-        cacheControl: "3600",
-        upsert: false,
-      });
-
-    if (uploadError) {
-      logger.error("Failed to upload forum image to Supabase storage:", uploadError);
-      throw uploadError;
-    }
-
-    const { data: publicUrlData } = supabase.storage
-      .from("forum-media")
-      .getPublicUrl(filePath);
-
-    if (!publicUrlData || !publicUrlData.publicUrl) {
-      throw new Error("Failed to generate public URL for uploaded forum image");
-    }
-
-    return publicUrlData.publicUrl;
-  } catch (err) {
-    logger.error("Error in uploadForumImage:", err);
-    throw err;
-  }
+export async function uploadInlineVideo(file: File): Promise<UploadedInlineVideo> {
+  validateEventVideo(file);
+  const body = new FormData();
+  body.append("file", file);
+  return apiClient.post<UploadedInlineVideo>("/media/content/video", body);
 }
 
 export async function uploadBlogImage(file: File, userId: string): Promise<string> {
@@ -310,6 +290,7 @@ export async function deleteBlogImage(publicUrl: string, userId: string): Promis
 
 export const storageService = {
   uploadForumImage,
+  uploadInlineVideo,
   deleteForumImage,
   uploadEventImage,
   uploadEventVideo,

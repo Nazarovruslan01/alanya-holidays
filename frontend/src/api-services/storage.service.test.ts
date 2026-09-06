@@ -49,6 +49,7 @@ import {
   uploadEventVideo,
   uploadAvatarImage,
   uploadForumImage,
+  uploadInlineVideo,
   storageService,
 } from "./storage.service";
 import { apiClient } from "@/lib/api-client";
@@ -202,79 +203,78 @@ describe("storage.service", () => {
   });
 
   describe("uploadForumImage", () => {
-    it("should successfully upload a file to the forum-media bucket and return the public URL", async () => {
+    it("uploads through the authenticated backend-derived inline folder", async () => {
       const mockFile = new File(["dummy content"], "photo.jpg", { type: "image/jpeg" });
-      const userId = "user-123-abc";
-      const expectedUrl = "https://cdn.supabase.co/storage/v1/object/public/forum-media/user-123-abc/uuid.jpg";
+      const uploaded = {
+        originalName: "photo.jpg",
+        url: "https://project.supabase.co/storage/v1/object/public/forum-media/user-1/inline/file-full.webp",
+        thumbnailUrl: "https://project.supabase.co/storage/v1/object/public/forum-media/user-1/inline/file-thumb.webp",
+        format: "webp" as const,
+        sizeBytes: 42,
+      };
+      vi.spyOn(apiClient, "post").mockResolvedValue(uploaded);
 
-      mockUpload.mockResolvedValue({
-        data: { path: "user-123-abc/test-uuid.jpg" },
-        error: null,
-      });
-      mockGetPublicUrl.mockReturnValue({
-        data: { publicUrl: expectedUrl },
-      });
+      await expect(uploadForumImage(mockFile)).resolves.toBe(uploaded.url);
 
-      const url = await uploadForumImage(mockFile, userId);
-
-      expect(mockFrom).toHaveBeenCalledWith("forum-media");
-      expect(mockUpload).toHaveBeenCalledTimes(1);
-      const [uploadPath, fileArg, options] = mockUpload.mock.calls[0];
-      expect(uploadPath).toMatch(new RegExp(`^${userId}/[0-9a-f-]+\\.jpg$`));
-      expect(fileArg).toBe(mockFile);
-      expect(options).toEqual({ cacheControl: "3600", upsert: false });
-      expect(mockGetPublicUrl).toHaveBeenCalledWith(uploadPath);
-      expect(url).toBe(expectedUrl);
-    });
-
-    it("rejects uploads without an authenticated owner ID", async () => {
-      const mockFile = new File(["dummy"], "screenshot.png", { type: "image/png" });
-
-      await expect(uploadForumImage(mockFile, " ")).rejects.toThrow(
-        "A user ID is required to upload a forum image",
-      );
-
+      const [endpoint, body] = vi.mocked(apiClient.post).mock.calls[0];
+      expect(endpoint).toBe("/media/upload");
+      expect(body).toBeInstanceOf(FormData);
+      const form = body as FormData;
+      expect(form.get("file")).toBe(mockFile);
+      expect(form.get("bucket")).toBe("forum-media");
+      expect(form.get("folder")).toBe("inline");
       expect(mockUpload).not.toHaveBeenCalled();
     });
 
-    it("should sanitize file extensions to lowercase alphanumeric", async () => {
-      const mockFile = new File(["dummy"], "MY_IMAGE.PNG", { type: "image/png" });
-      mockUpload.mockResolvedValue({ data: { path: "user-1/test.png" }, error: null });
-      mockGetPublicUrl.mockReturnValue({ data: { publicUrl: "https://cdn.supabase.co/forum-media/user-1/test.png" } });
+    it.each([
+      ["image/svg+xml", 1, "Only JPEG, PNG, and WebP images are allowed"],
+      ["image/png", 0, "Image file must not be empty"],
+      ["image/png", 5 * 1024 * 1024 + 1, "Image must not exceed 5 MB"],
+    ])("rejects invalid inline images before the request", async (type, size, message) => {
+      const file = new File(["image"], "image.png", { type });
+      Object.defineProperty(file, "size", { value: size });
+      const postSpy = vi.spyOn(apiClient, "post");
 
-      await uploadForumImage(mockFile, "user-1");
-
-      const [uploadPath] = mockUpload.mock.calls[0];
-      expect(uploadPath).toMatch(/^user-1\/[0-9a-f-]+\.png$/);
+      await expect(uploadForumImage(file)).rejects.toThrow(message);
+      expect(postSpy).not.toHaveBeenCalled();
     });
 
-    it("should fallback to png extension if file has no extension", async () => {
-      const mockFile = new File(["dummy"], "blob", { type: "image/png" });
-      mockUpload.mockResolvedValue({ data: { path: "user-1/test.png" }, error: null });
-      mockGetPublicUrl.mockReturnValue({ data: { publicUrl: "https://cdn.supabase.co/forum-media/user-1/test.png" } });
+    it("uploads a validated inline video through the dedicated endpoint", async () => {
+      const file = new File(["video"], "clip.webm", { type: "video/webm" });
+      const uploaded = {
+        url: "https://project.supabase.co/storage/v1/object/public/inline-media/user/videos/file.webm",
+        mimeType: "video/webm" as const,
+        sizeBytes: file.size,
+      };
+      vi.spyOn(apiClient, "post").mockResolvedValue(uploaded);
 
-      await uploadForumImage(mockFile, "user-1");
+      await expect(uploadInlineVideo(file)).resolves.toEqual(uploaded);
 
-      const [uploadPath] = mockUpload.mock.calls[0];
-      expect(uploadPath).toMatch(/^user-1\/[0-9a-f-]+\.png$/);
+      const [endpoint, body] = vi.mocked(apiClient.post).mock.calls[0];
+      expect(endpoint).toBe("/media/content/video");
+      expect((body as FormData).get("file")).toBe(file);
     });
 
-    it("should throw error if upload fails", async () => {
-      const mockFile = new File(["dummy"], "error.png", { type: "image/png" });
-      const uploadError = new Error("Bucket quota exceeded");
-      mockUpload.mockResolvedValue({ data: null, error: uploadError });
+    it.each([
+      ["video/quicktime", 1, "Only MP4 and WebM videos are allowed"],
+      ["video/mp4", 0, "Video file must not be empty"],
+      ["video/mp4", 50 * 1024 * 1024 + 1, "Video must not exceed 50 MB"],
+    ])("rejects invalid inline videos before the request", async (type, size, message) => {
+      const file = new File(["video"], "clip.mp4", { type });
+      Object.defineProperty(file, "size", { value: size });
+      const postSpy = vi.spyOn(apiClient, "post");
 
-      await expect(uploadForumImage(mockFile, "user-1")).rejects.toThrow("Bucket quota exceeded");
+      await expect(uploadInlineVideo(file)).rejects.toThrow(message);
+      expect(postSpy).not.toHaveBeenCalled();
     });
 
-    it("should export storageService object with uploadForumImage", () => {
-      expect(storageService).toBeDefined();
-      expect(typeof storageService.uploadForumImage).toBe("function");
-      expect(typeof storageService.uploadBlogImage).toBe("function");
-      expect(typeof storageService.deleteBlogImage).toBe("function");
-      expect(typeof storageService.uploadEventImage).toBe("function");
-      expect(typeof storageService.uploadEventVideo).toBe("function");
-      expect(typeof storageService.uploadAvatarImage).toBe("function");
+    it("should export the inline media helpers", () => {
+      expect(storageService).toEqual(
+        expect.objectContaining({
+          uploadForumImage: expect.any(Function),
+          uploadInlineVideo: expect.any(Function),
+        }),
+      );
     });
   });
 

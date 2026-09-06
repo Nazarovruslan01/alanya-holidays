@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "@/pages/home/components/Navbar";
 import Footer from "@/pages/home/components/Footer";
 import ArticleContentRenderer from "@/components/article/ArticleContentRenderer";
+import RichTextEditor from "@/components/base/RichTextEditor";
 import { BLOG_CATEGORIES } from "@/pages/blog/blog.constants";
 import { useAuth } from "@/context/AuthContext";
 import { blogService, type BlogTag } from "@/api-services/blog.service";
@@ -52,11 +53,11 @@ export default function BlogSubmitPage() {
   const [videoUrl, setVideoUrl] = useState("");
   const [tags, setTags] = useState<BlogTag[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [mediaUploadPending, setMediaUploadPending] = useState(false);
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [editorMode, setEditorMode] = useState<"write" | "preview">("write");
-  const contentInputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -107,51 +108,9 @@ export default function BlogSubmitPage() {
     setCoverError("");
   };
 
-  const replaceContentSelection = (
-    before: string,
-    after: string,
-    placeholder: string
-  ) => {
-    const input = contentInputRef.current;
-    if (!input) return;
-    const start = input.selectionStart;
-    const end = input.selectionEnd;
-    const selectedText = content.slice(start, end) || placeholder;
-    const replacement = `${before}${selectedText}${after}`;
-    setContent(`${content.slice(0, start)}${replacement}${content.slice(end)}`);
-    setFieldErrors((prev) => ({ ...prev, content: undefined }));
-
-    requestAnimationFrame(() => {
-      input.focus();
-      const selectionStart = start + before.length;
-      input.setSelectionRange(selectionStart, selectionStart + selectedText.length);
-    });
-  };
-
-  const prefixSelectedLines = (prefix: string) => {
-    const input = contentInputRef.current;
-    if (!input) return;
-    const start = content.lastIndexOf("\n", Math.max(0, input.selectionStart - 1)) + 1;
-    const nextLineBreak = content.indexOf("\n", input.selectionEnd);
-    const end = nextLineBreak === -1 ? content.length : nextLineBreak;
-    const selectedLines = content.slice(start, end) || "List item";
-    const replacement = selectedLines
-      .split("\n")
-      .map((line, index) =>
-        prefix === "1. " ? `${index + 1}. ${line}` : `${prefix}${line}`
-      )
-      .join("\n");
-    setContent(`${content.slice(0, start)}${replacement}${content.slice(end)}`);
-    setFieldErrors((prev) => ({ ...prev, content: undefined }));
-
-    requestAnimationFrame(() => {
-      input.focus();
-      input.setSelectionRange(start, start + replacement.length);
-    });
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (mediaUploadPending) return;
     const nextFieldErrors: FieldErrors = {};
     const trimmedTitle = title.trim();
     const trimmedContent = content.trim();
@@ -161,7 +120,8 @@ export default function BlogSubmitPage() {
     else if (trimmedTitle.length > 150)
       nextFieldErrors.title = t("blogSubmit.titleTooLong");
 
-    if (trimmedContent.length < 10)
+    const textContent = trimmedContent.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").trim();
+    if (textContent.length < 10)
       nextFieldErrors.content = t("blogSubmit.contentTooShort");
     else if (trimmedContent.length > 100000)
       nextFieldErrors.content = t("blogSubmit.contentTooLong");
@@ -443,9 +403,12 @@ export default function BlogSubmitPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setEditorMode("preview")}
+                          onClick={() => {
+                            if (!mediaUploadPending) setEditorMode("preview");
+                          }}
+                          disabled={mediaUploadPending}
                           aria-pressed={editorMode === "preview"}
-                          className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                          className={`rounded-md px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                             editorMode === "preview"
                               ? "bg-white text-foreground-900 shadow-sm"
                               : "text-foreground-500 hover:text-foreground-800"
@@ -456,94 +419,19 @@ export default function BlogSubmitPage() {
                       </div>
                     </div>
                     {editorMode === "write" ? (
-                      <div>
-                        <div
-                          className="flex flex-wrap items-center gap-1 rounded-t-xl border border-b-0 border-background-300 bg-background-50 p-2"
-                          aria-label={t("blogSubmit.markdownFormatting")}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => prefixSelectedLines("## ")}
-                            aria-label={t("blogSubmit.headingTwo")}
-                            title={t("blogSubmit.headingTwo")}
-                            className="rounded px-2 py-1 text-xs font-semibold text-foreground-600 hover:bg-white hover:text-foreground-900"
-                          >
-                            H2
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => prefixSelectedLines("### ")}
-                            aria-label={t("blogSubmit.headingThree")}
-                            title={t("blogSubmit.headingThree")}
-                            className="rounded px-2 py-1 text-xs font-semibold text-foreground-600 hover:bg-white hover:text-foreground-900"
-                          >
-                            H3
-                          </button>
-                          <span className="mx-1 h-5 w-px bg-background-300" />
-                          <button
-                            type="button"
-                            onClick={() => replaceContentSelection("**", "**", "bold text")}
-                            aria-label={t("blogSubmit.bold")}
-                            title={t("blogSubmit.bold")}
-                            className="rounded px-2 py-1 text-xs font-bold text-foreground-600 hover:bg-white hover:text-foreground-900"
-                          >
-                            B
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => replaceContentSelection("*", "*", "italic text")}
-                            aria-label={t("blogSubmit.italic")}
-                            title={t("blogSubmit.italic")}
-                            className="rounded px-2 py-1 text-xs italic text-foreground-600 hover:bg-white hover:text-foreground-900"
-                          >
-                            I
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              replaceContentSelection("[", "](https://example.com)", "link text")
-                            }
-                            aria-label={t("blogSubmit.link")}
-                            title={t("blogSubmit.link")}
-                            className="rounded px-2 py-1 text-xs text-foreground-600 hover:bg-white hover:text-foreground-900"
-                          >
-                            <i className="ri-link" />
-                          </button>
-                          <span className="mx-1 h-5 w-px bg-background-300" />
-                          <button
-                            type="button"
-                            onClick={() => prefixSelectedLines("- ")}
-                            aria-label={t("blogSubmit.bulletedList")}
-                            title={t("blogSubmit.bulletedList")}
-                            className="rounded px-2 py-1 text-xs text-foreground-600 hover:bg-white hover:text-foreground-900"
-                          >
-                            <i className="ri-list-unordered" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => prefixSelectedLines("1. ")}
-                            aria-label={t("blogSubmit.numberedList")}
-                            title={t("blogSubmit.numberedList")}
-                            className="rounded px-2 py-1 text-xs text-foreground-600 hover:bg-white hover:text-foreground-900"
-                          >
-                            <i className="ri-list-ordered-2" />
-                          </button>
-                        </div>
-                        <textarea
-                          ref={contentInputRef}
-                          id="blog-post-content"
-                        rows={8}
+                      <RichTextEditor
+                        inputId="blog-post-content"
+                        ariaLabel={t("blogSubmit.content")}
                         value={content}
-                        aria-invalid={Boolean(fieldErrors.content)}
-                        aria-describedby={fieldErrors.content ? "blog-post-content-error" : undefined}
-                        onChange={(e) => {
-                          setContent(e.target.value);
+                        onChange={(nextContent) => {
+                          setContent(nextContent);
                           setFieldErrors((prev) => ({ ...prev, content: undefined }));
                         }}
                         placeholder={t("blogSubmit.contentPlaceholder")}
-                          className="w-full px-4 py-2.5 rounded-b-xl border border-background-300 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 text-sm text-foreground-900 bg-white placeholder:text-foreground-400 transition-all resize-y"
-                        />
-                      </div>
+                        maxLength={100000}
+                        userId={user?.id}
+                        onUploadStateChange={setMediaUploadPending}
+                      />
                     ) : (
                       <div className="min-h-48 rounded-xl border border-background-300 bg-background-50 px-4 py-3">
                         {content.trim() ? (
@@ -639,7 +527,7 @@ export default function BlogSubmitPage() {
                     </Link>
                     <button
                       type="submit"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || mediaUploadPending}
                       className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium transition-all shadow-sm disabled:opacity-50 cursor-pointer"
                     >
                       {isSubmitting ? (

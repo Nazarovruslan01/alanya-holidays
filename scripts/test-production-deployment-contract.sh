@@ -66,6 +66,7 @@ csp_headers = nginx.scan(/add_header Content-Security-Policy "(?<policy>[^"]+)" 
 check(failures, csp_headers.length == 2, "nginx keeps exactly two effective CSP header copies")
 frame_sources = csp_headers.map { |policy| policy[/frame-src\s+([^;]+);/, 1] }
 maps_frame_origins = %w[https://maps.google.com https://www.google.com]
+video_frame_origins = %w[https://www.youtube-nocookie.com https://player.vimeo.com]
 check(
   failures,
   frame_sources.length == 2 && frame_sources.all? do |sources|
@@ -73,6 +74,25 @@ check(
     maps_frame_origins.all? { |origin| source_list.include?(origin) }
   end,
   "every effective frame-src allows the Google Maps request and redirect origins",
+)
+check(
+  failures,
+  frame_sources.length == 2 && frame_sources.all? do |sources|
+    source_list = sources&.split || []
+    video_frame_origins.all? { |origin| source_list.include?(origin) }
+  end,
+  "every effective frame-src allows only the supported rich-text video providers",
+)
+media_sources = csp_headers.map { |policy| policy[/media-src\s+([^;]+);/, 1] }
+check(
+  failures,
+  media_sources.length == 2 && media_sources.all? do |sources|
+    source_list = sources&.split || []
+    ["'self'", "blob:", "https://*.supabase.co"].all? do |origin|
+      source_list.include?(origin)
+    end
+  end,
+  "every effective media-src allows owned Supabase videos and local previews",
 )
 policies_without_frame_src = csp_headers.map do |policy|
   policy.sub(/frame-src\s+[^;]+;/, "")
@@ -93,6 +113,19 @@ check(
   failures,
   !frontend_index.include?("readdy.ai") && !frontend_index.include?("daab4efb-ebe1-4484-a947-b9b911becc35"),
   "frontend index does not load the dead Readdy widget",
+)
+
+inline_video_location = nginx[/location = \/api\/media\/content\/video \{(?<body>.*?)^        \}/m, :body]
+check(failures, !inline_video_location.nil?, "nginx defines the exact inline-video upload route")
+check(
+  failures,
+  inline_video_location&.include?("client_max_body_size 52m;"),
+  "inline-video multipart headroom is scoped to its exact route",
+)
+check(
+  failures,
+  nginx.scan(/client_max_body_size\s+52m;/).length == 1,
+  "the 52 MB request allowance is not applied globally",
 )
 
 verify_schema = function_body(script, "verify_schema_readiness", failures)

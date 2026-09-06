@@ -1331,4 +1331,13 @@ export default {
   "public.communityReviewsEmpty": "No community reviews yet",
   "public.communityReviewsCount": "{{count}} community reviews",
   "public.approvedOfferProvenance": "Only approved listings are shown. Availability and exact pricing are confirmed after enquiry.",
+  "public.richTextSignInToUpload": "Sign in to upload media.",
+  "public.richTextImageUploadFailed": "The image could not be uploaded. Please try again.",
+  "public.richTextVideoUploadFailed": "The video could not be uploaded. Please try again.",
+  "public.richTextInvalidVideoUrl": "Enter a valid YouTube or Vimeo link.",
+  "public.richTextVideoUrlPlaceholder": "YouTube or Vimeo link",
+  "public.richTextVideoUrl": "Video link",
+  "public.richTextInsertVideo": "Insert video",
+  "public.richTextUploadVideo": "Upload MP4 or WebM",
+  "public.richTextUploadPending": "Uploading media…",
 };

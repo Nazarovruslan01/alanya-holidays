@@ -490,3 +490,4 @@ describe('Empirical Adversarial Challenge: Forum Moderation Suite', () => {
     });
   });
 });
+jest.mock('sanitize-html', () => jest.fn((dirty: string) => dirty));

@@ -1,10 +1,16 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import BlogSubmitPage from "./page";
 import { blogService } from "@/api-services/blog.service";
 import { deleteBlogImage, uploadBlogImage } from "@/api-services/storage.service";
 import { ApiError } from "@/lib/api-client";
+
+const { inlineUploadHarness } = vi.hoisted(() => ({
+  inlineUploadHarness: {
+    resolve: undefined as ((url: string) => void) | undefined,
+  },
+}));
 
 vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({
@@ -31,6 +37,44 @@ vi.mock("@/api-services/blog.service", async () => {
 vi.mock("@/api-services/storage.service", () => ({
   uploadBlogImage: vi.fn(),
   deleteBlogImage: vi.fn(),
+}));
+
+vi.mock("@/components/base/RichTextEditor", () => ({
+  default: (props: {
+    value: string;
+    onChange: (value: string) => void;
+    onUploadStateChange?: (pending: boolean) => void;
+    placeholder?: string;
+    inputId?: string;
+    ariaLabel?: string;
+  }) => (
+    <div data-testid="mock-rich-text-editor">
+      <textarea
+        id={props.inputId}
+        aria-label={props.ariaLabel}
+        placeholder={props.placeholder}
+        value={props.value}
+        onChange={(event) => props.onChange(event.target.value)}
+      />
+      <button
+        type="button"
+        onClick={() => {
+          props.onUploadStateChange?.(true);
+          const valueAtStart = props.value;
+          void new Promise<string>((resolve) => {
+            inlineUploadHarness.resolve = resolve;
+          }).then((url) => {
+            props.onChange(
+              `${valueAtStart}<video src="${url}" controls playsinline preload="metadata"></video>`
+            );
+            props.onUploadStateChange?.(false);
+          });
+        }}
+      >
+        Start deferred inline upload
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock("@/pages/home/components/Navbar", () => ({
@@ -63,6 +107,7 @@ describe("BlogSubmitPage taxonomy", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    inlineUploadHarness.resolve = undefined;
     vi.mocked(blogService.getTags).mockResolvedValue([
       {
         id: "11111111-1111-4111-8111-111111111111",
@@ -87,19 +132,15 @@ describe("BlogSubmitPage taxonomy", () => {
     URL.revokeObjectURL = vi.fn();
   });
 
-  it("formats selected text with the Markdown toolbar and previews it", () => {
+  it("previews rich text formatting from the shared editor", () => {
     renderPage();
     const contentInput = screen.getByPlaceholderText(
       "Write your blog post content here. Share your experiences, tips, and recommendations..."
-    ) as HTMLTextAreaElement;
+    );
     fireEvent.change(contentInput, {
-      target: { value: "Best beaches in Alanya" },
+      target: { value: "<p>Best <strong>beaches</strong> in Alanya</p>" },
     });
-    contentInput.setSelectionRange(5, 12);
 
-    fireEvent.click(screen.getByRole("button", { name: "Bold" }));
-
-    expect(contentInput).toHaveValue("Best **beaches** in Alanya");
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     expect(screen.getByText("beaches").tagName).toBe("STRONG");
   });
@@ -110,7 +151,7 @@ describe("BlogSubmitPage taxonomy", () => {
       "Write your blog post content here. Share your experiences, tips, and recommendations..."
     );
     fireEvent.change(contentInput, {
-      target: { value: "## Best beaches\n\nBring water and sunscreen." },
+      target: { value: "<h2>Best beaches</h2><p>Bring water and sunscreen.</p>" },
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
@@ -125,7 +166,48 @@ describe("BlogSubmitPage taxonomy", () => {
       screen.getByPlaceholderText(
         "Write your blog post content here. Share your experiences, tips, and recommendations..."
       )
-    ).toHaveValue("## Best beaches\n\nBring water and sunscreen.");
+    ).toHaveValue("<h2>Best beaches</h2><p>Bring water and sunscreen.</p>");
+  });
+
+  it("keeps a pending inline upload alive and blocks preview and submission until it finishes", async () => {
+    const videoUrl =
+      "https://mdmizeyiyebvhkujjyjg.supabase.co/storage/v1/object/public/inline-media/10000000-0000-4000-8000-000000000001/videos/20000000-0000-4000-8000-000000000002.mp4";
+    const { container } = renderPage();
+    fireEvent.change(screen.getByPlaceholderText("e.g., Hidden Gems in Alanya Old Town"), {
+      target: { value: "A video guide" },
+    });
+    const editor = screen.getByPlaceholderText(
+      "Write your blog post content here. Share your experiences, tips, and recommendations..."
+    );
+    fireEvent.change(editor, {
+      target: { value: "<p>Useful recommendations for visitors.</p>" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Start deferred inline upload" }));
+
+    const previewButton = screen.getByRole("button", { name: "Preview" });
+    const submitButton = screen.getByRole("button", { name: "Submit Post" });
+    expect(previewButton).toBeDisabled();
+    expect(submitButton).toBeDisabled();
+    fireEvent.click(previewButton);
+    expect(editor).toBeInTheDocument();
+
+    await act(async () => {
+      inlineUploadHarness.resolve?.(videoUrl);
+    });
+    await waitFor(() => expect((editor as HTMLTextAreaElement).value).toContain(videoUrl));
+    expect(previewButton).toBeEnabled();
+    expect(submitButton).toBeEnabled();
+
+    fireEvent.click(previewButton);
+    expect(screen.getByText("Useful recommendations for visitors.")).toBeInTheDocument();
+    expect(container.querySelector(`video[src="${videoUrl}"]`)).toBeInTheDocument();
+    fireEvent.click(submitButton);
+    await waitFor(() =>
+      expect(blogService.submitGuide).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining(videoUrl) })
+      )
+    );
   });
 
   it("shows inline validation errors without calling the API", async () => {

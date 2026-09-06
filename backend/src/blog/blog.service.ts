@@ -15,6 +15,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { EmailOutboxRepository } from '../bookings/email-outbox.repository';
 import { slugify, generateUniqueSlug } from '../utils/slugify';
 import sanitizeHtml from 'sanitize-html';
+import { sanitizeRichTextHtml } from '../utils/rich-text-html';
 import {
   BlogComment,
   BlogPost,
@@ -169,7 +170,7 @@ export class BlogService {
 
     const baseSlug = data.slug || slugify(data.title);
     const uniqueSlug = await this.resolveSlug(baseSlug);
-    const sanitizedContent = sanitizeHtml(data.content);
+    const sanitizedContent = sanitizeRichTextHtml(data.content);
     const excerpt = data.excerpt
       ? sanitizeExcerpt(data.excerpt)
       : generateExcerpt(sanitizedContent);
@@ -229,7 +230,7 @@ export class BlogService {
     }
     if (updates.slug !== undefined) safe.slug = updates.slug;
     if (updates.content !== undefined) {
-      safe.content = sanitizeHtml(updates.content);
+      safe.content = sanitizeRichTextHtml(updates.content);
     }
     if (updates.excerpt !== undefined) {
       safe.excerpt = sanitizeExcerpt(updates.excerpt);
@@ -415,7 +416,7 @@ export class BlogService {
     if (withinLimit === false)
       throw new BadRequestException('Daily submission limit reached');
 
-    const sanitizedContent = sanitizeHtml(data.content);
+    const sanitizedContent = sanitizeRichTextHtml(data.content);
 
     const submission = await this.blogRepository.insertBlogSubmission({
       user_id: userId,
@@ -498,7 +499,7 @@ export class BlogService {
     const safe: UpdateBlogSubmissionPayload = {};
     if (updates.title !== undefined) safe.title = updates.title.trim();
     if (updates.content !== undefined)
-      safe.content = sanitizeHtml(updates.content);
+      safe.content = sanitizeRichTextHtml(updates.content);
     if (updates.author_name !== undefined)
       safe.author_name = updates.author_name.trim();
     if (updates.author_email !== undefined)

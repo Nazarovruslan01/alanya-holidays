@@ -28,7 +28,7 @@ test.describe('Blog flow', () => {
     const request = await submissionRequest;
     expect(request.postDataJSON()).toMatchObject({
       title: 'A Local Guide to Alanya',
-      content: 'A detailed local guide with practical recommendations for first-time visitors.',
+      content: '<p>A detailed local guide with practical recommendations for first-time visitors.</p>',
       category: 'Guides',
       tags: [],
     });

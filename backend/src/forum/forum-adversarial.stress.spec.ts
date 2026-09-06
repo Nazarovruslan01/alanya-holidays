@@ -185,3 +185,4 @@ describe('Adversarial Stress Test: Forum Service Security & Edge Cases', () => {
     });
   });
 });
+jest.mock('sanitize-html', () => jest.fn((dirty: string) => dirty));

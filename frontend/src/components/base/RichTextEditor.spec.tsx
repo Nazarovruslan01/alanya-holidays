@@ -1,14 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
-const { mockUploadForumImage } = vi.hoisted(() => ({
+const { mockUploadForumImage, mockUploadInlineVideo } = vi.hoisted(() => ({
   mockUploadForumImage: vi.fn(),
+  mockUploadInlineVideo: vi.fn(),
 }));
 
 vi.mock('@/api-services/storage.service', () => ({
   uploadForumImage: mockUploadForumImage,
+  uploadInlineVideo: mockUploadInlineVideo,
   storageService: {
     uploadForumImage: mockUploadForumImage,
+    uploadInlineVideo: mockUploadInlineVideo,
+  },
+}));
+
+vi.mock('quill/blots/block', () => ({
+  BlockEmbed: class MockBlockEmbed {
+    static create() {
+      return document.createElement('video');
+    }
   },
 }));
 
@@ -23,6 +34,7 @@ const captureQuillInstance = (instance: unknown) => {
 vi.mock('quill', () => {
   return {
     default: class MockQuill {
+      static register = vi.fn();
       container: HTMLElement;
       options: any;
       root: HTMLDivElement;
@@ -32,6 +44,13 @@ vi.mock('quill', () => {
       setSelection = vi.fn();
       getSelection = vi.fn().mockImplementation(() => this.selection);
       getLength = vi.fn().mockImplementation(() => this.length);
+      getSemanticHTML = vi.fn().mockImplementation(() => this.root.innerHTML);
+      clipboard = {
+        dangerouslyPasteHTML: vi.fn().mockImplementation((...args: unknown[]) => {
+          const html = typeof args[0] === 'string' ? args[0] : args[1];
+          this.root.innerHTML = String(html || '');
+        }),
+      };
       on = vi.fn().mockImplementation((event: string, cb: () => void) => {
         if (event === 'text-change') {
           textChangeCallbacks.push(cb);
@@ -150,7 +169,7 @@ describe('RichTextEditor Component (React 19 Native Quill)', () => {
     expect(capturedInput).not.toBeNull();
     const inputEl = capturedInput as unknown as HTMLInputElement;
     expect(inputEl.type).toBe('file');
-    expect(inputEl.accept).toBe('image/*');
+    expect(inputEl.accept).toBe('image/jpeg,image/png,image/webp');
 
     Object.defineProperty(inputEl, 'files', {
       value: [file],
@@ -162,9 +181,9 @@ describe('RichTextEditor Component (React 19 Native Quill)', () => {
     }
 
     await waitFor(() => {
-      expect(mockUploadForumImage).toHaveBeenCalledWith(file, 'user-789');
-      expect(lastQuillInstance.insertEmbed).toHaveBeenCalledWith(3, 'image', 'https://cdn.supabase.co/storage/v1/object/public/forum-media/user-789/img.png');
-      expect(lastQuillInstance.setSelection).toHaveBeenCalledWith(4, 0);
+      expect(mockUploadForumImage).toHaveBeenCalledWith(file);
+      expect(lastQuillInstance.insertEmbed).toHaveBeenCalledWith(3, 'image', 'https://cdn.supabase.co/storage/v1/object/public/forum-media/user-789/img.png', 'user');
+      expect(lastQuillInstance.setSelection).toHaveBeenCalledWith(4, 0, 'silent');
     });
   });
 
@@ -210,7 +229,7 @@ describe('RichTextEditor Component (React 19 Native Quill)', () => {
     await waitFor(() => {
       expect(customUpload).toHaveBeenCalledWith(file);
       expect(mockUploadForumImage).not.toHaveBeenCalled();
-      expect(lastQuillInstance.insertEmbed).toHaveBeenCalledWith(0, 'image', 'https://custom-cdn.com/my-pic.jpg');
+      expect(lastQuillInstance.insertEmbed).toHaveBeenCalledWith(0, 'image', 'https://custom-cdn.com/my-pic.jpg', 'user');
     });
   });
 
@@ -221,6 +240,7 @@ describe('RichTextEditor Component (React 19 Native Quill)', () => {
       <RichTextEditor
         value=""
         onChange={() => {}}
+        userId="user-789"
       />
     );
 
@@ -251,8 +271,111 @@ describe('RichTextEditor Component (React 19 Native Quill)', () => {
 
     await waitFor(() => {
       expect(mockUploadForumImage).toHaveBeenCalled();
+      expect(screen.getByRole('alert')).toHaveTextContent('public.richTextImageUploadFailed');
     });
   });
+
+  it('merges image and video handlers into an array toolbar configuration', () => {
+    const toolbar = [['bold'], ['image', 'video']];
+
+    render(
+      <RichTextEditor
+        value=""
+        onChange={() => {}}
+        modules={{ toolbar }}
+      />,
+    );
+
+    expect(lastQuillOptions.modules.toolbar.container).toBe(toolbar);
+    expect(lastQuillOptions.modules.toolbar.handlers.image).toEqual(expect.any(Function));
+    expect(lastQuillOptions.modules.toolbar.handlers.video).toEqual(expect.any(Function));
+  });
+
+  it('inserts only normalized YouTube and Vimeo URLs from the video chooser', () => {
+    render(<RichTextEditor value="" onChange={() => {}} userId="user-789" />);
+
+    act(() => lastQuillOptions.modules.toolbar.handlers.video());
+    fireEvent.change(screen.getByLabelText('public.richTextVideoUrl'), {
+      target: { value: 'https://youtu.be/dQw4w9WgXcQ?t=10' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'public.richTextInsertVideo' }));
+
+    expect(lastQuillInstance.insertEmbed).toHaveBeenCalledWith(
+      3,
+      'inline-frame',
+      'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ',
+      'user',
+    );
+
+    act(() => lastQuillOptions.modules.toolbar.handlers.video());
+    fireEvent.change(screen.getByLabelText('public.richTextVideoUrl'), {
+      target: { value: 'https://example.com/watch/unsafe' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'public.richTextInsertVideo' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('public.richTextInvalidVideoUrl');
+    expect(lastQuillInstance.insertEmbed).toHaveBeenCalledTimes(1);
+  });
+
+  it('uploads a native video at the captured selection and reports pending state', async () => {
+    const onUploadStateChange = vi.fn();
+    mockUploadInlineVideo.mockResolvedValue({
+      url: 'http://127.0.0.1:54321/storage/v1/object/public/inline-media/11111111-1111-4111-8111-111111111111/videos/22222222-2222-4222-8222-222222222222.mp4',
+      mimeType: 'video/mp4',
+      sizeBytes: 9,
+    });
+    render(
+      <RichTextEditor
+        value=""
+        onChange={() => {}}
+        userId="user-789"
+        onUploadStateChange={onUploadStateChange}
+      />,
+    );
+
+    act(() => lastQuillOptions.modules.toolbar.handlers.video());
+    lastQuillInstance.selection = { index: 8 };
+    const input = screen.getByLabelText('public.richTextUploadVideo');
+    const file = new File(['video'], 'clip.mp4', { type: 'video/mp4' });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(onUploadStateChange).toHaveBeenCalledWith(true);
+    await waitFor(() => {
+      expect(mockUploadInlineVideo).toHaveBeenCalledWith(file);
+      expect(lastQuillInstance.insertEmbed).toHaveBeenCalledWith(
+        3,
+        'inline-video',
+        expect.stringContaining('/inline-media/'),
+        'user',
+      );
+      expect(onUploadStateChange).toHaveBeenLastCalledWith(false);
+    });
+  });
+
+  it('does not insert an upload that completes after the editor unmounts', async () => {
+    let resolveUpload: ((value: { url: string; mimeType: string; sizeBytes: number }) => void) | undefined;
+    mockUploadInlineVideo.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveUpload = resolve;
+        }),
+    );
+    const { unmount } = render(
+      <RichTextEditor value="" onChange={() => {}} userId="user-789" />,
+    );
+
+    act(() => lastQuillOptions.modules.toolbar.handlers.video());
+    fireEvent.change(screen.getByLabelText('public.richTextUploadVideo'), {
+      target: { files: [new File(['video'], 'clip.webm', { type: 'video/webm' })] },
+    });
+    const abandonedEditor = lastQuillInstance;
+    unmount();
+    resolveUpload?.({
+      url: 'http://127.0.0.1:54321/storage/v1/object/public/inline-media/11111111-1111-4111-8111-111111111111/videos/22222222-2222-4222-8222-222222222222.webm',
+      mimeType: 'video/webm',
+      sizeBytes: 9,
+    });
+
+    await Promise.resolve();
+    expect(abandonedEditor.insertEmbed).not.toHaveBeenCalled();
+  });
 });
-
-

@@ -13,6 +13,7 @@ import type {
   CreateEventPayload,
 } from '@/api-services/events.service';
 import HostEventModal from '@/pages/events/components/HostEventModal';
+import { useAuth } from '@/context/AuthContext';
 
 type Resource = 'articles' | 'events' | 'listings' | 'products';
 type ManagedItem = Record<string, unknown> & { id: string | number };
@@ -64,10 +65,12 @@ function itemMeta(resource: Resource, item: ManagedItem, noDate: string, draft: 
 
 export default function AdminContentLibraryTab() {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [resource, setResource] = useState<Resource>('articles');
   const [items, setItems] = useState<ManagedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [mediaUploadPending, setMediaUploadPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<ManagedItem | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -194,7 +197,7 @@ export default function AdminContentLibraryTab() {
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (savingRef.current) return;
+    if (savingRef.current || mediaUploadPending) return;
     savingRef.current = true;
     setSaving(true);
     setError(null);
@@ -388,14 +391,14 @@ export default function AdminContentLibraryTab() {
               <label className="block text-sm font-semibold">{t('admin.excerpt')}<textarea value={field('excerpt')} onChange={(event) => setField('excerpt', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label>
               <label className="block text-sm font-semibold">{t('admin.coverImageUrl')}<input type="url" value={field('cover_image_url')} onChange={(event) => setField('cover_image_url', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label>
               <div className="rounded-xl border border-secondary-200 p-3"><label className="text-sm font-semibold">{t('admin.embedValue')}<input value={embedValue} onChange={(event) => setEmbedValue(event.target.value)} className="mt-1 w-full rounded-lg border border-secondary-300 bg-transparent px-3 py-2" /></label><div className="mt-2 flex flex-wrap gap-2"><button type="button" onClick={() => insertEmbed('cta')} className="rounded-lg bg-secondary-100 px-3 py-1.5 text-xs font-semibold">{t('admin.insertCta')}</button><button type="button" onClick={() => insertEmbed('listing')} className="rounded-lg bg-secondary-100 px-3 py-1.5 text-xs font-semibold">{t('admin.insertListingCard')}</button><button type="button" onClick={() => insertEmbed('image')} className="rounded-lg bg-secondary-100 px-3 py-1.5 text-xs font-semibold">{t('admin.insertImage')}</button><button type="button" onClick={() => insertEmbed('video')} className="rounded-lg bg-secondary-100 px-3 py-1.5 text-xs font-semibold">{t('admin.insertVideo')}</button></div></div>
-              <label className="block text-sm font-semibold">{t('admin.body')}<RichTextEditor value={field('content')} onChange={(value) => setField('content', value)} insertContent={insertContent} ariaLabel={t('admin.articleBody')} maxLength={100000} /></label>
+              <label className="block text-sm font-semibold">{t('admin.body')}<RichTextEditor value={field('content')} onChange={(value) => setField('content', value)} insertContent={insertContent} ariaLabel={t('admin.articleBody')} maxLength={100000} userId={user?.id} onUploadStateChange={setMediaUploadPending} /></label>
             </> : <>
               <label className="block text-sm font-semibold">{t('admin.description')}<textarea required={resource === 'products'} value={field('description')} onChange={(event) => setField('description', event.target.value)} className="mt-1 min-h-28 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label>
               {resource === 'listings' && <><label className="block text-sm font-semibold">{t('admin.categoryId')}<input required value={field('category_id')} onChange={(event) => setField('category_id', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label><label className="block text-sm font-semibold">{t('admin.location')}<input value={field('location')} onChange={(event) => setField('location', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label><div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-semibold">{t('admin.emailField')}<input type="email" value={field('email')} onChange={(event) => setField('email', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label><label className="text-sm font-semibold">{t('admin.phoneField')}<input value={field('phone')} onChange={(event) => setField('phone', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label></div>{editing && <label className="block text-sm font-semibold">{t('admin.claimSource')}<select value={field('creation_source')} onChange={(event) => setField('creation_source', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2"><option value="import">{t('admin.importNotClaimable')}</option><option value="merchant">{t('admin.merchantNotClaimable')}</option><option value="admin">{t('admin.adminCuratedClaimable')}</option></select></label>}</>}
               {resource === 'products' && <div className="grid gap-3 sm:grid-cols-3"><label className="text-sm font-semibold">{t('admin.categoryId')}<input min="1" step="1" type="number" value={field('category_id')} onChange={(event) => setField('category_id', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label><label className="text-sm font-semibold">{t('admin.price')}<input required min="0" step="0.01" type="number" value={field('price')} onChange={(event) => setField('price', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label><label className="text-sm font-semibold">{t('admin.stock')}<input required min="0" step="1" type="number" value={field('stock')} onChange={(event) => setField('stock', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label><label className="text-sm font-semibold">{t('admin.currency')}<input required minLength={3} maxLength={3} value={field('currency')} onChange={(event) => setField('currency', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label><label className="text-sm font-semibold">{t('admin.statusField')}<select value={field('status')} onChange={(event) => setField('status', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2"><option value="active">{t('admin.active')}</option><option value="inactive">{t('admin.inactive')}</option><option value="draft">{t('admin.draft')}</option></select></label></div>}
               {(resource === 'listings' || resource === 'products') && <label className="block text-sm font-semibold">{t('admin.imageUrls')}<textarea value={field('images')} onChange={(event) => setField('images', event.target.value)} className="mt-1 w-full rounded-xl border border-secondary-300 bg-transparent px-3 py-2" /></label>}
             </>}
-            <div className="flex justify-end gap-3 border-t border-secondary-200 pt-4"><button type="button" onClick={closeForm} disabled={saving} className="rounded-xl px-4 py-2 font-semibold">{t('admin.cancel')}</button><button type="submit" disabled={saving} className="rounded-xl bg-accent-600 px-5 py-2 font-semibold text-white disabled:opacity-60">{saving ? t('admin.saving') : t('admin.save')}</button></div>
+            <div className="flex justify-end gap-3 border-t border-secondary-200 pt-4"><button type="button" onClick={closeForm} disabled={saving} className="rounded-xl px-4 py-2 font-semibold">{t('admin.cancel')}</button><button type="submit" disabled={saving || mediaUploadPending} className="rounded-xl bg-accent-600 px-5 py-2 font-semibold text-white disabled:opacity-60">{saving ? t('admin.saving') : t('admin.save')}</button></div>
             </fieldset>
           </form>
         </div>

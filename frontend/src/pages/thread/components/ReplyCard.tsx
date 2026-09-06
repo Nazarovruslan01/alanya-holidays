@@ -26,6 +26,7 @@ export default function ReplyCard({ reply, depth = 0, onLike, onReply, onUpdate 
   const [content, setContent] = useState(reply.content);
   const [editContent, setEditContent] = useState(reply.content);
   const [isSaving, setIsSaving] = useState(false);
+  const [mediaUploadPending, setMediaUploadPending] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const maxDepth = 4;
 
@@ -42,7 +43,7 @@ export default function ReplyCard({ reply, depth = 0, onLike, onReply, onUpdate 
   const canEdit = isAuthor || isAdmin;
 
   const handleSave = async () => {
-    if (!editContent.trim() || editContent === "<p></p>") return;
+    if (!editContent.trim() || editContent === "<p></p>" || mediaUploadPending) return;
     const prevContent = content;
     setContent(editContent);
     setIsSaving(true);
@@ -134,6 +135,7 @@ export default function ReplyCard({ reply, depth = 0, onLike, onReply, onUpdate 
                 onChange={setEditContent}
                 placeholder={t("public.editReplyPlaceholder")}
                 userId={user?.id}
+                onUploadStateChange={setMediaUploadPending}
               />
               <div className="flex items-center justify-end gap-2 pt-1">
                 <button
@@ -147,7 +149,7 @@ export default function ReplyCard({ reply, depth = 0, onLike, onReply, onUpdate 
                 <button
                   type="button"
                   onClick={handleSave}
-                  disabled={isSaving || !editContent.trim()}
+                  disabled={isSaving || mediaUploadPending || !editContent.trim()}
                   className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-primary-500 text-white text-xs font-medium hover:bg-primary-600 disabled:opacity-50 transition-colors cursor-pointer shadow-xs"
                 >
                   {isSaving && <i className="ri-loader-4-line animate-spin text-xs"></i>}
