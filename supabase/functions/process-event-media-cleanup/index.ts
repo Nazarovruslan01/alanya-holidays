@@ -4,7 +4,7 @@ import "@supabase/functions-js/edge-runtime.d.ts";
 interface CleanupRow {
   id: number;
   media_id: string | null;
-  bucket: "forum-media" | "event-media";
+  bucket: "forum-media" | "event-media-staging" | "event-media";
   object_paths: string[];
   attempts: number;
 }

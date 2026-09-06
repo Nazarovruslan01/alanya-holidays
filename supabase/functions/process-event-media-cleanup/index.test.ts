@@ -160,14 +160,14 @@ Deno.test("removes objects uploaded before or after abandon once their leases ar
             {
               id: 11,
               media_id: "10000000-0000-4000-8000-000000000011",
-              bucket: "event-media" as const,
+              bucket: "event-media-staging" as const,
               object_paths: [beforePath],
               attempts: 1,
             },
             {
               id: 12,
               media_id: "10000000-0000-4000-8000-000000000012",
-              bucket: "event-media" as const,
+              bucket: "event-media-staging" as const,
               object_paths: [afterPath],
               attempts: 1,
             },

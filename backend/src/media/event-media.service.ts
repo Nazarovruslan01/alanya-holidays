@@ -10,7 +10,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { execFile } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdtemp, open, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -34,6 +34,8 @@ const EVENT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 const EVENT_VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const EVENT_VIDEO_DOWNLOAD_TIMEOUT_MS = 30_000;
 const EVENT_VIDEO_HEADER_MAX_BYTES = 64 * 1024;
+const EVENT_VIDEO_STAGING_BUCKET = 'event-media-staging';
+const EVENT_VIDEO_PUBLIC_BUCKET = 'event-media';
 const EVENT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const EVENT_VIDEO_TYPES = new Set(['video/mp4', 'video/webm']);
 
@@ -170,10 +172,11 @@ export class EventMediaService {
     const extension = dto.mimeType === 'video/webm' ? 'webm' : 'mp4';
     const mediaId = randomUUID();
     const objectPath = `${ownerId}/events/${randomUUID()}.${extension}`;
-    const storage = this.supabaseService
-      .getClient()
-      .storage.from('event-media');
-    const publicUrl = storage.getPublicUrl(objectPath).data.publicUrl;
+    const client = this.supabaseService.getClient();
+    const stagingStorage = client.storage.from(EVENT_VIDEO_STAGING_BUCKET);
+    const publicUrl = client.storage
+      .from(EVENT_VIDEO_PUBLIC_BUCKET)
+      .getPublicUrl(objectPath).data.publicUrl;
     if (!publicUrl) {
       throw new InternalServerErrorException('Unable to prepare event video');
     }
@@ -183,7 +186,7 @@ export class EventMediaService {
         id: mediaId,
         owner_id: ownerId,
         kind: 'video',
-        bucket: 'event-media',
+        bucket: EVENT_VIDEO_STAGING_BUCKET,
         object_path: objectPath,
         thumbnail_path: null,
         public_url: publicUrl,
@@ -210,9 +213,10 @@ export class EventMediaService {
       throw error;
     }
 
-    const { data, error } = await storage.createSignedUploadUrl(objectPath, {
-      upsert: false,
-    });
+    const { data, error } = await stagingStorage.createSignedUploadUrl(
+      objectPath,
+      { upsert: false },
+    );
     if (error || !data?.token) {
       await this.repository.queueCleanup(mediaId, ownerId);
       throw new InternalServerErrorException(
@@ -227,34 +231,77 @@ export class EventMediaService {
     ownerId: string,
   ): Promise<FinalizedEventVideoResult> {
     await this.requireEventManager(ownerId);
-    const media = await this.repository.findOwned(mediaId, ownerId);
+    let media = await this.repository.findOwned(mediaId, ownerId);
     if (!media) throw new NotFoundException('Event media not found');
-    if (media.kind !== 'video' || media.bucket !== 'event-media') {
+    if (media.kind !== 'video') {
       throw new BadRequestException('Event media is not a video');
     }
-    if (media.state !== 'pending' && media.state !== 'ready') {
+    if (
+      media.state === 'ready' &&
+      media.bucket === EVENT_VIDEO_PUBLIC_BUCKET &&
+      media.content_sha256
+    ) {
+      return { mediaId: media.id, url: media.public_url };
+    }
+    if (
+      (media.state !== 'pending' && media.state !== 'promoting') ||
+      media.bucket !== EVENT_VIDEO_STAGING_BUCKET
+    ) {
       throw new ConflictException('Event media cannot be finalized');
     }
 
-    try {
-      await this.assertStoredVideo(media);
-    } catch (error) {
-      if (media.state === 'pending') {
-        await this.repository.queueCleanup(media.id, ownerId);
+    if (media.state === 'pending') {
+      try {
+        const contentSha256 = await this.assertStoredVideo(media);
+        const promoting = await this.repository.markPromoting(
+          media.id,
+          ownerId,
+          contentSha256,
+        );
+        if (promoting) {
+          media = promoting;
+        } else {
+          const concurrent = await this.repository.findOwned(media.id, ownerId);
+          if (
+            concurrent?.state === 'ready' &&
+            concurrent.bucket === EVENT_VIDEO_PUBLIC_BUCKET
+          ) {
+            return { mediaId: concurrent.id, url: concurrent.public_url };
+          }
+          if (
+            concurrent?.state !== 'promoting' ||
+            concurrent.bucket !== EVENT_VIDEO_STAGING_BUCKET
+          ) {
+            throw new ConflictException('Event media finalization conflicted');
+          }
+          media = concurrent;
+        }
+      } catch (error) {
+        if (media.state === 'pending') {
+          await this.repository.queueCleanup(media.id, ownerId);
+        }
+        throw error;
       }
-      throw error;
     }
 
-    if (media.state === 'pending') {
-      const ready = await this.repository.markReady(media.id, ownerId);
-      if (!ready) {
-        const concurrent = await this.repository.findOwned(media.id, ownerId);
-        if (concurrent?.state !== 'ready') {
-          throw new ConflictException('Event media finalization conflicted');
-        }
-      }
+    try {
+      await this.copyValidatedVideoToPublic(media);
+    } catch (error) {
+      await this.repository.queueCleanup(media.id, ownerId);
+      throw error;
     }
-    return { mediaId: media.id, url: media.public_url };
+    const ready = await this.repository.completeVideoPromotion(
+      media.id,
+      ownerId,
+    );
+    if (
+      !ready ||
+      ready.state !== 'ready' ||
+      ready.bucket !== EVENT_VIDEO_PUBLIC_BUCKET
+    ) {
+      throw new ConflictException('Event media finalization conflicted');
+    }
+    return { mediaId: ready.id, url: ready.public_url };
   }
 
   async abandon(mediaId: string, ownerId: string): Promise<void> {
@@ -276,13 +323,14 @@ export class EventMediaService {
     }
   }
 
-  private async assertStoredVideo(media: EventMediaRecord): Promise<void> {
-    const storage = this.supabaseService.getClient().storage.from(media.bucket);
+  private async assertStoredVideo(media: EventMediaRecord): Promise<string> {
+    const client = this.supabaseService.getClient();
+    const storage = client.storage.from(EVENT_VIDEO_STAGING_BUCKET);
     const { data, error } = await storage.info(media.object_path);
     if (
       error ||
       !data ||
-      data.bucketId !== media.bucket ||
+      data.bucketId !== EVENT_VIDEO_STAGING_BUCKET ||
       data.size !== media.size_bytes ||
       data.size <= 0 ||
       data.size > EVENT_VIDEO_MAX_BYTES ||
@@ -291,24 +339,32 @@ export class EventMediaService {
       throw new BadRequestException('Event media object failed validation');
     }
 
-    const persistedObjectUrl = storage.getPublicUrl(media.object_path).data
-      .publicUrl;
-    if (!persistedObjectUrl || persistedObjectUrl !== media.public_url) {
+    const publicUrl = client.storage
+      .from(EVENT_VIDEO_PUBLIC_BUCKET)
+      .getPublicUrl(media.object_path).data.publicUrl;
+    if (!publicUrl || publicUrl !== media.public_url) {
+      throw new BadRequestException('Event media object failed validation');
+    }
+    const { data: signedRead, error: signedReadError } =
+      await storage.createSignedUrl(media.object_path, 60);
+    if (signedReadError || !signedRead?.signedUrl) {
       throw new BadRequestException('Event media object failed validation');
     }
 
     let temporaryDirectory: string | null = null;
     let validationError: BadRequestException | null = null;
+    let contentSha256: string | null = null;
     try {
       temporaryDirectory = await mkdtemp(join(tmpdir(), 'event-video-'));
       const localPath = join(temporaryDirectory, 'upload');
-      const header = await this.downloadStoredVideo(
-        persistedObjectUrl,
+      const downloaded = await this.downloadStoredVideo(
+        signedRead.signedUrl,
         localPath,
         media.size_bytes,
       );
       const probe = await this.runFfprobe(localPath);
-      this.assertProbeMatchesMedia(probe, media.mime_type, header);
+      this.assertProbeMatchesMedia(probe, media.mime_type, downloaded.header);
+      contentSha256 = downloaded.contentSha256;
     } catch {
       validationError = new BadRequestException(
         'Event video content failed validation',
@@ -324,14 +380,101 @@ export class EventMediaService {
         }
       }
     }
-    if (validationError) throw validationError;
+    if (validationError || !contentSha256) {
+      throw (
+        validationError ??
+        new BadRequestException('Event video content failed validation')
+      );
+    }
+    return contentSha256;
+  }
+
+  private async copyValidatedVideoToPublic(
+    media: EventMediaRecord,
+  ): Promise<void> {
+    if (!media.content_sha256) {
+      throw new InternalServerErrorException('Unable to promote event video');
+    }
+    const client = this.supabaseService.getClient();
+    const stagingStorage = client.storage.from(EVENT_VIDEO_STAGING_BUCKET);
+    const publicStorage = client.storage.from(EVENT_VIDEO_PUBLIC_BUCKET);
+    const { error } = await stagingStorage.copy(
+      media.object_path,
+      media.object_path,
+      { destinationBucket: EVENT_VIDEO_PUBLIC_BUCKET },
+    );
+    if (!error) return;
+
+    const { data, error: infoError } = await publicStorage.info(
+      media.object_path,
+    );
+    if (
+      infoError ||
+      !data ||
+      data.bucketId !== EVENT_VIDEO_PUBLIC_BUCKET ||
+      data.size !== media.size_bytes ||
+      data.contentType !== media.mime_type
+    ) {
+      throw new InternalServerErrorException('Unable to promote event video');
+    }
+    const publicUrl = publicStorage.getPublicUrl(media.object_path).data
+      .publicUrl;
+    if (!publicUrl || publicUrl !== media.public_url) {
+      throw new InternalServerErrorException('Unable to promote event video');
+    }
+    const publicSha256 = await this.validateVideoDownload(publicUrl, media);
+    if (publicSha256 !== media.content_sha256) {
+      throw new InternalServerErrorException('Unable to promote event video');
+    }
+  }
+
+  private async validateVideoDownload(
+    sourceUrl: string,
+    media: EventMediaRecord,
+  ): Promise<string> {
+    let temporaryDirectory: string | null = null;
+    let contentSha256: string | null = null;
+    let validationError: InternalServerErrorException | null = null;
+    try {
+      temporaryDirectory = await mkdtemp(join(tmpdir(), 'event-video-'));
+      const localPath = join(temporaryDirectory, 'upload');
+      const downloaded = await this.downloadStoredVideo(
+        sourceUrl,
+        localPath,
+        media.size_bytes,
+      );
+      const probe = await this.runFfprobe(localPath);
+      this.assertProbeMatchesMedia(probe, media.mime_type, downloaded.header);
+      contentSha256 = downloaded.contentSha256;
+    } catch {
+      validationError = new InternalServerErrorException(
+        'Unable to promote event video',
+      );
+    } finally {
+      if (temporaryDirectory) {
+        try {
+          await rm(temporaryDirectory, { recursive: true, force: true });
+        } catch {
+          validationError ??= new InternalServerErrorException(
+            'Unable to promote event video',
+          );
+        }
+      }
+    }
+    if (validationError || !contentSha256) {
+      throw (
+        validationError ??
+        new InternalServerErrorException('Unable to promote event video')
+      );
+    }
+    return contentSha256;
   }
 
   private async downloadStoredVideo(
     publicUrl: string,
     localPath: string,
     expectedBytes: number,
-  ): Promise<Uint8Array> {
+  ): Promise<{ header: Uint8Array; contentSha256: string }> {
     const abortController = new AbortController();
     const timeout = setTimeout(
       () => abortController.abort(),
@@ -375,6 +518,7 @@ export class EventMediaService {
       const header = new Uint8Array(
         Math.min(expectedBytes, EVENT_VIDEO_HEADER_MAX_BYTES),
       );
+      const contentHash = createHash('sha256');
       let headerBytes = 0;
       let receivedBytes = 0;
       while (true) {
@@ -382,6 +526,7 @@ export class EventMediaService {
         if (done) break;
         if (!value || value.byteLength === 0) continue;
         receivedBytes += value.byteLength;
+        contentHash.update(value);
         if (
           receivedBytes > expectedBytes ||
           receivedBytes > EVENT_VIDEO_MAX_BYTES
@@ -414,7 +559,10 @@ export class EventMediaService {
       if (receivedBytes !== expectedBytes) {
         throw new Error('Event video size changed during download');
       }
-      return header.subarray(0, headerBytes);
+      return {
+        header: header.subarray(0, headerBytes),
+        contentSha256: contentHash.digest('hex'),
+      };
     } finally {
       clearTimeout(timeout);
       abortController.abort();

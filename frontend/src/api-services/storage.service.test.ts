@@ -93,6 +93,7 @@ describe("storage.service", () => {
         file,
         { cacheControl: "3600", contentType: "video/mp4", upsert: false },
       );
+      expect(mockFrom).toHaveBeenCalledWith("event-media-staging");
       expect(apiClient.post).toHaveBeenNthCalledWith(
         2,
         `/media/events/${intent.mediaId}/finalize`,

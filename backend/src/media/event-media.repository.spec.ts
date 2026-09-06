@@ -35,7 +35,7 @@ describe('EventMediaRepository', () => {
       id: 'media-1',
       owner_id: 'owner-1',
       kind: 'video',
-      bucket: 'event-media',
+      bucket: 'event-media-staging',
       object_path: 'owner-1/events/video.mp4',
       thumbnail_path: null,
       public_url: 'https://project.test/video.mp4',
@@ -54,6 +54,60 @@ describe('EventMediaRepository', () => {
       p_size_bytes: 1024,
       p_expires_at: '2026-09-06T12:00:00.000Z',
     });
+  });
+
+  it('completes video promotion through the atomic owner-scoped RPC', async () => {
+    rpc.mockResolvedValueOnce({
+      data: { id: 'media-1', bucket: 'event-media', state: 'ready' },
+      error: null,
+    });
+
+    await expect(
+      repository.completeVideoPromotion('media-1', 'owner-1'),
+    ).resolves.toMatchObject({
+      id: 'media-1',
+      bucket: 'event-media',
+      state: 'ready',
+    });
+
+    expect(rpc).toHaveBeenCalledWith('complete_event_video_promotion', {
+      p_media_id: 'media-1',
+      p_owner_id: 'owner-1',
+    });
+  });
+
+  it('claims only an owner pending staging row for promotion', async () => {
+    const maybeSingle = jest.fn().mockResolvedValue({
+      data: { id: 'media-1', state: 'promoting' },
+      error: null,
+    });
+    const builder: Record<string, jest.Mock> = {};
+    builder.update = jest.fn(() => builder);
+    builder.eq = jest.fn(() => builder);
+    builder.select = jest.fn(() => builder);
+    builder.maybeSingle = maybeSingle;
+    const from = jest.fn(() => builder);
+    repository = new EventMediaRepository({
+      getClient: () => ({ from, rpc }),
+    } as never);
+
+    await expect(
+      repository.markPromoting('media-1', 'owner-1', 'a'.repeat(64)),
+    ).resolves.toMatchObject({ id: 'media-1', state: 'promoting' });
+
+    expect(from).toHaveBeenCalledWith('event_media');
+    expect(builder.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state: 'promoting',
+        content_sha256: 'a'.repeat(64),
+      }),
+    );
+    expect(builder.eq.mock.calls).toEqual([
+      ['id', 'media-1'],
+      ['owner_id', 'owner-1'],
+      ['bucket', 'event-media-staging'],
+      ['state', 'pending'],
+    ]);
   });
 
   it('passes only persisted-operation paths to the durable partial cleanup RPC', async () => {

@@ -75,7 +75,7 @@ export async function uploadEventVideo(
     mimeType: file.type,
     sizeBytes: file.size,
   });
-  const storage = supabase.storage.from("event-media");
+  const storage = supabase.storage.from("event-media-staging");
   const { error } = await storage.uploadToSignedUrl(
     intent.path,
     intent.token,

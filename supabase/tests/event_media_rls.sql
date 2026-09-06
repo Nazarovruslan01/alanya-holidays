@@ -115,6 +115,13 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'event-media public URL retrieval must remain enabled';
   END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM storage.buckets
+    WHERE id = 'event-media-staging' AND public = false
+  ) THEN
+    RAISE EXCEPTION 'pending event videos must use a private staging bucket';
+  END IF;
 END;
 $$;
 
@@ -123,6 +130,12 @@ VALUES
   (
     'event-media',
     '10000000-0000-4000-8000-000000000002/events/30000000-0000-4000-8000-000000000099.mp4',
+    '10000000-0000-4000-8000-000000000002',
+    '{"mimetype":"video/mp4","size":8}'::jsonb
+  ),
+  (
+    'event-media-staging',
+    '10000000-0000-4000-8000-000000000002/events/30000000-0000-4000-8000-000000000098.mp4',
     '10000000-0000-4000-8000-000000000002',
     '{"mimetype":"video/mp4","size":8}'::jsonb
   ),
@@ -140,6 +153,34 @@ WHERE bucket_id = 'forum-media' AND name LIKE 'events/%'
 \gset
 \if :anonymous_cover_listing_count
   \echo 'anonymous event-cover listing unexpectedly returned rows'
+  \quit 1
+\endif
+RESET ROLE;
+
+SET LOCAL ROLE anon;
+SELECT count(*) AS anonymous_staging_listing_count
+FROM storage.objects
+WHERE bucket_id = 'event-media-staging'
+\gset
+\if :anonymous_staging_listing_count
+  \echo 'anonymous pending-video listing unexpectedly returned rows'
+  \quit 1
+\endif
+RESET ROLE;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000002',
+  true
+);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+SELECT count(*) AS authenticated_staging_listing_count
+FROM storage.objects
+WHERE bucket_id = 'event-media-staging'
+\gset
+\if :authenticated_staging_listing_count
+  \echo 'authenticated pending-video listing unexpectedly returned rows'
   \quit 1
 \endif
 RESET ROLE;
@@ -314,7 +355,7 @@ SELECT set_config('request.jwt.claim.role', 'authenticated', true);
 \set ON_ERROR_STOP off
 INSERT INTO storage.objects (bucket_id, name, owner_id, metadata)
 VALUES (
-  'event-media',
+  'event-media-staging',
   '10000000-0000-4000-8000-000000000002/events/30000000-0000-4000-8000-000000000002.webm',
   '10000000-0000-4000-8000-000000000002',
   '{"mimetype":"video/webm","size":8}'::jsonb
@@ -460,6 +501,13 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'authenticated role can call video reservation RPC';
   END IF;
+  IF has_function_privilege(
+    'authenticated',
+    'public.complete_event_video_promotion(uuid,uuid)',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'authenticated role can complete video promotion';
+  END IF;
   IF position(
     'PG_ADVISORY_XACT_LOCK' IN upper(pg_get_functiondef(
       'public.create_forum_event_with_media(uuid,jsonb,uuid,text,uuid,uuid)'::regprocedure
@@ -485,6 +533,26 @@ END;
 $$;
 
 SET LOCAL ROLE service_role;
+
+DO $$
+BEGIN
+  BEGIN
+    INSERT INTO public.event_media (
+      id, owner_id, kind, bucket, object_path, public_url,
+      mime_type, size_bytes, state, expires_at
+    ) VALUES (
+      '41000000-0000-4000-8000-000000000099',
+      '10000000-0000-4000-8000-000000000002',
+      'video', 'event-media',
+      '10000000-0000-4000-8000-000000000002/events/41000000-0000-4000-8000-000000000099.mp4',
+      'https://project.supabase.co/storage/v1/object/public/event-media/10000000-0000-4000-8000-000000000002/events/41000000-0000-4000-8000-000000000099.mp4',
+      'video/mp4', 1, 'pending', now() + interval '24 hours'
+    );
+    RAISE EXCEPTION 'pending video row was allowed in public serving storage';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+END;
+$$;
 
 SELECT public.reserve_event_video_intent(
   '41000000-0000-4000-8000-000000000001',
@@ -515,8 +583,40 @@ SELECT public.reserve_event_video_intent(
 );
 
 UPDATE public.event_media
-SET state = 'ready'
+SET state = 'promoting', content_sha256 = repeat('a', 64)
 WHERE id = '41000000-0000-4000-8000-000000000001';
+
+SELECT public.complete_event_video_promotion(
+  '41000000-0000-4000-8000-000000000001',
+  '10000000-0000-4000-8000-000000000002'
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.event_media
+    WHERE id = '41000000-0000-4000-8000-000000000001'
+      AND state = 'ready'
+      AND bucket = 'event-media'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.event_media_cleanup_outbox
+    WHERE media_id IS NULL
+      AND bucket = 'event-media-staging'
+      AND object_paths = ARRAY[
+        '10000000-0000-4000-8000-000000000002/events/41000000-0000-4000-8000-000000000001.mp4'
+      ]
+      AND next_attempt_at > now()
+  ) THEN
+    RAISE EXCEPTION 'video promotion did not atomically publish and retain staging cleanup';
+  END IF;
+  IF public.complete_event_video_promotion(
+    '41000000-0000-4000-8000-000000000002',
+    '10000000-0000-4000-8000-000000000002'
+  ) IS NOT NULL THEN
+    RAISE EXCEPTION 'pending video was published without a promoting claim';
+  END IF;
+END;
+$$;
 
 DO $$
 BEGIN
@@ -611,7 +711,7 @@ WHERE owner_id = '10000000-0000-4000-8000-000000000002';
 
 INSERT INTO public.event_media (
   id, owner_id, kind, bucket, object_path, thumbnail_path,
-  public_url, thumbnail_url, mime_type, size_bytes, state, expires_at
+  public_url, thumbnail_url, mime_type, size_bytes, content_sha256, state, expires_at
 ) VALUES
   (
     '40000000-0000-4000-8000-000000000001',
@@ -621,7 +721,7 @@ INSERT INTO public.event_media (
     'events/10000000-0000-4000-8000-000000000003/image-old-thumb.webp',
     'https://project.supabase.co/storage/v1/object/public/forum-media/admin/image-old-full.webp',
     'https://project.supabase.co/storage/v1/object/public/forum-media/admin/image-old-thumb.webp',
-    'image/webp', 100, 'ready', now() + interval '1 day'
+    'image/webp', 100, NULL, 'ready', now() + interval '1 day'
   ),
   (
     '40000000-0000-4000-8000-000000000002',
@@ -630,7 +730,7 @@ INSERT INTO public.event_media (
     '10000000-0000-4000-8000-000000000003/events/video-old.mp4',
     NULL,
     'https://project.supabase.co/storage/v1/object/public/event-media/admin/video-old.mp4',
-    NULL, 'video/mp4', 100, 'ready', now() + interval '1 day'
+    NULL, 'video/mp4', 100, repeat('a', 64), 'ready', now() + interval '1 day'
   ),
   (
     '40000000-0000-4000-8000-000000000003',
@@ -639,7 +739,7 @@ INSERT INTO public.event_media (
     '10000000-0000-4000-8000-000000000002/events/cross-owner.webm',
     NULL,
     'https://project.supabase.co/storage/v1/object/public/event-media/manager/cross-owner.webm',
-    NULL, 'video/webm', 100, 'ready', now() + interval '1 day'
+    NULL, 'video/webm', 100, repeat('b', 64), 'ready', now() + interval '1 day'
   ),
   (
     '40000000-0000-4000-8000-000000000004',
@@ -648,7 +748,7 @@ INSERT INTO public.event_media (
     '10000000-0000-4000-8000-000000000003/events/video-new.webm',
     NULL,
     'https://project.supabase.co/storage/v1/object/public/event-media/admin/video-new.webm',
-    NULL, 'video/webm', 100, 'ready', now() + interval '1 day'
+    NULL, 'video/webm', 100, repeat('c', 64), 'ready', now() + interval '1 day'
   ),
   (
     '40000000-0000-4000-8000-000000000006',
@@ -658,7 +758,7 @@ INSERT INTO public.event_media (
     'events/10000000-0000-4000-8000-000000000003/image-partial-thumb.webp',
     'https://project.supabase.co/storage/v1/object/public/forum-media/admin/image-partial-full.webp',
     'https://project.supabase.co/storage/v1/object/public/forum-media/admin/image-partial-thumb.webp',
-    'image/webp', 100, 'ready', now() + interval '1 day'
+    'image/webp', 100, NULL, 'ready', now() + interval '1 day'
   );
 
 -- A synchronous partial-upload cleanup may know only one successful path. The
@@ -692,14 +792,14 @@ $$;
 
 INSERT INTO public.event_media (
   id, owner_id, kind, bucket, object_path, public_url,
-  mime_type, size_bytes, state, expires_at
+  mime_type, size_bytes, content_sha256, state, expires_at
 ) VALUES (
   '40000000-0000-4000-8000-000000000007',
   '10000000-0000-4000-8000-000000000002',
-  'video', 'event-media',
+  'video', 'event-media-staging',
   '10000000-0000-4000-8000-000000000002/events/leased.mp4',
   'https://project.supabase.co/storage/v1/object/public/event-media/manager/leased.mp4',
-  'video/mp4', 100, 'pending', now() + interval '24 hours'
+  'video/mp4', 100, NULL, 'pending', now() + interval '24 hours'
 );
 
 SELECT public.queue_owned_event_media_cleanup(
@@ -722,9 +822,20 @@ BEGIN
       AND media.state = 'cleanup_pending'
       AND outbox.status = 'pending'
       AND outbox.next_attempt_at >= media.expires_at
+      AND outbox.bucket = 'event-media-staging'
+      AND outbox.object_paths = ARRAY[media.object_path]
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM public.event_media AS media
+    JOIN public.event_media_cleanup_outbox AS outbox
+      ON outbox.media_id IS NULL
+    WHERE media.id = '40000000-0000-4000-8000-000000000007'
+      AND outbox.bucket = 'event-media'
+      AND outbox.status = 'pending'
+      AND outbox.next_attempt_at >= media.expires_at
       AND outbox.object_paths = ARRAY[media.object_path]
   ) THEN
-    RAISE EXCEPTION 'pending-video cleanup did not preserve its upload lease';
+    RAISE EXCEPTION 'pending-video cleanup did not preserve both storage locations through its upload lease';
   END IF;
 END;
 $$;
@@ -741,6 +852,37 @@ BEGIN
 END;
 $$;
 ROLLBACK TO SAVEPOINT before_leased_cleanup_claim;
+
+INSERT INTO public.event_media (
+  id, owner_id, kind, bucket, object_path, public_url,
+  mime_type, size_bytes, content_sha256, state, expires_at
+) VALUES (
+  '40000000-0000-4000-8000-000000000019',
+  '10000000-0000-4000-8000-000000000002',
+  'video', 'event-media-staging',
+  '10000000-0000-4000-8000-000000000002/events/promoting-race.mp4',
+  'https://project.supabase.co/storage/v1/object/public/event-media/manager/promoting-race.mp4',
+  'video/mp4', 100, repeat('d', 64), 'promoting', now() - interval '1 minute'
+);
+SELECT public.queue_owned_event_media_cleanup(
+  '40000000-0000-4000-8000-000000000019',
+  '10000000-0000-4000-8000-000000000002'
+);
+
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM public.event_media_cleanup_outbox
+      WHERE object_paths = ARRAY[
+        '10000000-0000-4000-8000-000000000002/events/promoting-race.mp4'
+      ]
+        AND bucket IN ('event-media-staging', 'event-media')
+        AND status = 'pending'
+        AND next_attempt_at >= now() + interval '23 hours') <> 2
+  THEN
+    RAISE EXCEPTION 'promotion-race cleanup did not retain both locations beyond the in-flight copy';
+  END IF;
+END;
+$$;
 
 -- Advance the durable lease seam without waiting for wall-clock expiry. A
 -- post-expiry claim must remove the tombstone only after object deletion is

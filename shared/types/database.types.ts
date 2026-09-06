@@ -809,14 +809,15 @@ export type Database = {
           owner_id: string;
           event_id: string | null;
           kind: 'image' | 'video';
-          bucket: 'forum-media' | 'event-media';
+          bucket: 'forum-media' | 'event-media-staging' | 'event-media';
           object_path: string;
           thumbnail_path: string | null;
           public_url: string;
           thumbnail_url: string | null;
           mime_type: string;
           size_bytes: number;
-          state: 'pending' | 'ready' | 'attached' | 'cleanup_pending' | 'failed';
+          content_sha256: string | null;
+          state: 'pending' | 'promoting' | 'ready' | 'attached' | 'cleanup_pending' | 'failed';
           expires_at: string | null;
           created_at: string;
           updated_at: string;
@@ -826,14 +827,15 @@ export type Database = {
           owner_id: string;
           event_id?: string | null;
           kind: 'image' | 'video';
-          bucket: 'forum-media' | 'event-media';
+          bucket: 'forum-media' | 'event-media-staging' | 'event-media';
           object_path: string;
           thumbnail_path?: string | null;
           public_url: string;
           thumbnail_url?: string | null;
           mime_type: string;
           size_bytes: number;
-          state?: 'pending' | 'ready' | 'attached' | 'cleanup_pending' | 'failed';
+          content_sha256?: string | null;
+          state?: 'pending' | 'promoting' | 'ready' | 'attached' | 'cleanup_pending' | 'failed';
           expires_at?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -843,14 +845,15 @@ export type Database = {
           owner_id?: string;
           event_id?: string | null;
           kind?: 'image' | 'video';
-          bucket?: 'forum-media' | 'event-media';
+          bucket?: 'forum-media' | 'event-media-staging' | 'event-media';
           object_path?: string;
           thumbnail_path?: string | null;
           public_url?: string;
           thumbnail_url?: string | null;
           mime_type?: string;
           size_bytes?: number;
-          state?: 'pending' | 'ready' | 'attached' | 'cleanup_pending' | 'failed';
+          content_sha256?: string | null;
+          state?: 'pending' | 'promoting' | 'ready' | 'attached' | 'cleanup_pending' | 'failed';
           expires_at?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -888,7 +891,7 @@ export type Database = {
         Row: {
           id: number;
           media_id: string | null;
-          bucket: 'forum-media' | 'event-media';
+          bucket: 'forum-media' | 'event-media-staging' | 'event-media';
           object_paths: string[];
           status: 'pending' | 'processing' | 'completed' | 'failed';
           attempts: number;
@@ -902,7 +905,7 @@ export type Database = {
         Insert: {
           id?: number;
           media_id?: string | null;
-          bucket: 'forum-media' | 'event-media';
+          bucket: 'forum-media' | 'event-media-staging' | 'event-media';
           object_paths: string[];
           status?: 'pending' | 'processing' | 'completed' | 'failed';
           attempts?: number;
@@ -915,7 +918,7 @@ export type Database = {
         };
         Update: {
           media_id?: string | null;
-          bucket?: 'forum-media' | 'event-media';
+          bucket?: 'forum-media' | 'event-media-staging' | 'event-media';
           object_paths?: string[];
           status?: 'pending' | 'processing' | 'completed' | 'failed';
           attempts?: number;

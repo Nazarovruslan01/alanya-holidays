@@ -2,8 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { EventMediaRecord } from './event-media.types';
 
-type NewEventMediaRecord = Omit<EventMediaRecord, 'event_id' | 'state'> & {
+type NewEventMediaRecord = Omit<
+  EventMediaRecord,
+  'event_id' | 'state' | 'content_sha256'
+> & {
   state?: EventMediaRecord['state'];
+  content_sha256?: string | null;
 };
 
 interface PersistenceError {
@@ -99,6 +103,43 @@ export class EventMediaRepository {
       .eq('state', 'pending')
       .select()
       .maybeSingle();
+    this.throwIfError(error);
+    return data ?? null;
+  }
+
+  async markPromoting(
+    id: string,
+    ownerId: string,
+    contentSha256: string,
+  ): Promise<EventMediaRecord | null> {
+    const { data, error } = await this.client
+      .from('event_media')
+      .update({
+        state: 'promoting',
+        content_sha256: contentSha256,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .eq('owner_id', ownerId)
+      .eq('bucket', 'event-media-staging')
+      .eq('state', 'pending')
+      .select()
+      .maybeSingle();
+    this.throwIfError(error);
+    return data ?? null;
+  }
+
+  async completeVideoPromotion(
+    id: string,
+    ownerId: string,
+  ): Promise<EventMediaRecord | null> {
+    const { data, error } = (await this.client.rpc(
+      'complete_event_video_promotion',
+      {
+        p_media_id: id,
+        p_owner_id: ownerId,
+      },
+    )) as unknown as RpcResult<EventMediaRecord>;
     this.throwIfError(error);
     return data ?? null;
   }
