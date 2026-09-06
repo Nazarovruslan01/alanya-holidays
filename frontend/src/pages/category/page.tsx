@@ -231,7 +231,7 @@ export default function CategoryPage() {
             {/* Thread listing */}
             <div className="flex-1 min-w-0">
               {/* Top bar: Filters + New Discussion CTA */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+              <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center justify-between gap-4 mb-6">
                 <ThreadFilters
                   totalThreads={allFilteredThreads.length}
                   sortBy={sortBy}

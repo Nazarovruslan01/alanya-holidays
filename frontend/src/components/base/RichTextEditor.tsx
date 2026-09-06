@@ -406,7 +406,7 @@ export default function RichTextEditor({
     <div className={`relative ${className}`} data-testid="rich-text-editor-container">
       <div
         ref={containerRef}
-        className="bg-background-0 border border-background-200/70 rounded-lg focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-100/60 transition-all overflow-hidden"
+        className="bg-background-0 border border-background-200/70 rounded-lg focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-100/60 transition-all overflow-hidden [&_.ql-container]:h-auto [&_.ql-editor]:min-h-40 [&_.ql-editor]:text-base"
       />
       {showVideoChooser && (
         <div className="mt-2 rounded-lg border border-background-200 bg-background-0 p-3">
