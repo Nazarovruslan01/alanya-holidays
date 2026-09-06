@@ -181,7 +181,7 @@ export default function ForumPostPreviewModal({
               }`}
             >
               {targetMissing
-                ? "Permanently deleted"
+                ? t("admin.permanentlyDeleted")
                 : isRemoved
                   ? t("admin.softRemoved")
                   : t("admin.publiclyVisible")}

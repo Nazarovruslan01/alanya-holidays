@@ -66,11 +66,11 @@ const BookingsAdminTab: React.FC<{ onCountUpdate?: (c: { total: number; pending:
       if (await action()) {
         await loadBookings(statusFilter);
       } else {
-        setError("Booking update failed. Please try again.");
+        setError(t("admin.bookingUpdateError"));
       }
     } catch (err) {
       logger.error("Failed to update booking:", err);
-      setError("Booking update failed. Please try again.");
+      setError(t("admin.bookingUpdateError"));
     } finally {
       setActingId(null);
     }
@@ -85,11 +85,11 @@ const BookingsAdminTab: React.FC<{ onCountUpdate?: (c: { total: number; pending:
           prev.map((b) => (b.id === id ? { ...b, payout_status: payoutStatus } : b))
         );
       } else {
-        setError("Booking payout update failed. Please try again.");
+        setError(t("admin.payoutUpdateError"));
       }
     } catch (err) {
       logger.error("Failed to update booking payout:", err);
-      setError("Booking payout update failed. Please try again.");
+      setError(t("admin.payoutUpdateError"));
     } finally {
       setActingId(null);
     }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { authValidationMessage } from "@/i18n/auth-validation";
 import RegistrationPage from "@/pages/register/RegistrationPage";
 import PageHeroImage from "@/components/base/PageHeroImage";
 import { useAuth } from "@/context/AuthContext";
@@ -101,11 +102,11 @@ function BusinessApplicationForm({ user }: { user: User }) {
     const emailValidation = loginSchema.shape.email.safeParse(contactEmail);
 
     if (!businessValidation.success) {
-      setError(businessValidation.error.issues[0]?.message || t("common.tryAgain"));
+      setError(authValidationMessage(businessValidation.error.issues[0]?.message, t));
       return;
     }
     if (!emailValidation.success) {
-      setError(emailValidation.error.issues[0]?.message || t("common.tryAgain"));
+      setError(authValidationMessage(emailValidation.error.issues[0]?.message, t));
       return;
     }
 
@@ -122,12 +123,10 @@ function BusinessApplicationForm({ user }: { user: User }) {
       });
       if (!mountedRef.current || currentUserIdRef.current !== submittingUserId) return;
       navigate("/business/dashboard", { replace: true });
-    } catch (submissionError: unknown) {
+    } catch {
       if (!mountedRef.current || currentUserIdRef.current !== submittingUserId) return;
       setError(
-        submissionError instanceof Error
-          ? submissionError.message
-          : "Failed to submit business application. Please try again.",
+        t("business.applicationSubmitFailed"),
       );
     } finally {
       if (mountedRef.current && currentUserIdRef.current === submittingUserId) {
@@ -285,14 +284,12 @@ function AuthenticatedBusinessRegister({ user }: { user: User }) {
         setApplication(result);
         setLoading(false);
       })
-      .catch((requestError: unknown) => {
+      .catch(() => {
         if (!active || requestIdRef.current !== requestId || currentUserIdRef.current !== user.id) {
           return;
         }
         setError(
-          requestError instanceof Error
-            ? requestError.message
-            : "Failed to load your business application. Please try again.",
+          t("business.applicationLoadFailed"),
         );
         setLoading(false);
       });
@@ -300,7 +297,7 @@ function AuthenticatedBusinessRegister({ user }: { user: User }) {
     return () => {
       active = false;
     };
-  }, [user.id, retryToken]);
+  }, [user.id, retryToken, t]);
 
   if (loading || applicationUserId !== user.id) {
     return <LoadingState />;

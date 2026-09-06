@@ -34,7 +34,13 @@ export default function EventFilters({
   const { t } = useTranslation();
   return (
     <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-      <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide flex-wrap" role="group" aria-label={t("events.categories", "Event categories")}>
+      <select aria-label={t('events.categories')} value={activeCategory ?? ''}
+        onChange={(event) => onCategoryChange(event.target.value || null)}
+        className="sm:hidden w-full rounded-xl border border-background-200 bg-white p-3 text-sm">
+        <option value="">{t('events.allEvents')}</option>
+        {eventCategories.map((cat) => <option key={cat} value={cat}>{eventCategoryLabel(t, cat)}</option>)}
+      </select>
+      <div className="hidden sm:flex items-center gap-2 flex-wrap" role="group" aria-label={t("events.categories", "Event categories")}>
         <button
           type="button"
           onClick={() => onCategoryChange(null)}

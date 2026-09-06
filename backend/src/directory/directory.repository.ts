@@ -170,11 +170,10 @@ export class DirectoryRepository {
 
     const trimmed = query.trim();
     if (trimmed) {
-      const safe = trimmed
-        .replace(/%/g, '\\%')
-        .replace(/_/g, '\\_')
-        .replace(/,/g, ' ');
-      q = q.or(`name.ilike.%${safe}%,short_description.ilike.%${safe}%`);
+      const safe = JSON.stringify(
+        `%${trimmed.replace(/[\\%_]/g, '\\$&').replace(/\*/g, ' ')}%`,
+      );
+      q = q.or(`name.ilike.${safe},short_description.ilike.${safe}`);
     }
     const categoryIds = parseCategoryIds(categoryId);
     if (categoryIds.length === 1) {

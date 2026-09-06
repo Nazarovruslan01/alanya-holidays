@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import RegistrationPage from "./RegistrationPage";
+import "@/i18n";
 
 const signUp = vi.fn();
 const signInWithOAuth = vi.fn();
@@ -135,7 +136,7 @@ describe("RegistrationPage", () => {
     });
     fireEvent.change(screen.getByLabelText(/contact phone/i), { target: { value: "  +90 555 123 4567  " } });
     fireEvent.change(screen.getByLabelText(/website/i), { target: { value: "  https://example.com  " } });
-    fireEvent.click(screen.getByRole("button", { name: "Create Business Account" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create Your Business Account" }));
 
     await waitFor(() => expect(signUp).toHaveBeenCalledTimes(1));
     expect(signUp).toHaveBeenCalledWith({
@@ -166,7 +167,7 @@ describe("RegistrationPage", () => {
 
     completeSharedFields();
     fireEvent.change(screen.getByLabelText(/business name/i), { target: { value: "X" } });
-    fireEvent.submit(screen.getByRole("button", { name: "Create Business Account" }).closest("form")!);
+    fireEvent.submit(screen.getByRole("button", { name: "Create Your Business Account" }).closest("form")!);
 
     expect(await screen.findByText("Business name must be at least 2 characters.")).toBeInTheDocument();
     expect(signUp).not.toHaveBeenCalled();
@@ -178,7 +179,7 @@ describe("RegistrationPage", () => {
 
     completeSharedFields();
     fireEvent.change(screen.getByLabelText(/business name/i), { target: { value: "Alanya Services" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create Business Account" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create Your Business Account" }));
 
     expect(await screen.findByText("Confirm your business account email")).toBeInTheDocument();
     const loginLink = screen.getByRole("link", { name: "Go to Sign In" });

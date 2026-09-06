@@ -217,7 +217,7 @@ export default function TravelGuidesPage() {
                   <button
                     onClick={() => setSearchQuery("")}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground-400 hover:text-foreground-600"
-                    aria-label="Clear search"
+                    aria-label={t("admin.clearSearch")}
                   >
                     <i className="ri-close-circle-line text-sm"></i>
                   </button>

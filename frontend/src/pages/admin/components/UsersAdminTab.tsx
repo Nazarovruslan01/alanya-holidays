@@ -58,11 +58,11 @@ const UsersAdminTab: React.FC = () => {
       if (await adminService.updateUserProfile(user.id, { role })) {
         setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, role } : u)));
       } else {
-        setError("User role update failed. Please try again.");
+        setError(t("admin.roleUpdateError"));
       }
     } catch (err) {
       logger.error("Failed to update user role:", err);
-      setError("User role update failed. Please try again.");
+      setError(t("admin.roleUpdateError"));
     } finally {
       setActingId(null);
     }

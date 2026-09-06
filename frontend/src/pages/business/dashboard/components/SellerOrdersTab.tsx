@@ -119,7 +119,7 @@ export const SellerOrdersTab: React.FC = () => {
           prev.map((order) => (order.id === orderId ? { ...order, status } : order))
         );
       } else {
-        setError(result.message || t("merchant.orderUpdateFailed"));
+        setError(t("merchant.orderUpdateFailed"));
       }
     } catch (err) {
       logger.error("Failed to update order status:", err);
@@ -139,7 +139,8 @@ export const SellerOrdersTab: React.FC = () => {
       await ordersService.confirmDeliveryQuote(order.id, fee, draft.eta.trim());
       await loadOrders();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("merchant.orderUpdateFailed"));
+      logger.error("Failed to confirm delivery quote:", err);
+      setError(t("merchant.orderUpdateFailed"));
     } finally {
       setActingOrderId(null);
     }
@@ -170,7 +171,7 @@ export const SellerOrdersTab: React.FC = () => {
         <div className="max-w-md mx-auto space-y-1.5">
           <h3 className="text-lg font-bold text-secondary-900 dark:text-white">{t("merchant.noOrders")}</h3>
           <p className="text-xs sm:text-sm text-secondary-500 dark:text-slate-400">
-            When buyers purchase your products, their orders will appear here for you to fulfill.
+            {t("merchant.ordersEmptyHelp")}
           </p>
         </div>
       </div>
@@ -221,17 +222,17 @@ export const SellerOrdersTab: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h3 className="font-bold text-base sm:text-lg text-secondary-900 dark:text-white">
-                    Order #{order.id}
+                    {t("merchant.orderHeading", { id: order.id })}
                   </h3>
                   <p className="text-xs text-secondary-500 dark:text-slate-400">
                     {order.created_at &&
-                      new Date(order.created_at).toLocaleDateString("en-US", {
+                      new Date(order.created_at).toLocaleDateString(i18n.language, {
                         month: "short",
                         day: "numeric",
                         year: "numeric",
                       })}
                     {" · "}
-                    {items.length} item{items.length === 1 ? "" : "s"}
+                    {t("merchant.itemCount", { count: items.length })}
                   </p>
                 </div>
                 <span

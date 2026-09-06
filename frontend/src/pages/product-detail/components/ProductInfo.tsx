@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import type { ProductDetail, ProductVariant, ProductSku } from "./types";
 import { ProductVariantSelector } from "./ProductVariantSelector";
 import { ProductAddToCartSection } from "./ProductAddToCartSection";
@@ -34,26 +35,27 @@ export function ProductInfo({
   showCheckout,
   onToggleCheckout,
 }: ProductInfoProps) {
+  const { t } = useTranslation();
   const hasVariants = variants.length > 0 && skus.length > 0;
 
   return (
     <div className="w-full lg:w-1/2 flex flex-col">
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <span className="px-2.5 py-0.5 rounded-full bg-accent-100 text-accent-700 text-xs font-medium whitespace-nowrap">
-          {product.product_categories?.name || "General"}
+          {product.product_categories?.name || t("common.general")}
         </span>
         {currentStock > 0 ? (
           <span className="px-2.5 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-medium whitespace-nowrap">
-            In Stock
+            {t("product.inStock")}
           </span>
         ) : (
           <span className="px-2.5 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-medium whitespace-nowrap">
-            Out of Stock
+            {t("product.outOfStock")}
           </span>
         )}
         {hasVariants && (
           <span className="px-2.5 py-0.5 rounded-full bg-secondary-100 text-secondary-700 text-xs font-medium whitespace-nowrap">
-            {variants.length} {variants.length === 1 ? "option" : "options"}
+            {t("product.optionCount", { count: variants.length })}
           </span>
         )}
       </div>

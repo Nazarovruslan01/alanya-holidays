@@ -75,7 +75,7 @@ export default function CategoriesGrid() {
         </div>
 
         {error ? (
-          <ErrorState title={t("home.categoriesUnavailable")} message={error} onRetry={loadCategories} />
+          <ErrorState title={t("home.categoriesUnavailable")} onRetry={loadCategories} />
         ) : (
         /* Categories Grid */
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6">

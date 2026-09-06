@@ -348,7 +348,11 @@ export class ForumRepository {
     }
 
     if (filters.search && filters.search.trim()) {
-      q = q.ilike('title', `%${filters.search.trim()}%`);
+      const pattern = filters.search
+        .trim()
+        .replace(/[\\%_]/g, '\\$&')
+        .replace(/\*/g, ' ');
+      q = q.ilike('title', `%${pattern}%`);
     }
     if (filters.sort === 'popular') {
       q = q
@@ -361,7 +365,9 @@ export class ForumRepository {
         .order('created_at', { ascending: false });
     }
 
-    const { data, count, error } = await q.range(offset, offset + limit - 1);
+    const { data, count, error } = await q
+      .order('id', { ascending: true })
+      .range(offset, offset + limit - 1);
     if (error) throw new Error(error.message);
     return {
       data: (data as unknown as ForumPost[]) ?? [],
@@ -746,7 +752,11 @@ export class ForumRepository {
     if (!filters.includeUnpublished) q = q.eq('is_published', true);
     if (filters.upcomingOnly) q = q.gte('event_date', new Date().toISOString());
     if (filters.search && filters.search.trim()) {
-      q = q.ilike('title', `%${filters.search.trim()}%`);
+      const pattern = filters.search
+        .trim()
+        .replace(/[\\%_]/g, '\\$&')
+        .replace(/\*/g, ' ');
+      q = q.ilike('title', `%${pattern}%`);
     }
     if (filters.ownerId) {
       q = q.or(
@@ -754,9 +764,14 @@ export class ForumRepository {
       );
     }
 
-    const { data, error } = await q
+    q = q
       .order('event_date', { ascending: true })
-      .limit(filters.limit || 20);
+      .order('id', { ascending: true });
+    q =
+      filters.offset !== undefined
+        ? q.range(filters.offset, filters.offset + (filters.limit || 20) - 1)
+        : q.limit(filters.limit || 20);
+    const { data, error } = await q;
 
     if (error) throw new Error(error.message);
     return (data as unknown as ForumEvent[]) || [];

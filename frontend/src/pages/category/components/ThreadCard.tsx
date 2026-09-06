@@ -131,7 +131,7 @@ export default function ThreadCard({ thread, onBookmarkToggle }: ThreadCardProps
                 ? "text-teal-600 bg-teal-50"
                 : "text-foreground-400 hover:text-teal-600 hover:bg-background-100"
             }`}
-            title={isBookmarked ? "Remove bookmark" : "Save post"}
+            title={isBookmarked ? t("common.removeBookmark") : t("common.savePost")}
             aria-label={isBookmarked ? t("common.removeBookmark") : t("common.savePost")}
           >
             <i className={`${isBookmarked ? "ri-bookmark-fill" : "ri-bookmark-line"} text-base`}></i>

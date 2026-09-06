@@ -8,15 +8,17 @@ import {
   UpgradeModal,
 } from "@/pages/business/dashboard/components/UpgradeModal";
 import { logger } from "@/lib/logger";
+import { useTranslation } from "react-i18next";
 
-const formatDate = (iso: string): string =>
-  new Date(iso).toLocaleDateString("en-GB", {
+const formatDate = (iso: string, locale: string): string =>
+  new Date(iso).toLocaleDateString(locale, {
     day: "numeric",
     month: "long",
     year: "numeric",
   });
 
 export const BillingTab: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const [subscription, setSubscription] = useState<MySubscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionInProgress, setActionInProgress] = useState<
@@ -31,11 +33,11 @@ export const BillingTab: React.FC = () => {
       setSubscription(await billingService.getMySubscription());
     } catch (err) {
       logger.warn("Failed to load subscription:", err);
-      setError("Could not load your subscription. Please try again later.");
+      setError(t("settings.billingLoadFailed"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadSubscription();
@@ -44,7 +46,7 @@ export const BillingTab: React.FC = () => {
   const handleCancel = async () => {
     if (
       !window.confirm(
-        "Cancel your subscription? Access continues until the end of the current billing period."
+        t("settings.confirmCancelSubscription")
       )
     ) {
       return;
@@ -56,7 +58,7 @@ export const BillingTab: React.FC = () => {
       await loadSubscription();
     } catch (err) {
       logger.warn("Failed to cancel subscription:", err);
-      setError("Could not cancel the subscription. Please try again.");
+      setError(t("settings.billingCancelFailed"));
     } finally {
       setActionInProgress(null);
     }
@@ -70,7 +72,7 @@ export const BillingTab: React.FC = () => {
       window.location.href = url;
     } catch (err) {
       logger.warn("Failed to open billing portal:", err);
-      setError("Could not open the billing portal. Please try again.");
+      setError(t("settings.billingPortalFailed"));
       setActionInProgress(null);
     }
   };
@@ -93,7 +95,7 @@ export const BillingTab: React.FC = () => {
         <div className="flex items-center gap-2">
           <CreditCard className="w-5 h-5 text-primary-500" />
           <h3 className="text-lg font-bold font-display text-secondary-900 dark:text-white">
-            Subscription
+            {t("settings.subscription")}
           </h3>
         </div>
 
@@ -111,7 +113,7 @@ export const BillingTab: React.FC = () => {
             <div className="grid sm:grid-cols-2 gap-3 text-sm">
               <div className="rounded-xl bg-background-50 dark:bg-slate-800/60 p-3">
                 <p className="text-xs uppercase tracking-wider text-secondary-400">
-                  Plan
+                  {t("settings.plan")}
                 </p>
                 <p className="font-semibold text-secondary-900 dark:text-white capitalize">
                   {subscription.tier || subscription.plan} ·{" "}
@@ -121,19 +123,18 @@ export const BillingTab: React.FC = () => {
               <div className="rounded-xl bg-background-50 dark:bg-slate-800/60 p-3">
                 <p className="text-xs uppercase tracking-wider text-secondary-400">
                   {subscription.cancel_at_period_end
-                    ? "Access until"
-                    : "Renews on"}
+                    ? t("settings.accessUntil")
+                    : t("settings.renewsOn")}
                 </p>
                 <p className="font-semibold text-secondary-900 dark:text-white">
-                  {formatDate(subscription.current_period_end)}
+                  {formatDate(subscription.current_period_end, i18n.language)}
                 </p>
               </div>
             </div>
 
             {subscription.cancel_at_period_end && (
               <p className="text-sm text-amber-700 dark:text-amber-300">
-                Your subscription is cancelled — benefits remain active until{" "}
-                {formatDate(subscription.current_period_end)}.
+                {t("settings.cancelledUntil", { date: formatDate(subscription.current_period_end, i18n.language) })}
               </p>
             )}
 
@@ -148,7 +149,7 @@ export const BillingTab: React.FC = () => {
                   {actionInProgress === "cancel" && (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   )}
-                  Cancel subscription
+                  {t("settings.cancelSubscription")}
                 </button>
               )}
               <button
@@ -162,22 +163,21 @@ export const BillingTab: React.FC = () => {
                 ) : (
                   <ExternalLink className="w-4 h-4" />
                 )}
-                Manage billing
+                {t("settings.manageBilling")}
               </button>
             </div>
           </div>
         ) : (
           <div className="space-y-4">
             <p className="text-sm text-secondary-500 dark:text-slate-400">
-              You don&apos;t have an active subscription yet. Choose a plan to
-              unlock priority placement and growth tools.
+              {t("settings.noSubscription")}
             </p>
             <button
               type="button"
               onClick={() => setPlansOpen(true)}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-primary-500 hover:bg-primary-600 text-white transition-all cursor-pointer"
             >
-              View plans
+              {t("settings.viewPlans")}
             </button>
           </div>
         )}

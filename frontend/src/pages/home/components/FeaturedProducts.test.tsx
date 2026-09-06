@@ -50,7 +50,8 @@ describe("FeaturedProducts", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Products API unavailable");
+    expect(await screen.findByRole("alert")).toHaveTextContent(i18n.t('home.productsUnavailable'));
+    expect(screen.queryByText('Products API unavailable')).not.toBeInTheDocument();
   });
 
   it("keeps ordinary featured products but does not promote gift cards", async () => {

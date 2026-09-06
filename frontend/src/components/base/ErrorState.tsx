@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertCircle, RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export interface ErrorStateProps {
   title?: string;
@@ -10,12 +11,15 @@ export interface ErrorStateProps {
 }
 
 export function ErrorState({
-  title = 'Unable to load content',
-  message = 'An unexpected error occurred. Please check your connection and try again.',
+  title: customTitle,
+  message: customMessage,
   onRetry,
   variant = 'card',
   className = '',
 }: ErrorStateProps) {
+  const { t } = useTranslation();
+  const title = customTitle ?? t('public.loadErrorTitle');
+  const message = customMessage ?? t('public.loadErrorMessage');
   if (variant === 'inline') {
     return (
       <div
@@ -34,7 +38,7 @@ export function ErrorState({
             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-rose-200 text-rose-700 rounded-lg text-xs font-semibold hover:bg-rose-100/50 transition-colors cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
-            Retry
+            {t('public.retry')}
           </button>
         )}
       </div>
@@ -61,7 +65,7 @@ export function ErrorState({
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-medium text-sm transition-all shadow-xs cursor-pointer"
             >
               <RefreshCw className="w-4 h-4" aria-hidden="true" />
-              Try Again
+              {t('common.tryAgain')}
             </button>
           )}
         </div>
@@ -87,7 +91,7 @@ export function ErrorState({
           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-medium text-sm transition-all shadow-xs cursor-pointer"
         >
           <RefreshCw className="w-4 h-4" aria-hidden="true" />
-          Try Again
+          {t('common.tryAgain')}
         </button>
       )}
     </div>

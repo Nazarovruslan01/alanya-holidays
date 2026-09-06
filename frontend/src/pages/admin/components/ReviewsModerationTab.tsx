@@ -63,11 +63,11 @@ const ReviewsModerationTab: React.FC<{ onCountUpdate?: (c: { total: number; pend
       if (await action()) {
         await loadReviews(statusTab, page);
       } else {
-        setError("Review update failed. Please try again.");
+        setError(t("admin.reviewUpdateError"));
       }
     } catch (err) {
       logger.error("Failed to update review:", err);
-      setError("Review update failed. Please try again.");
+      setError(t("admin.reviewUpdateError"));
     } finally {
       setActingId(null);
     }

@@ -2,7 +2,15 @@ import { render, screen, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import UpcomingEventsCarousel from "./UpcomingEventsCarousel";
-import { eventsService, type ForumEvent } from "@/api-services/events.service";
+import { eventsService } from "@/api-services/events.service";
+
+async function renderCarousel() {
+  let view!: ReturnType<typeof render>;
+  await act(async () => {
+    view = render(<MemoryRouter><UpcomingEventsCarousel /></MemoryRouter>);
+  });
+  return view;
+}
 
 describe("Adversarial Stress Test: UpcomingEventsCarousel", () => {
   const originalScrollBy = Element.prototype.scrollBy;
@@ -13,6 +21,7 @@ describe("Adversarial Stress Test: UpcomingEventsCarousel", () => {
     vi.setSystemTime(new Date("2026-06-08T12:00:00.000Z"));
     Element.prototype.scrollBy = vi.fn();
     vi.restoreAllMocks();
+    vi.spyOn(eventsService, "getEvents").mockResolvedValue(eventsService.getEventsSync());
   });
 
   afterEach(() => {
@@ -23,19 +32,12 @@ describe("Adversarial Stress Test: UpcomingEventsCarousel", () => {
   });
 
   describe("Edge Case 1: 0 events in date window", () => {
-    it("renders an empty state and attaches no scroll listeners when event list is empty", () => {
-      vi.spyOn(eventsService, "getEventsSync").mockReturnValue([]);
-      vi.spyOn(eventsService, "getEvents").mockImplementation(
-        () => new Promise<ForumEvent[]>(() => {})
-      );
+    it("renders an empty state and attaches no scroll listeners when event list is empty", async () => {
+      vi.spyOn(eventsService, "getEvents").mockResolvedValue([]);
 
       const windowAddListenerSpy = vi.spyOn(window, "addEventListener");
 
-      render(
-        <MemoryRouter>
-          <UpcomingEventsCarousel />
-        </MemoryRouter>
-      );
+      await renderCarousel();
 
       expect(screen.getByText(/This Week's Events/i)).toBeInTheDocument();
       expect(screen.getByText("No events scheduled this week")).toBeInTheDocument();
@@ -43,7 +45,7 @@ describe("Adversarial Stress Test: UpcomingEventsCarousel", () => {
       expect(windowAddListenerSpy).not.toHaveBeenCalled();
     });
 
-    it("renders the empty state when all events fall outside the target week (2026-06-05 to 2026-06-12)", () => {
+    it("renders the empty state when all events fall outside the target week (2026-06-05 to 2026-06-12)", async () => {
       const outsideEvents = [
         {
           id: "past-1",
@@ -81,16 +83,9 @@ describe("Adversarial Stress Test: UpcomingEventsCarousel", () => {
         },
       ];
 
-      vi.spyOn(eventsService, "getEventsSync").mockReturnValue(outsideEvents);
-      vi.spyOn(eventsService, "getEvents").mockImplementation(
-        () => new Promise<ForumEvent[]>(() => {})
-      );
+      vi.spyOn(eventsService, "getEvents").mockResolvedValue(outsideEvents);
 
-      render(
-        <MemoryRouter>
-          <UpcomingEventsCarousel />
-        </MemoryRouter>
-      );
+      await renderCarousel();
 
       expect(screen.getByText("No events scheduled this week")).toBeInTheDocument();
       expect(screen.queryByText("Past Event")).not.toBeInTheDocument();
@@ -99,7 +94,7 @@ describe("Adversarial Stress Test: UpcomingEventsCarousel", () => {
   });
 
   describe("Edge Case 2: 1 event on wide desktop container", () => {
-    it("renders heading and cards but hides both left and right scroll buttons on 1440px viewport", () => {
+    it("renders heading and cards but hides both left and right scroll buttons on 1440px viewport", async () => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2026-06-05T12:00:00Z"));
 
@@ -123,18 +118,14 @@ describe("Adversarial Stress Test: UpcomingEventsCarousel", () => {
         },
       ];
 
-      vi.spyOn(eventsService, "getEventsSync").mockReturnValue(singleEvent);
+      vi.spyOn(eventsService, "getEvents").mockResolvedValue(singleEvent);
       vi.spyOn(eventsService, "getEvents").mockResolvedValue(singleEvent);
 
       vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(1440);
       vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(560);
       vi.spyOn(HTMLElement.prototype, "scrollLeft", "get").mockReturnValue(0);
 
-      render(
-        <MemoryRouter>
-          <UpcomingEventsCarousel />
-        </MemoryRouter>
-      );
+      await renderCarousel();
 
       expect(screen.getByText(/This Week's Events/i)).toBeInTheDocument();
       expect(screen.getByText("1")).toBeInTheDocument();
@@ -147,7 +138,7 @@ describe("Adversarial Stress Test: UpcomingEventsCarousel", () => {
   });
 
   describe("Edge Case 3: Multiple events with container overflow & scroll navigation", () => {
-    it("handles full lifecycle: initial overflow right -> middle scroll -> end of track", () => {
+    it("handles full lifecycle: initial overflow right -> middle scroll -> end of track", async () => {
       const scrollByMock = vi.fn();
       Element.prototype.scrollBy = scrollByMock;
 
@@ -156,11 +147,7 @@ describe("Adversarial Stress Test: UpcomingEventsCarousel", () => {
       vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(1200);
       vi.spyOn(HTMLElement.prototype, "scrollLeft", "get").mockImplementation(() => currentScrollLeft);
 
-      const { container } = render(
-        <MemoryRouter>
-          <UpcomingEventsCarousel />
-        </MemoryRouter>
-      );
+      const { container } = await renderCarousel();
 
       const scrollTrack = container.querySelector(".overflow-x-auto") as HTMLDivElement;
       expect(scrollTrack).toBeInTheDocument();
@@ -210,17 +197,13 @@ describe("Adversarial Stress Test: UpcomingEventsCarousel", () => {
       expect(screen.queryByRole("button", { name: /scroll right/i })).not.toBeInTheDocument();
     });
 
-    it("verifies sub-pixel 4px boundary tolerance", () => {
+    it("verifies sub-pixel 4px boundary tolerance", async () => {
       let currentScrollLeft = 2; // <= 4: considered start
       vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(400);
       vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(1000);
       vi.spyOn(HTMLElement.prototype, "scrollLeft", "get").mockImplementation(() => currentScrollLeft);
 
-      const { container } = render(
-        <MemoryRouter>
-          <UpcomingEventsCarousel />
-        </MemoryRouter>
-      );
+      const { container } = await renderCarousel();
 
       const scrollTrack = container.querySelector(".overflow-x-auto") as HTMLDivElement;
 
@@ -251,7 +234,7 @@ describe("Adversarial Stress Test: UpcomingEventsCarousel", () => {
   });
 
   describe("Edge Case 4: Dynamic Viewport Resizing and ResizeObserver", () => {
-    it("responds dynamically to both window resize events and ResizeObserver notifications", () => {
+    it("responds dynamically to both window resize events and ResizeObserver notifications", async () => {
       let resizeCallback: (() => void) | null = null;
       class MockResizeObserver {
         constructor(callback: () => void) {
@@ -268,11 +251,7 @@ describe("Adversarial Stress Test: UpcomingEventsCarousel", () => {
       vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(800);
       vi.spyOn(HTMLElement.prototype, "scrollLeft", "get").mockReturnValue(0);
 
-      render(
-        <MemoryRouter>
-          <UpcomingEventsCarousel />
-        </MemoryRouter>
-      );
+      await renderCarousel();
 
       expect(screen.queryByRole("button", { name: /scroll right/i })).not.toBeInTheDocument();
 
@@ -291,27 +270,21 @@ describe("Adversarial Stress Test: UpcomingEventsCarousel", () => {
       expect(screen.queryByRole("button", { name: /scroll right/i })).not.toBeInTheDocument();
     });
 
-    it("gracefully runs when ResizeObserver is undefined (SSR / fallback environment)", () => {
+    it("gracefully runs when ResizeObserver is undefined (SSR / fallback environment)", async () => {
       delete (globalThis as Record<string, unknown>).ResizeObserver;
 
       vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(400);
       vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(1000);
       vi.spyOn(HTMLElement.prototype, "scrollLeft", "get").mockReturnValue(0);
 
-      expect(() => {
-        render(
-          <MemoryRouter>
-            <UpcomingEventsCarousel />
-          </MemoryRouter>
-        );
-      }).not.toThrow();
+      await renderCarousel();
 
       expect(screen.getByRole("button", { name: /scroll right/i })).toBeInTheDocument();
     });
   });
 
   describe("Edge Case 5: Event Listener Cleanup and Safe Unmount", () => {
-    it("cleans up scroll, window resize listeners and disconnects ResizeObserver on unmount", () => {
+    it("cleans up scroll, window resize listeners and disconnects ResizeObserver on unmount", async () => {
       const disconnectSpy = vi.fn();
       class MockResizeObserver {
         observe = vi.fn();
@@ -322,11 +295,7 @@ describe("Adversarial Stress Test: UpcomingEventsCarousel", () => {
 
       const windowRemoveListenerSpy = vi.spyOn(window, "removeEventListener");
 
-      const { unmount } = render(
-        <MemoryRouter>
-          <UpcomingEventsCarousel />
-        </MemoryRouter>
-      );
+      const { unmount } = await renderCarousel();
 
       unmount();
 
@@ -334,18 +303,14 @@ describe("Adversarial Stress Test: UpcomingEventsCarousel", () => {
       expect(disconnectSpy).toHaveBeenCalled();
     });
 
-    it("does not throw or leak state when unmounted during pending setTimeout after scroll button click", () => {
+    it("does not throw or leak state when unmounted during pending setTimeout after scroll button click", async () => {
       vi.useFakeTimers();
 
       vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(400);
       vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(1000);
       vi.spyOn(HTMLElement.prototype, "scrollLeft", "get").mockReturnValue(0);
 
-      const { unmount } = render(
-        <MemoryRouter>
-          <UpcomingEventsCarousel />
-        </MemoryRouter>
-      );
+      const { unmount } = await renderCarousel();
 
       const rightArrow = screen.getByRole("button", { name: /scroll right/i });
       fireEvent.click(rightArrow);

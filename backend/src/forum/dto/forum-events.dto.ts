@@ -9,9 +9,16 @@ import {
   IsString,
   IsUUID,
   Min,
+  MaxLength,
 } from 'class-validator';
 
 export class GetForumEventsQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  offset?: number;
+
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
@@ -30,6 +37,7 @@ export class GetForumEventsQueryDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   search?: string;
 }
 

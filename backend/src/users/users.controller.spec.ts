@@ -41,7 +41,12 @@ describe('UsersController', () => {
 
   it('should parse limit and onlineOnly flag in getForumMembers', async () => {
     await controller.getForumMembers({ limit: 10 }, 'true');
-    expect(mockService.getForumMembers).toHaveBeenCalledWith(10, true);
+    expect(mockService.getForumMembers).toHaveBeenCalledWith(
+      10,
+      true,
+      undefined,
+      undefined,
+    );
   });
 
   it('should pass req.user.id to touchPresence', async () => {

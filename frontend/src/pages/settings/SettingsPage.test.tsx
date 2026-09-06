@@ -349,7 +349,8 @@ describe("Settings Hub (Milestone 3)", () => {
       fireEvent.click(saveBtn);
 
       await waitFor(() => {
-        expect(screen.getByText(/Network error updating profile/i)).toBeInTheDocument();
+        expect(screen.getByText(/Failed to update profile. Please try again./i)).toBeInTheDocument();
+        expect(screen.queryByText(/Network error updating profile/i)).not.toBeInTheDocument();
       });
     });
 
@@ -441,7 +442,8 @@ describe("Settings Hub (Milestone 3)", () => {
       const input = screen.getByLabelText(/Upload avatar/i);
       const file = new File(["avatar"], "avatar.png", { type: "image/png" });
       fireEvent.change(input, { target: { files: [file] } });
-      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Upload unavailable"));
+      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Avatar upload failed. Please try again."));
+      expect(screen.queryByText("Upload unavailable")).not.toBeInTheDocument();
       expect(screen.getByLabelText(/Avatar Image/i)).toHaveValue(defaultProfile.avatar_url);
 
       fireEvent.change(input, { target: { files: [file] } });
@@ -620,7 +622,8 @@ describe("Settings Hub (Milestone 3)", () => {
       fireEvent.click(submitBtn);
 
       await waitFor(() => {
-        expect(screen.getByText(/Auth session expired/i)).toBeInTheDocument();
+        expect(screen.getByText(/Failed to update password. Please try again./i)).toBeInTheDocument();
+        expect(screen.queryByText(/Auth session expired/i)).not.toBeInTheDocument();
       });
     });
 

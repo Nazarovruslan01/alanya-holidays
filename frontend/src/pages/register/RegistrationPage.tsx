@@ -1,3 +1,4 @@
+import { authValidationMessage } from "@/i18n/auth-validation";
 import { useState, FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -71,7 +72,7 @@ export default function RegistrationPage({ variant = "regular" }: RegistrationPa
     });
 
     if (!validation.success) {
-      setError(validation.error.issues[0]?.message || "Please fill in all fields.");
+      setError(authValidationMessage(validation.error.issues[0]?.message, t));
       return;
     }
 
@@ -86,7 +87,7 @@ export default function RegistrationPage({ variant = "regular" }: RegistrationPa
       : null;
 
     if (businessValidation && !businessValidation.success) {
-      setError(businessValidation.error.issues[0]?.message || "Please check your business details.");
+      setError(authValidationMessage(businessValidation.error.issues[0]?.message, t));
       return;
     }
 
@@ -120,7 +121,7 @@ export default function RegistrationPage({ variant = "regular" }: RegistrationPa
       });
 
       if (authError) {
-        setError(authError.message || "Failed to create account. Please try again.");
+        setError(t("auth.createAccountFailed"));
         return;
       }
 
@@ -131,8 +132,8 @@ export default function RegistrationPage({ variant = "regular" }: RegistrationPa
         // Auto-logged in
         navigate(postAuthPath, { replace: true });
       }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "An unexpected error occurred.";
+    } catch {
+      const message = t("auth.unexpectedError");
       setError(message);
     } finally {
       setIsSubmitting(false);
@@ -150,10 +151,10 @@ export default function RegistrationPage({ variant = "regular" }: RegistrationPa
         ? await signInWithOAuth(provider, oauthRedirectTo)
         : await signInWithOAuth(provider);
       if (authError) {
-        setError(authError.message || `Failed to sign in with ${provider}.`);
+        setError(t("auth.oauthFailed", { provider }));
       }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : `Failed to sign in with ${provider}.`;
+    } catch {
+      const message = t("auth.oauthFailed", { provider });
       setError(message);
     } finally {
       setIsSocialSubmitting(false);
@@ -263,9 +264,9 @@ export default function RegistrationPage({ variant = "regular" }: RegistrationPa
             </div>
           </div>
 
-          <nav aria-label="Account type" className="mb-8">
+          <nav aria-label={t("auth.accountType")} className="mb-8">
             <p className="mb-2 text-center text-xs font-medium uppercase tracking-wide text-foreground-400">
-              Choose account type
+              {t("auth.chooseAccountType")}
             </p>
             <div className="grid grid-cols-2 gap-2 rounded-xl bg-background-100 p-1.5">
               <Link
@@ -279,7 +280,7 @@ export default function RegistrationPage({ variant = "regular" }: RegistrationPa
                 }`}
               >
                 <i className="ri-user-line" aria-hidden="true"></i>
-                Personal account
+                {t("auth.personalAccount")}
               </Link>
               <Link
                 to="/business/register"
@@ -292,7 +293,7 @@ export default function RegistrationPage({ variant = "regular" }: RegistrationPa
                 }`}
               >
                 <i className="ri-store-2-line" aria-hidden="true"></i>
-                Business account
+                {t("auth.businessAccount")}
               </Link>
             </div>
           </nav>
@@ -397,7 +398,7 @@ export default function RegistrationPage({ variant = "regular" }: RegistrationPa
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute inset-y-0 right-0 flex items-center pr-3.5 cursor-pointer"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-label={t(showPassword ? "auth.hidePassword" : "auth.showPassword")}
                 >
                   <i
                     className={`text-foreground-400 hover:text-foreground-600 text-sm transition-colors ${

@@ -34,58 +34,58 @@ interface TierInfo {
   highlighted?: boolean;
 }
 
-const TIERS: TierInfo[] = [
+const getTiers = (t: import("i18next").TFunction): TierInfo[] => [
   {
     id: "explorer",
     name: "Explorer",
     price: "€0",
-    billing: "Free Forever",
-    description: "Standard business listing to establish your presence on Alanya Holidays.",
+    billing: t("plans.freeForever"),
+    description: t("plans.explorerDescription"),
     maxPhotos: 5,
     features: [
-      "Standard directory placement",
-      "Core contact info (Phone, Email, Address)",
-      "Basic business description",
-      "Up to 5 photo uploads",
-      "Customer reviews & ratings",
+      t("plans.standardPlacement"),
+      t("plans.contactInfo"),
+      t("plans.basicDescription"),
+      t("plans.fivePhotos"),
+      t("plans.reviews"),
     ],
   },
   {
     id: "voyager",
     name: "Voyager",
     price: "€19",
-    billing: "per month",
-    badge: "Growth",
+    billing: t("plans.perMonth"),
+    badge: t("plans.growth"),
     badgeColor: "bg-sky-100 text-sky-800 border-sky-200",
-    description: "Boost engagement with direct customer contact channels and analytics.",
+    description: t("plans.voyagerDescription"),
     maxPhotos: 50,
     highlighted: true,
     features: [
-      "Priority directory search placement",
-      "Direct website & WhatsApp links",
-      "Social media integration (IG, FB, TripAdvisor)",
-      "Promotional video embed (YouTube/Vimeo)",
-      "Direct Instant Booking link",
-      "Up to 50 photo gallery uploads",
-      "Full interactive performance analytics",
+      t("plans.priorityPlacement"),
+      t("plans.directLinks"),
+      t("plans.socialIntegration"),
+      t("plans.video"),
+      t("plans.bookingLink"),
+      t("plans.fiftyPhotos"),
+      t("plans.analytics"),
     ],
   },
   {
     id: "partner",
     name: "Custom",
     price: "~$100",
-    billing: "per month",
-    badge: "Enterprise",
+    billing: t("plans.perMonth"),
+    badge: t("plans.enterprise"),
     badgeColor: "bg-purple-100 text-purple-900 border-purple-300",
-    description: "Comprehensive 360° marketing partnership with multilingual AI reach.",
+    description: t("plans.customDescription"),
     maxPhotos: 100,
     features: [
-      "Top Rated Destination Partner trust badge",
-      "AI translation & localization (8 languages)",
-      "Seasonal editorial campaigns & newsletter inclusion",
-      "Dedicated account manager & quarterly reports",
-      "Unlimited photos & video showcases",
-      "Custom branded business spotlight page",
+      t("plans.partnerBadge"),
+      t("plans.aiLanguages"),
+      t("plans.campaigns"),
+      t("plans.manager"),
+      t("plans.unlimitedPhotos"),
+      t("plans.spotlight"),
     ],
   },
 ];
@@ -100,6 +100,7 @@ export default function ListBusinessModal({
   userId,
 }: ListBusinessModalProps) {
   const { t } = useTranslation();
+  const TIERS = getTiers(t);
   const [step, setStep] = useState<"tier" | "form" | "confirmed">(() => {
     if (propInitialData || propDraftId) return "form";
     return "tier";
@@ -175,15 +176,15 @@ export default function ListBusinessModal({
     const phoneVal = (draft.phone || "").trim();
     const emailVal = (draft.email || "").trim();
 
-    if (!nameVal) nextErrors.name = "Business name is required";
-    if (!catVal) nextErrors.category = "Please select a category";
-    if (!descVal) nextErrors.description = "Business description is required";
-    if (!addrVal) nextErrors.address = "Address is required";
-    if (!phoneVal) nextErrors.phone = "Contact phone is required";
+    if (!nameVal) nextErrors.name = t("listing.nameRequired");
+    if (!catVal) nextErrors.category = t("listing.categoryRequired");
+    if (!descVal) nextErrors.description = t("listing.descriptionRequired");
+    if (!addrVal) nextErrors.address = t("listing.addressRequired");
+    if (!phoneVal) nextErrors.phone = t("listing.phoneRequired");
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailVal || !emailRegex.test(emailVal)) {
-      nextErrors.email = "Valid business email is required";
+      nextErrors.email = t("listing.emailRequired");
     }
 
     setErrors(nextErrors);
@@ -194,12 +195,12 @@ export default function ListBusinessModal({
     if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
     try {
       const saved = await saveToCloud();
-      setDraftNotice("Draft saved successfully to your account & device.");
+      setDraftNotice(t("listing.draftCloudSaved"));
       onDraftSaved?.(draft, saved?.id || activeDraftId || undefined);
       noticeTimerRef.current = setTimeout(() => setDraftNotice(null), 4000);
     } catch (err) {
       logger.warn("Failed to save cloud draft, saved locally:", err);
-      setDraftNotice("Draft saved locally on this device.");
+      setDraftNotice(t("listing.draftLocalSaved"));
       onDraftSaved?.(draft, activeDraftId || undefined);
       noticeTimerRef.current = setTimeout(() => setDraftNotice(null), 4000);
     }
@@ -248,7 +249,7 @@ export default function ListBusinessModal({
     } catch (err) {
       logger.error("Failed to submit business listing:", err);
       const errorMessage =
-        err instanceof Error ? err.message : "Failed to submit business listing. Please try again.";
+        t("listing.submitFailed");
       toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
@@ -294,14 +295,14 @@ export default function ListBusinessModal({
                 {step === "tier"
                   ? t("listing.chooseTier")
                   : step === "form"
-                  ? `List Your Business (${currentTierObj.name} Tier)`
+                  ? t("listing.formTitle", { name: currentTierObj.name })
                   : t("listing.confirmation")}
               </h2>
               <p className="text-xs text-foreground-500">
                 {step === "tier"
                   ? t("listing.tierDescription")
                   : step === "form"
-                  ? "Fill in your profile details or save as draft anytime"
+                  ? t("listing.formHelp")
                   : t("listing.confirmationDescription")}
               </p>
             </div>
@@ -514,9 +515,9 @@ export default function ListBusinessModal({
                       onChange={(e) => updateField("price_level", e.target.value)}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-foreground-200 text-sm text-foreground-900 focus:outline-none focus:border-primary-500"
                     >
-                      <option value="$">$ (Budget Friendly)</option>
-                      <option value="$$">$$ (Moderate)</option>
-                      <option value="$$$">$$$ (Premium / Luxury)</option>
+                      <option value="$">{t("listing.priceBudget")}</option>
+                      <option value="$$">{t("listing.priceModerate")}</option>
+                      <option value="$$$">{t("listing.pricePremium")}</option>
                     </select>
                   </div>
                 </div>
@@ -539,7 +540,7 @@ export default function ListBusinessModal({
                   <div className="flex items-center justify-between text-[11px] text-foreground-400 mt-1">
                     <span>{errors.description && <span className="text-red-500">{errors.description}</span>}</span>
                     <span>
-                      {(draft.description || "").length}/{isPaid ? "2000" : "500"} chars
+                      {t("listing.characters", { count: (draft.description || "").length, max: isPaid ? 2000 : 500 })}
                     </span>
                   </div>
                 </div>
@@ -548,7 +549,7 @@ export default function ListBusinessModal({
               {/* Location & Contact */}
               <div className="space-y-4 pt-4 border-t border-background-100">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-foreground-500">
-                  2. Location & Contact Info
+                  {t("listing.locationSection")}
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -627,7 +628,7 @@ export default function ListBusinessModal({
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-primary-600 flex items-center gap-1.5">
                       <i className="ri-vip-diamond-fill text-sm text-amber-500" />
-                      3. Unlocked Growth & Media Features
+                      {t("listing.growthSection")}
                     </h4>
                     <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                       {t("listing.paidTierUnlocked")}

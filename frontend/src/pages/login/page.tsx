@@ -1,3 +1,4 @@
+import { authValidationMessage } from "@/i18n/auth-validation";
 import { useState, FormEvent } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -45,7 +46,7 @@ export default function LoginPage() {
     });
 
     if (!validation.success) {
-      setError(validation.error.issues[0]?.message || "Please fill in all fields.");
+      setError(authValidationMessage(validation.error.issues[0]?.message, t));
       return;
     }
 
@@ -56,13 +57,13 @@ export default function LoginPage() {
     try {
       const { error: authError } = await signIn(cleanEmail, password);
       if (authError) {
-        setError(authError.message || "Failed to sign in. Please check your credentials.");
+        setError(t("auth.signInFailed"));
         return;
       }
 
       navigate(redirectPath, { replace: true });
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "An unexpected error occurred.";
+    } catch {
+      const message = t("auth.unexpectedError");
       setError(message);
     } finally {
       setIsSubmitting(false);
@@ -78,10 +79,10 @@ export default function LoginPage() {
         ? await signInWithOAuth(provider, oauthRedirectTo)
         : await signInWithOAuth(provider);
       if (authError) {
-        setError(authError.message || `Failed to sign in with ${provider}.`);
+        setError(t("auth.oauthFailed", { provider }));
       }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : `Failed to sign in with ${provider}.`;
+    } catch {
+      const message = t("auth.oauthFailed", { provider });
       setError(message);
     } finally {
       setIsSocialSubmitting(false);

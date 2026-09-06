@@ -66,7 +66,7 @@ export default function CommunityPulse() {
           </span>
           {/* Title */}
           <div className="absolute bottom-6 left-6 right-6">
-            <h2 className="font-heading text-4xl md:text-5xl lg:text-6xl text-white leading-tight">
+              <h2 className="font-heading text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-white leading-tight break-words">
               <span className="block font-light">{t("events.upcoming").toUpperCase()}</span>
               <span className="block font-bold">{t("events.title").toUpperCase()}</span>
             </h2>
@@ -87,7 +87,7 @@ export default function CommunityPulse() {
           {/* Events List */}
           <div className="space-y-4 min-h-60">
             {eventsError ? (
-              <ErrorState title={t("home.eventsUnavailable")} message={eventsError} onRetry={loadEvents} />
+              <ErrorState title={t("home.eventsUnavailable")} onRetry={loadEvents} />
             ) : isLoadingEvents ? (
               <div className="space-y-4" aria-label={t("home.loadingUpcomingEvents")}>
                 {[0, 1, 2].map((item) => (

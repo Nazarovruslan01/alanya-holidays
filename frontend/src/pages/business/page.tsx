@@ -231,7 +231,7 @@ export default function BusinessDetailPage() {
         <div className="min-h-[60vh] bg-background-50 flex items-center justify-center p-6">
           <ErrorState
             title={t("business.loadFailed")}
-            message={error}
+            message={t("business.loadErrorGeneric")}
             onRetry={loadData}
           />
         </div>

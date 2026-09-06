@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import type { ForumStatsAdminItem } from "@/api-services/admin.service";
 
 interface ForumStatsCardProps {
@@ -12,35 +13,36 @@ export default function ForumStatsCard({
   loading = false,
   onRefresh,
 }: ForumStatsCardProps) {
+  const { t, i18n } = useTranslation();
   const cards = [
     {
       id: "topics",
-      label: "Total Topics",
-      value: stats ? stats.totalTopics.toLocaleString() : "0",
+      label: t("admin.totalTopics"),
+      value: stats ? stats.totalTopics.toLocaleString(i18n.language) : "0",
       icon: "ri-discuss-line",
       color: "from-blue-500/10 to-indigo-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800",
       iconBg: "bg-blue-100 dark:bg-blue-900/40",
     },
     {
       id: "replies",
-      label: "Total Replies",
-      value: stats ? stats.totalReplies.toLocaleString() : "0",
+      label: t("admin.totalReplies"),
+      value: stats ? stats.totalReplies.toLocaleString(i18n.language) : "0",
       icon: "ri-chat-3-line",
       color: "from-emerald-500/10 to-teal-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800",
       iconBg: "bg-emerald-100 dark:bg-emerald-900/40",
     },
     {
       id: "online",
-      label: "Online (Last 5m)",
-      value: stats ? stats.usersOnline.toLocaleString() : "0",
+      label: t("admin.onlineRecent"),
+      value: stats ? stats.usersOnline.toLocaleString(i18n.language) : "0",
       icon: "ri-user-shared-line",
       color: "from-amber-500/10 to-orange-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800",
       iconBg: "bg-amber-100 dark:bg-amber-900/40",
     },
     {
       id: "latest",
-      label: "Newest Member",
-      value: stats?.latestMember || "None",
+      label: t("admin.newestMember"),
+      value: stats?.latestMember || t("admin.noMember"),
       icon: "ri-user-add-line",
       color: "from-purple-500/10 to-pink-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800",
       iconBg: "bg-purple-100 dark:bg-purple-900/40",
@@ -54,10 +56,10 @@ export default function ForumStatsCard({
         <div>
           <h2 className="text-base font-bold text-secondary-900 dark:text-white flex items-center gap-2">
             <i className="ri-dashboard-3-line text-accent-600 dark:text-accent-400" />
-            Forum Vital Metrics & KPIs
+            {t("admin.forumMetrics")}
           </h2>
           <p className="text-xs text-secondary-500 dark:text-slate-400">
-            Real-time platform activity metrics, discussions, and member pulse
+            {t("admin.forumMetricsHelp")}
           </p>
         </div>
         {onRefresh && (
@@ -66,7 +68,7 @@ export default function ForumStatsCard({
             onClick={onRefresh}
             disabled={loading}
             className="p-1.5 rounded-lg text-secondary-500 hover:text-secondary-800 dark:hover:text-white hover:bg-secondary-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-            title="Refresh forum stats"
+            title={t("admin.refreshForum")}
           >
             <i className={`ri-refresh-line text-base ${loading ? "animate-spin" : ""}`} />
           </button>

@@ -10,6 +10,7 @@ import BulkActionsToolbar from "./BulkActionsToolbar";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useTranslation } from "react-i18next";
 import "@/i18n";
+import { logger } from "@/lib/logger";
 
 type StatusFilter = "all" | "pending" | "approved" | "rejected" | "draft";
 
@@ -77,7 +78,7 @@ const categoriesList = [
 export default function ListingsModerationTab({
   onListingCountUpdate,
 }: ListingsModerationTabProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [listings, setListings] = useState<ModerationListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -117,7 +118,8 @@ export default function ListingsModerationTab({
         onListingCountUpdateRef.current({ total: data?.length || 0, pending: pendingCount });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("admin.listingsLoadFailed"));
+      logger.warn("Failed to load moderation listings:", err);
+      setError(t("admin.listingsLoadFailed"));
     } finally {
       setLoading(false);
     }
@@ -243,7 +245,7 @@ export default function ListingsModerationTab({
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Are you sure you want to permanently delete "${name}"?`)) {
+    if (!window.confirm(t("admin.deleteNamedConfirm", { name }))) {
       return;
     }
     setActionLoadingId(id);
@@ -279,7 +281,7 @@ export default function ListingsModerationTab({
 
       const res = await adminService.batchApproveListings(ids);
       if (res.successful.length > 0) {
-        toast.success(`Batch approved ${res.successful.length} listing(s)`);
+        toast.success(t("admin.listingsBatchApproved", { count: res.successful.length }));
       }
       if (res.failed.length > 0) {
         toast.error(t("admin.batchListingApproveFailed", { count: res.failed.length }));
@@ -311,7 +313,7 @@ export default function ListingsModerationTab({
 
       const res = await adminService.batchRejectListings(ids, reason);
       if (res.successful.length > 0) {
-        toast.success(`Batch rejected ${res.successful.length} listing(s)`);
+        toast.success(t("admin.listingsBatchRejected", { count: res.successful.length }));
       }
       if (res.failed.length > 0) {
         toast.error(t("admin.batchListingRejectFailed", { count: res.failed.length }));
@@ -391,7 +393,7 @@ export default function ListingsModerationTab({
   const handleUpdateScore = async (listing: ModerationListing) => {
     const currentScore = listing.base_score || 0;
     const input = window.prompt(
-      `Enter curation base score (0 - 100) for "${listing.name}":`,
+      t("admin.scoreNamedPrompt", { name: listing.name }),
       String(currentScore)
     );
     if (input === null || input.trim() === "") return;
@@ -411,7 +413,7 @@ export default function ListingsModerationTab({
     try {
       const ok = await adminService.updateListingScore(listing.id, num);
       if (ok) {
-        toast.success(`Score updated to ${num}`);
+        toast.success(t("admin.scoreUpdated", { score: num }));
       } else {
         // Rollback
         setListings((prev) =>
@@ -442,7 +444,7 @@ export default function ListingsModerationTab({
     try {
       const res = await adminService.batchFeatureListings(ids);
       if (res.successful.length > 0) {
-        toast.success(`Batch featured ${res.successful.length} listing(s)`);
+        toast.success(t("admin.listingsBatchFeatured", { count: res.successful.length }));
       }
       if (res.failed.length > 0) {
         toast.error(t("admin.batchListingFeatureFailed", { count: res.failed.length }));
@@ -470,7 +472,7 @@ export default function ListingsModerationTab({
     try {
       const res = await adminService.batchVerifyListings(ids);
       if (res.successful.length > 0) {
-        toast.success(`Batch verified ${res.successful.length} listing(s)`);
+        toast.success(t("admin.listingsBatchVerified", { count: res.successful.length }));
       }
       if (res.failed.length > 0) {
         toast.error(t("admin.batchListingVerifyFailed", { count: res.failed.length }));
@@ -632,7 +634,7 @@ export default function ListingsModerationTab({
                     {t("admin.categoryTier")}
                   </th>
                   <th className="px-6 py-3.5 text-left text-xs font-bold text-secondary-500 dark:text-slate-400 uppercase tracking-wider">
-                    Status
+                    {t("listing.status")}
                   </th>
                   <th className="px-6 py-3.5 text-left text-xs font-bold text-secondary-500 dark:text-slate-400 uppercase tracking-wider">
                     {t("admin.submittedDate")}
@@ -740,7 +742,7 @@ export default function ListingsModerationTab({
 
                       <td className="px-6 py-4 whitespace-nowrap text-xs text-secondary-500 dark:text-slate-400">
                         {listing.created_at
-                          ? new Date(listing.created_at).toLocaleDateString("en-GB", {
+                          ? new Date(listing.created_at).toLocaleDateString(i18n.language, {
                               day: "numeric",
                               month: "short",
                               year: "numeric",

@@ -27,9 +27,10 @@ export default function LanguageSwitcher({
   compact = false,
   onLanguageChange,
 }: LanguageSwitcherProps) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const currentLangCode = (i18n.language?.slice(0, 2).toLowerCase() as "en" | "ru" | "tr") || "en";
   const currentLang = LANGUAGES.find((l) => l.code === currentLangCode) || LANGUAGES[0];
@@ -51,13 +52,21 @@ export default function LanguageSwitcher({
   };
 
   return (
-    <div className={`relative inline-block ${className}`} ref={dropdownRef}>
+    <div className={`relative inline-block ${className}`} ref={dropdownRef}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && isOpen) {
+          event.stopPropagation();
+          setIsOpen(false);
+          triggerRef.current?.focus();
+        }
+      }}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
         aria-haspopup="true"
-        aria-label={`Language selector: ${currentLang.shortLabel} (${currentLang.label})`}
+        aria-label={t('nav.languageSelector', { code: currentLang.shortLabel, language: currentLang.label })}
         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer select-none ${
           isSolidNav
             ? "bg-background-100/80 hover:bg-background-200/90 text-foreground-800 border border-background-200"

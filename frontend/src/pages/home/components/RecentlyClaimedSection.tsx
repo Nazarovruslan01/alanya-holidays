@@ -81,7 +81,7 @@ export default function RecentlyClaimedSection({ onClaimClick }: RecentlyClaimed
 
         {/* Listings Grid */}
         {error ? (
-          <ErrorState title={t("home.recentVerifiedTitle")} message={error} onRetry={loadListings} />
+          <ErrorState onRetry={loadListings} />
         ) : !loading && listings.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-background-300 bg-white px-6 py-10 text-center">
             <h3 className="font-heading text-lg text-foreground-900">{t("home.noRecentVerified")}</h3>
@@ -114,14 +114,6 @@ export default function RecentlyClaimedSection({ onClaimClick }: RecentlyClaimed
                     />
                     <div className="absolute top-3 left-3 z-10">
                       <TrustBadge badge={biz.trustBadge} business={biz} variant="glass" size="xs" />
-                    </div>
-
-                    {/* Verified Owner Badge */}
-                    <div className="absolute bottom-3 left-3 z-10">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-950/80 backdrop-blur-md text-emerald-300 text-[11px] font-semibold shadow-sm">
-                        <i className="ri-checkbox-circle-fill text-xs" />
-                        {t("home.verifiedOwner")}
-                      </span>
                     </div>
 
                     <div className="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-white/95 backdrop-blur-md text-foreground-800 text-[11px] font-bold shadow-sm">

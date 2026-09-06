@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ResetPasswordPage from './page';
+import i18n from '@/i18n';
 
 const authHarness = vi.hoisted(() => ({
   status: 'checking' as 'checking' | 'ready' | 'invalid',
@@ -32,9 +33,27 @@ function renderPage() {
 }
 
 describe('ResetPasswordPage', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en');
     authHarness.status = 'checking';
     authHarness.completePasswordRecovery.mockReset();
+  });
+
+  it.each(['ru', 'tr'])('localizes recovery errors in %s without exposing provider details', async (locale) => {
+    await i18n.changeLanguage(locale);
+    authHarness.status = 'ready';
+    authHarness.completePasswordRecovery
+      .mockResolvedValueOnce({ error: new Error('internal reset failure') })
+      .mockRejectedValueOnce(new Error('internal reset failure'));
+    renderPage();
+    fireEvent.change(screen.getByLabelText(i18n.t('auth.newPassword')), { target: { value: 'strong-password' } });
+    fireEvent.change(screen.getByLabelText(i18n.t('auth.confirmPassword')), { target: { value: 'strong-password' } });
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      fireEvent.click(screen.getByRole('button', { name: i18n.t('auth.setNewPassword') }));
+      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(i18n.t('auth.passwordResetFailed')));
+      expect(authHarness.completePasswordRecovery).toHaveBeenCalledTimes(attempt);
+      expect(screen.queryByText('internal reset failure')).not.toBeInTheDocument();
+    }
   });
 
   it('waits for Supabase to validate the recovery callback before showing the form', () => {

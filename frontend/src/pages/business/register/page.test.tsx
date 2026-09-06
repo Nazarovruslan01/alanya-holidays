@@ -192,8 +192,9 @@ describe("BusinessRegisterPage", () => {
 
     rejectCreate(new Error("Application service unavailable"));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Application service unavailable",
+      "Failed to submit business application. Please try again.",
     );
+    expect(screen.queryByText("Application service unavailable")).not.toBeInTheDocument();
   });
 
   it("shows a retry after an existing application lookup error", async () => {
@@ -202,8 +203,9 @@ describe("BusinessRegisterPage", () => {
     renderPage();
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Application lookup unavailable",
+      "Failed to load your business application. Please try again.",
     );
+    expect(screen.queryByText("Application lookup unavailable")).not.toBeInTheDocument();
     mockGetMine.mockResolvedValueOnce(null);
     fireEvent.click(screen.getByRole("button", { name: "Try Again" }));
     expect(await screen.findByLabelText(/business name/i)).toBeInTheDocument();

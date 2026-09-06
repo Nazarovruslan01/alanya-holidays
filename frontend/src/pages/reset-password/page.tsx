@@ -1,3 +1,4 @@
+import { authValidationMessage } from "@/i18n/auth-validation";
 import { FormEvent, useId, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -26,7 +27,7 @@ export default function ResetPasswordPage() {
       confirmPassword,
     });
     if (!validation.success) {
-      setError(validation.error.issues[0]?.message ?? "Invalid password.");
+      setError(authValidationMessage(validation.error.issues[0]?.message, t));
       return;
     }
 
@@ -34,17 +35,13 @@ export default function ResetPasswordPage() {
     try {
       const result = await completePasswordRecovery(validation.data.password);
       if (result.error) {
-        setError(result.error.message);
+        setError(t("auth.passwordResetFailed"));
         return;
       }
 
       navigate("/login", { replace: true });
-    } catch (err: unknown) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : t("auth.passwordResetFailed", "Failed to reset password. Please try again.")
-      );
+    } catch {
+      setError(t("auth.passwordResetFailed"));
     } finally {
       setIsSubmitting(false);
     }

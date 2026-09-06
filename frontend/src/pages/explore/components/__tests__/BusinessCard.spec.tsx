@@ -77,10 +77,8 @@ describe("BusinessCard Component (Milestone M2 / R1)", () => {
       </BrowserRouter>
     );
 
-    // "$$$" + rating 4.8 resolves to Signature Collection
-    const badge = screen.getByTestId("trust-badge");
-    expect(badge).toBeInTheDocument();
-    expect(badge).toHaveAttribute("data-badge-type", "Signature Collection");
+    // Price and rating do not establish an endorsement or verified ownership.
+    expect(screen.queryByTestId("trust-badge")).not.toBeInTheDocument();
   });
 
   it("invokes onClaimClick when claim action is triggered", () => {

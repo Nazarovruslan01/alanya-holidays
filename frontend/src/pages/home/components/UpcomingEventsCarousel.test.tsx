@@ -23,7 +23,31 @@ const currentEvent: ForumEvent = {
   isFeatured: true,
 };
 
+async function renderCarousel() {
+  let view!: ReturnType<typeof render>;
+  await act(async () => {
+    view = render(<MemoryRouter><UpcomingEventsCarousel /></MemoryRouter>);
+  });
+  return view;
+}
+
 describe("UpcomingEventsCarousel Component", () => {
+  it('distinguishes loading and failure from empty data and retries live events', async () => {
+    vi.setSystemTime(new Date('2026-08-30T12:00:00+03:00'));
+    let reject!: (error: Error) => void;
+    vi.spyOn(eventsService, 'getEvents').mockImplementationOnce(() => new Promise((_, rejectRequest) => { reject = rejectRequest; })).mockResolvedValueOnce([currentEvent]);
+    const sync = vi.spyOn(eventsService, 'getEventsSync');
+    await renderCarousel();
+    expect(screen.getByRole('status')).toHaveTextContent('Loading');
+    expect(screen.queryByText('No events scheduled this week')).not.toBeInTheDocument();
+    expect(sync).not.toHaveBeenCalled();
+    await act(async () => { reject(new Error('internal SQL failure')); });
+    expect(screen.getByRole('alert')).toHaveTextContent(i18n.t('home.eventsUnavailable'));
+    expect(screen.queryByText('internal SQL failure')).not.toBeInTheDocument();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Try Again' })); });
+    expect(screen.getByText(currentEvent.title)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
   const originalScrollBy = Element.prototype.scrollBy;
 
   beforeEach(async () => {
@@ -32,6 +56,7 @@ describe("UpcomingEventsCarousel Component", () => {
     vi.setSystemTime(new Date("2026-06-08T12:00:00+03:00"));
     Element.prototype.scrollBy = vi.fn();
     vi.restoreAllMocks();
+    vi.spyOn(eventsService, "getEvents").mockResolvedValue(eventsService.getEventsSync());
   });
 
   afterEach(async () => {
@@ -41,34 +66,20 @@ describe("UpcomingEventsCarousel Component", () => {
     await i18n.changeLanguage("en");
   });
 
-  it("renders events from the current seven-day window instead of a fixed historical week", () => {
+  it("renders events from the current seven-day window instead of a fixed historical week", async () => {
     vi.setSystemTime(new Date("2026-08-30T12:00:00+03:00"));
-    vi.spyOn(eventsService, "getEventsSync").mockReturnValue([currentEvent]);
-    vi.spyOn(eventsService, "getEvents").mockImplementation(
-      () => new Promise<ForumEvent[]>(() => {})
-    );
+    vi.spyOn(eventsService, "getEvents").mockResolvedValue([currentEvent]);
 
-    render(
-      <MemoryRouter>
-        <UpcomingEventsCarousel />
-      </MemoryRouter>
-    );
+    await renderCarousel();
 
     expect(screen.getByText("Alanya Summer Community Picnic")).toBeInTheDocument();
   });
 
-  it("keeps the events entry point visible when the current week has no events", () => {
+  it("keeps the events entry point visible when the current week has no events", async () => {
     vi.setSystemTime(new Date("2026-08-31T12:00:00+03:00"));
-    vi.spyOn(eventsService, "getEventsSync").mockReturnValue([]);
-    vi.spyOn(eventsService, "getEvents").mockImplementation(
-      () => new Promise<ForumEvent[]>(() => {})
-    );
+    vi.spyOn(eventsService, "getEvents").mockResolvedValue([]);
 
-    render(
-      <MemoryRouter>
-        <UpcomingEventsCarousel />
-      </MemoryRouter>
-    );
+    await renderCarousel();
 
     expect(screen.getByText(/This Week's Events/i)).toBeInTheDocument();
     expect(screen.getByText("No events scheduled this week")).toBeInTheDocument();
@@ -81,16 +92,9 @@ describe("UpcomingEventsCarousel Component", () => {
   it("localizes the no-events entry point in Russian", async () => {
     await i18n.changeLanguage("ru");
     vi.setSystemTime(new Date("2026-08-31T12:00:00+03:00"));
-    vi.spyOn(eventsService, "getEventsSync").mockReturnValue([]);
-    vi.spyOn(eventsService, "getEvents").mockImplementation(
-      () => new Promise<ForumEvent[]>(() => {})
-    );
+    vi.spyOn(eventsService, "getEvents").mockResolvedValue([]);
 
-    render(
-      <MemoryRouter>
-        <UpcomingEventsCarousel />
-      </MemoryRouter>
-    );
+    await renderCarousel();
 
     expect(screen.getByText("События этой недели")).toBeInTheDocument();
     expect(screen.getByText("На этой неделе мероприятий нет")).toBeInTheDocument();
@@ -98,23 +102,15 @@ describe("UpcomingEventsCarousel Component", () => {
     expect(screen.queryByText("No events scheduled this week")).not.toBeInTheDocument();
   });
 
-  it("renders This Week's Events heading with count badge", () => {
-    render(
-      <MemoryRouter>
-        <UpcomingEventsCarousel />
-      </MemoryRouter>
-    );
+  it("renders This Week's Events heading with count badge", async () => {
+    await renderCarousel();
 
     expect(screen.getByText(/This Week's Events/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /view all/i })).toHaveAttribute("href", "/events");
   });
 
-  it("renders event date badges, attendee numbers, and spot indicators", () => {
-    render(
-      <MemoryRouter>
-        <UpcomingEventsCarousel />
-      </MemoryRouter>
-    );
+  it("renders event date badges, attendee numbers, and spot indicators", async () => {
+    await renderCarousel();
 
     expect(screen.getByText("10")).toBeInTheDocument();
     expect(screen.getByText("JUN")).toBeInTheDocument();
@@ -122,32 +118,24 @@ describe("UpcomingEventsCarousel Component", () => {
     expect(screen.getByText(/spots/i)).toBeInTheDocument();
   });
 
-  it("renders browse all events card", () => {
-    render(
-      <MemoryRouter>
-        <UpcomingEventsCarousel />
-      </MemoryRouter>
-    );
+  it("renders browse all events card", async () => {
+    await renderCarousel();
 
     expect(screen.getByText(/Browse All Events/i)).toBeInTheDocument();
   });
 
-  it("does not render scroll arrows when content fits within container without overflow", () => {
+  it("does not render scroll arrows when content fits within container without overflow", async () => {
     vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(1200);
     vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(550);
     vi.spyOn(HTMLElement.prototype, "scrollLeft", "get").mockReturnValue(0);
 
-    render(
-      <MemoryRouter>
-        <UpcomingEventsCarousel />
-      </MemoryRouter>
-    );
+    await renderCarousel();
 
     expect(screen.queryByRole("button", { name: /scroll right/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /scroll left/i })).not.toBeInTheDocument();
   });
 
-  it("renders right scroll arrow when content overflows and triggers smooth scrolling on click", () => {
+  it("renders right scroll arrow when content overflows and triggers smooth scrolling on click", async () => {
     const scrollByMock = vi.fn();
     Element.prototype.scrollBy = scrollByMock;
 
@@ -155,11 +143,7 @@ describe("UpcomingEventsCarousel Component", () => {
     vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(1000);
     vi.spyOn(HTMLElement.prototype, "scrollLeft", "get").mockReturnValue(0);
 
-    render(
-      <MemoryRouter>
-        <UpcomingEventsCarousel />
-      </MemoryRouter>
-    );
+    await renderCarousel();
 
     const rightArrow = screen.getByRole("button", { name: /scroll right/i });
     expect(rightArrow).toBeInTheDocument();
@@ -174,16 +158,12 @@ describe("UpcomingEventsCarousel Component", () => {
     );
   });
 
-  it("dynamically updates scroll arrows on window resize", () => {
+  it("dynamically updates scroll arrows on window resize", async () => {
     const clientWidthSpy = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(1200);
     vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(1000);
     vi.spyOn(HTMLElement.prototype, "scrollLeft", "get").mockReturnValue(0);
 
-    render(
-      <MemoryRouter>
-        <UpcomingEventsCarousel />
-      </MemoryRouter>
-    );
+    await renderCarousel();
 
     expect(screen.queryByRole("button", { name: /scroll right/i })).not.toBeInTheDocument();
 

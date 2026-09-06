@@ -83,7 +83,7 @@ export default function MemberFilters({
             }`}
           >
             <i className="ri-user-star-line"></i>
-            {roleFilter || "All Roles"}
+            {roleFilter ? t(`members.role.${roleFilter}`, { defaultValue: roleFilter }) : t("members.allRoles")}
             <i className={`ri-arrow-down-s-line text-sm transition-transform ${roleOpen ? "rotate-180" : ""}`}></i>
           </button>
           {roleOpen && (
@@ -97,11 +97,11 @@ export default function MemberFilters({
                   !roleFilter ? "bg-primary-100 text-primary-700" : "text-foreground-700 hover:bg-background-100"
                 }`}
               >
-                All Roles
+                {t("members.allRoles")}
               </button>
               {memberRoles.map((role) => (
                 <button
-                  key={role}
+                  key={t(`members.role.${role}`, { defaultValue: role })}
                   onClick={() => {
                     onRoleChange(role);
                     setRoleOpen(false);
@@ -110,7 +110,7 @@ export default function MemberFilters({
                     roleFilter === role ? "bg-primary-100 text-primary-700" : "text-foreground-700 hover:bg-background-100"
                   }`}
                 >
-                  {role}
+                  {t(`members.role.${role}`, { defaultValue: role })}
                 </button>
               ))}
             </div>
@@ -127,7 +127,7 @@ export default function MemberFilters({
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium text-foreground-500 hover:text-foreground-700 hover:bg-background-100 transition-colors cursor-pointer"
           >
             <i className="ri-close-circle-line"></i>
-            Clear All
+            {t("compare.clearAll")}
           </button>
         )}
       </div>

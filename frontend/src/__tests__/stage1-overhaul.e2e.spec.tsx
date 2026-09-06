@@ -66,13 +66,10 @@ describe("Stage 1 Overhaul Comprehensive E2E & Multi-Tier Test Suite", () => {
       expect(screen.getByText("11:00 - 01:00")).toBeInTheDocument();
     });
 
-    it("R2: TrustBadges are rendered with evocative canonical labels", () => {
+    it("R2: high ratings and prices do not imply an endorsement", () => {
       renderWithProviders(<BusinessCard business={mockFullBusiness} />);
 
-      const badge = screen.getByTestId("trust-badge");
-      expect(badge).toBeInTheDocument();
-      // $$$ + 4.9 rating resolves to Signature Collection
-      expect(badge).toHaveAttribute("data-badge-type", "Signature Collection");
+      expect(screen.queryByTestId("trust-badge")).not.toBeInTheDocument();
     });
 
     it("R3: ListBusinessModal allows tier selection and submits free vs paid forms with correct confirmation popups", async () => {
@@ -147,14 +144,14 @@ describe("Stage 1 Overhaul Comprehensive E2E & Multi-Tier Test Suite", () => {
       expect(await screen.findByText(/claim request submitted/i)).toBeInTheDocument();
     });
 
-    it("R5: RecentlyClaimedSection displays verified owner badge and curated listings on Home page", async () => {
-      vi.spyOn(directoryService, "getRecentlyClaimedListings").mockResolvedValue([mockFullBusiness]);
+    it("R5: RecentlyClaimedSection displays claimed listings and an ownership badge on Home page", async () => {
+      vi.spyOn(directoryService, "getRecentlyClaimedListings").mockResolvedValue([{ ...mockFullBusiness, claimed_at: '2026-08-20T12:00:00Z' }]);
 
       renderWithProviders(<Home />);
 
-      expect(screen.getByText(/recently claimed & verified businesses/i)).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Recently Claimed Businesses' })).toBeInTheDocument();
       expect(await screen.findByText("Alanya Panoramic Castle Bistro")).toBeInTheDocument();
-      expect(screen.getByText("Verified Owner")).toBeInTheDocument();
+      expect(screen.getByText("Owner confirmed")).toBeInTheDocument();
     });
 
     it("R6: UpgradesAddonsShowcase renders all 5 upsell modules with pricing & impact metrics", () => {

@@ -9,6 +9,7 @@ import i18n from "@/i18n";
 const mockRecentlyClaimed: Business[] = [
   {
     id: "biz-recent-1",
+    claimed_at: '2026-08-20T12:00:00Z',
     name: "Cleopatra Blue Seafood",
     category: "restaurants",
     subcategory: "Seafood",
@@ -31,6 +32,7 @@ const mockRecentlyClaimed: Business[] = [
   },
   {
     id: "biz-recent-2",
+    claimed_at: '2026-08-20T12:00:00Z',
     name: "Red Tower Boutique Stay",
     category: "hotels",
     subcategory: "Boutique Hotel",
@@ -70,12 +72,12 @@ describe("RecentlyClaimedSection Component (Milestone M5 / R5)", () => {
       </BrowserRouter>
     );
 
-    expect(screen.getByText(/recently claimed/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Recently Claimed Businesses' })).toBeInTheDocument();
     expect(
       await screen.findByText("Cleopatra Blue Seafood")
     ).toBeInTheDocument();
     expect(screen.getByText("Red Tower Boutique Stay")).toBeInTheDocument();
-    expect(screen.getAllByText(/verified owner/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Owner confirmed')).toHaveLength(2);
   });
 
   it("shows an honest empty state without substituting unrelated top-rated listings", async () => {
@@ -102,8 +104,8 @@ describe("RecentlyClaimedSection Component (Milestone M5 / R5)", () => {
       </BrowserRouter>
     );
 
-    expect(await screen.findByRole("heading", { name: "Недавно подтверждённые компании" })).toBeInTheDocument();
-    expect(screen.getAllByText("Подтверждённый владелец")).toHaveLength(2);
+    expect(await screen.findByRole("heading", { name: "Новые карточки под управлением владельцев" })).toBeInTheDocument();
+    expect(screen.getAllByText("Владелец подтверждён")).toHaveLength(2);
     expect(screen.getAllByRole("link", { name: "Подробнее" })).toHaveLength(2);
     expect(screen.getByText("Cleopatra Blue Seafood")).toBeInTheDocument();
   });
@@ -119,6 +121,7 @@ describe("RecentlyClaimedSection Component (Milestone M5 / R5)", () => {
       </BrowserRouter>
     );
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Directory API unavailable");
+    expect(await screen.findByRole("alert")).toHaveTextContent('Unable to load content');
+    expect(screen.queryByText('Directory API unavailable')).not.toBeInTheDocument();
   });
 });

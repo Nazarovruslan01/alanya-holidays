@@ -87,9 +87,11 @@ export class UsersService {
   async getForumMembers(
     limit?: number,
     onlineOnly?: boolean,
+    search?: string,
+    offset?: number,
   ): Promise<Record<string, unknown>[]> {
     const [data, postData] = await Promise.all([
-      this.usersRepository.getForumMembers(limit),
+      this.usersRepository.getForumMembers(limit, search, offset),
       this.usersRepository.getForumPostsAuthors(),
     ]);
 

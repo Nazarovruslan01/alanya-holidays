@@ -17,14 +17,14 @@ export default function EventHero({
 }: EventHeroProps) {
   const { t } = useTranslation();
   return (
-    <section className="relative w-full h-[280px] md:h-[360px] overflow-hidden">
+    <section className="relative w-full min-h-[280px] md:min-h-[360px] overflow-hidden">
       <PageHeroImage
         page="events"
         alt="Alanya Holidays Events"
       />
       <div className="absolute inset-0 bg-gradient-to-b from-foreground-950/55 via-foreground-950/30 to-foreground-950/75"></div>
 
-      <div className="absolute bottom-0 left-0 right-0 w-full px-4 md:px-8 lg:px-12 pb-10 md:pb-14">
+      <div className="relative w-full px-4 md:px-8 lg:px-12 pt-24 md:pt-32 pb-10 md:pb-14">
         <div className="flex items-center gap-2 mb-4">
           <a href="/" className="text-white/60 hover:text-white/90 text-sm transition-colors underline underline-offset-2">
             {t("nav.home", "Home")}
@@ -43,7 +43,7 @@ export default function EventHero({
             </p>
           </div>
 
-          <div className="flex items-center gap-5 md:gap-8 shrink-0">
+          <div className="flex flex-wrap items-center gap-5 md:gap-8 shrink-0">
             <div className="text-center">
               <p className="text-white text-xl md:text-2xl font-semibold">{totalEvents}</p>
               <p className="text-white/50 text-xs">{t("events.upcoming", "Upcoming")}</p>

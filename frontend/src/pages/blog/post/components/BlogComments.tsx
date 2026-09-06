@@ -26,7 +26,7 @@ function CommentItem({
   onCommentCreated: (comment: BlogComment) => void;
   depth?: number;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { isAuthenticated } = useAuth();
   const [liked, setLiked] = useState(comment.isLiked ?? false);
   const [likeCount, setLikeCount] = useState(comment.like_count ?? 0);
@@ -51,13 +51,13 @@ function CommentItem({
     const now = new Date();
     const diffMs = now.getTime() - d.getTime();
     const diffMin = Math.floor(diffMs / 60000);
-    if (diffMin < 1) return "just now";
-    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffMin < 1) return t("shop.time.justNow");
+    if (diffMin < 60) return t("shop.time.minutesAgo", { count: diffMin });
     const diffH = Math.floor(diffMin / 60);
-    if (diffH < 24) return `${diffH}h ago`;
+    if (diffH < 24) return t("shop.time.hoursAgo", { count: diffH });
     const diffD = Math.floor(diffH / 24);
-    if (diffD < 7) return `${diffD}d ago`;
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    if (diffD < 7) return t("shop.time.daysAgo", { count: diffD });
+    return d.toLocaleDateString(i18n.language, { month: "short", day: "numeric", year: "numeric" });
   };
 
   if (comment.is_removed) {
@@ -75,7 +75,7 @@ function CommentItem({
           {comment.author?.avatar_url ? (
             <img
               src={comment.author.avatar_url}
-              alt={comment.author.full_name || "User"}
+              alt={comment.author.full_name || t("comments.anonymous")}
               className="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-0.5"
             />
           ) : (
@@ -86,7 +86,7 @@ function CommentItem({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-sm font-medium text-foreground-900">
-                {comment.author?.full_name || "Anonymous"}
+                {comment.author?.full_name || t("comments.anonymous")}
               </span>
               <span className="text-xs text-foreground-400">
                 {formatDate(comment.created_at)}
@@ -101,7 +101,7 @@ function CommentItem({
                 type="button"
                 onClick={handleLike}
                 disabled={!isAuthenticated || isLiking}
-                aria-label={liked ? "Unlike comment" : "Like comment"}
+                aria-label={liked ? t("comments.unlike") : t("comments.like")}
                 className={`inline-flex items-center gap-1 text-xs transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 ${
                   liked ? "text-red-500" : "text-foreground-400 hover:text-red-400"
                 }`}
@@ -115,7 +115,7 @@ function CommentItem({
                   className="inline-flex items-center gap-1 text-xs text-foreground-400 hover:text-primary-500 transition-colors cursor-pointer"
                 >
                   <i className="ri-reply-line text-sm"></i>
-                  Reply
+                  {t("comments.reply")}
                 </button>
               )}
             </div>
@@ -158,6 +158,7 @@ function CommentForm({
   onCancel?: () => void;
   onCreated: (comment: BlogComment) => void;
 }) {
+  const { t } = useTranslation();
   const [body, setBody] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -182,7 +183,7 @@ function CommentForm({
       <textarea
         value={body}
         onChange={(e) => setBody(e.target.value)}
-        placeholder={parentId ? "Write a reply..." : "Share your thoughts..."}
+        placeholder={parentId ? t("comments.replyPlaceholder") : t("comments.placeholder")}
         rows={3}
         className="w-full px-4 py-3 rounded-lg border border-background-200/70 bg-background-0 text-sm text-foreground-800 placeholder:text-foreground-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-100/60 outline-none resize-none transition-all"
       />
@@ -193,7 +194,7 @@ function CommentForm({
             onClick={onCancel}
             className="px-3 py-1.5 text-xs text-foreground-500 hover:text-foreground-700 transition-colors cursor-pointer"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
         )}
         <button
@@ -201,7 +202,7 @@ function CommentForm({
           disabled={!body.trim() || isSubmitting}
           className="px-4 py-1.5 rounded-full bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 text-white text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed"
         >
-          {isSubmitting ? "Posting..." : parentId ? "Reply" : "Comment"}
+          {isSubmitting ? t("comments.posting") : parentId ? t("comments.reply") : t("comments.comment")}
         </button>
       </div>
     </form>
@@ -209,6 +210,7 @@ function CommentForm({
 }
 
 export default function BlogComments({ postId }: BlogCommentsProps) {
+  const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
   const [comments, setComments] = useState<BlogComment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -255,7 +257,7 @@ export default function BlogComments({ postId }: BlogCommentsProps) {
   return (
     <div className="mt-12 pt-8 border-t border-background-200">
       <h3 className="font-heading text-lg text-foreground-900 mb-4">
-        Comments {comments.length > 0 && `(${comments.length})`}
+        {t("admin.comments")} {comments.length > 0 && `(${comments.length})`}
       </h3>
 
       {isAuthenticated ? (
@@ -264,9 +266,8 @@ export default function BlogComments({ postId }: BlogCommentsProps) {
         <div className="bg-background-50 rounded-xl p-6 text-center border border-background-200 mb-6">
           <p className="text-sm text-foreground-500">
             <Link to="/login" className="text-primary-500 hover:text-primary-600 font-medium">
-              Sign in
-            </Link>{" "}
-            to join the discussion.
+              {t("comments.signInToDiscuss")}
+            </Link>
           </p>
         </div>
       )}
@@ -279,7 +280,7 @@ export default function BlogComments({ postId }: BlogCommentsProps) {
         <div className="bg-background-50 rounded-2xl p-8 text-center border border-background-200">
           <i className="ri-chat-3-line text-4xl text-foreground-300 mb-3 block"></i>
           <p className="text-sm text-foreground-500">
-            No comments yet. Be the first to share your thoughts!
+            {t("comments.empty")}
           </p>
         </div>
       ) : (

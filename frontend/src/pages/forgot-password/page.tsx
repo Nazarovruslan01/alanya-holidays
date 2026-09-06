@@ -1,3 +1,4 @@
+import { authValidationMessage } from "@/i18n/auth-validation";
 import { useState, FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -20,7 +21,7 @@ export default function ForgotPasswordPage() {
 
     const validation = forgotPasswordSchema.safeParse({ email });
     if (!validation.success) {
-      setError(validation.error.issues[0]?.message || "Please enter your email address.");
+      setError(authValidationMessage(validation.error.issues[0]?.message, t));
       return;
     }
 
@@ -31,12 +32,12 @@ export default function ForgotPasswordPage() {
     try {
       const { error: authError } = await resetPassword(cleanEmail);
       if (authError) {
-        setError(authError.message || "Failed to send reset link. Please try again.");
+        setError(t("auth.resetLinkFailed"));
         return;
       }
       setSent(true);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "An unexpected error occurred.";
+    } catch {
+      const message = t("auth.unexpectedError");
       setError(message);
     } finally {
       setIsSubmitting(false);

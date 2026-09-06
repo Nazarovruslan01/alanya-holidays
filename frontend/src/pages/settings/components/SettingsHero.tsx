@@ -27,13 +27,13 @@ function getInitials(name?: string | null, email?: string | null): string {
   return "AH";
 }
 
-function formatJoinDate(isoDate?: string | null): string {
-  if (!isoDate) return "Member";
+function formatJoinDate(isoDate: string | null | undefined, locale: string): string | null {
+  if (!isoDate) return null;
   try {
     const d = new Date(isoDate);
-    return `Joined ${d.toLocaleDateString("en-US", { month: "short", year: "numeric" })}`;
+    return d.toLocaleDateString(locale, { month: "short", year: "numeric" });
   } catch {
-    return "Member";
+    return null;
   }
 }
 
@@ -43,12 +43,13 @@ export const SettingsHero: React.FC<SettingsHeroProps> = ({
   activeTab,
   onTabChange,
 }) => {
-  const { t } = useTranslation();
-  const fullName = profile?.full_name || user?.email?.split("@")[0] || "Alanya Holidays Member";
-  const email = profile?.email || user?.email || "No email connected";
+  const { t, i18n } = useTranslation();
+  const fullName = profile?.full_name || user?.email?.split("@")[0] || t('settings.memberName');
+  const email = profile?.email || user?.email || t('settings.noEmail');
   const role = profile?.role || "user";
   const initials = getInitials(fullName, email);
-  const joinDateText = formatJoinDate(profile?.created_at || user?.created_at);
+  const joinDate = formatJoinDate(profile?.created_at || user?.created_at, i18n.language);
+  const joinDateText = joinDate ? t('settings.joined', { date: joinDate }) : t('settings.member');
 
   const tabs: { id: SettingsTabId; label: string; icon: React.ReactNode; description: string }[] = [
     {

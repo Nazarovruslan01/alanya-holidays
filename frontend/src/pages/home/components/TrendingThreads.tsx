@@ -69,7 +69,7 @@ export default function TrendingThreads() {
         </div>
 
         {error ? (
-          <ErrorState title={t("home.discussionsUnavailable")} message={error} onRetry={loadThreads} />
+          <ErrorState title={t("home.discussionsUnavailable")} onRetry={loadThreads} />
         ) : (
         /* Cards Container */
         <div className="relative">

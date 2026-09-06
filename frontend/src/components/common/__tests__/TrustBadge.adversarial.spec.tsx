@@ -201,7 +201,7 @@ describe("Milestone M1 Adversarial Challenger Suite", () => {
         </MemoryRouter>
       );
 
-      const expectedBadge = resolveTrustBadge(business);
+      const expectedBadge = business.claimed_at ? 'owner-confirmed' : null;
       if (expectedBadge) {
         const badge = screen.getByRole("status");
         expect(badge).toBeInTheDocument();
@@ -234,7 +234,7 @@ describe("Milestone M1 Adversarial Challenger Suite", () => {
       render(
         <MemoryRouter>
           <MapView
-            businesses={businesses.slice(0, 3)}
+            businesses={businesses.slice(0, 3).map((business) => ({ ...business, claimed_at: '2026-08-20T12:00:00Z' }))}
             searchQuery=""
             activeCategory="all"
             onSearchChange={vi.fn()}
@@ -256,6 +256,7 @@ describe("Milestone M1 Adversarial Challenger Suite", () => {
       vi.spyOn(directoryService, "getListingById").mockResolvedValue({
         ...businesses[0],
         trustBadge: "Signature Collection",
+        claimed_at: '2026-08-20T12:00:00Z',
       });
       vi.spyOn(directoryService, "getListingReviews").mockResolvedValue([]);
       vi.spyOn(directoryService, "getListings").mockResolvedValue({
@@ -276,7 +277,7 @@ describe("Milestone M1 Adversarial Challenger Suite", () => {
         </AuthProvider>
       );
 
-      const badge = await screen.findByText("Signature Collection");
+      const badge = await screen.findByText("Owner confirmed");
       expect(badge).toBeInTheDocument();
       expect(badge.closest('[role="status"]')?.className).toContain("backdrop-blur-md");
     });

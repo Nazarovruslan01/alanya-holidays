@@ -15,6 +15,7 @@ import { ForumDiscussionService } from './application/forum-discussion.service';
 import { ForumEventService } from './application/forum-event.service';
 import { ForumReportService } from './application/forum-report.service';
 import { UsersService } from '../users/users.service';
+import { PublicMembersQueryDto } from '../users/dto/public-members-query.dto';
 import { ModerationAuditService } from '../admin/moderation-audit.service';
 import { AuthGuard } from '../auth/auth.guard';
 import { OptionalAuthGuard } from '../auth/optional-auth.guard';
@@ -397,6 +398,7 @@ export class ForumController {
     @CurrentUser() user?: AuthUser,
   ): Promise<ForumEvent[]> {
     const filters: ForumEventsFilter = {
+      ...(query.offset !== undefined ? { offset: query.offset } : {}),
       upcomingOnly:
         query.upcomingOnly === true ||
         (query.upcomingOnly as unknown) === 'true',
@@ -492,12 +494,14 @@ export class ForumController {
   // ============================================================
   @Get('members')
   getForumMembers(
-    @Query() query?: LimitQueryDto,
+    @Query() query?: PublicMembersQueryDto,
     @Query('onlineOnly') onlineOnly?: string,
   ): Promise<Record<string, unknown>[]> {
     return this.usersService.getForumMembers(
       query?.limit,
       onlineOnly === 'true',
+      query?.search,
+      query?.offset,
     );
   }
 

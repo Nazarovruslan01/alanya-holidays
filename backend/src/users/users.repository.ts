@@ -69,16 +69,25 @@ export class UsersRepository {
     return { data: data ?? [], count: count ?? 0 };
   }
 
-  async getForumMembers(limit?: number) {
+  async getForumMembers(limit?: number, search?: string, offset?: number) {
     let q = this.client
       .from('profiles')
       .select(
         'id, full_name, avatar_url, role, created_at, last_seen_at, social_links',
       )
       .order('last_seen_at', { ascending: false, nullsFirst: false })
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: true });
 
-    if (limit) q = q.limit(limit);
+    if (search?.trim()) {
+      const pattern = search
+        .trim()
+        .replace(/[\\%_]/g, '\\$&')
+        .replace(/\*/g, ' ');
+      q = q.ilike('full_name', `%${pattern}%`);
+    }
+    if (offset !== undefined) q = q.range(offset, offset + (limit ?? 20) - 1);
+    else if (limit) q = q.limit(limit);
 
     const { data, error } = await q;
     if (error) throw new Error(error.message);

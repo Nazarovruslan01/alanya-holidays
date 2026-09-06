@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import React, { useState, useEffect, useCallback } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import Navbar from "@/pages/home/components/Navbar";
@@ -21,6 +22,7 @@ import { useToast } from "@/hooks/useToast";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 export default function AdminDashboardPage() {
+  const { t } = useTranslation();
   const { isAdmin, loading: authLoading } = useAuth();
   const { showToast, ToastContainer } = useToast();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -84,17 +86,17 @@ export default function AdminDashboardPage() {
       });
 
       if (manual) {
-        showToast("Hub Refreshed", "Badge counts are up to date", "success");
+        showToast(t("admin.hubRefreshed"), t("admin.countsCurrent"), "success");
       }
     } catch {
       // Non-blocking background sync
       if (manual) {
-        showToast("Refresh Failed", "Could not sync some badge counts", "error");
+        showToast(t("admin.refreshFailed"), t("admin.countsFailed"), "error");
       }
     } finally {
       if (manual) setIsRefreshing(false);
     }
-  }, [showToast]);
+  }, [showToast, t]);
 
   useEffect(() => {
     fetchGlobalBadgeCounts(false);
@@ -152,17 +154,17 @@ export default function AdminDashboardPage() {
           </div>
           <div className="space-y-1.5">
             <h2 className="text-2xl font-bold font-display text-secondary-900 dark:text-white">
-              Access Restricted
+              {t("admin.restricted")}
             </h2>
             <p className="text-xs sm:text-sm text-secondary-500 dark:text-slate-400">
-              This control center is available to platform administrators only.
+              {t("admin.restrictedHelp")}
             </p>
           </div>
           <Link
             to="/"
             className="inline-block px-6 py-3 rounded-xl text-sm font-semibold bg-secondary-100 dark:bg-slate-800 hover:bg-secondary-200 dark:hover:bg-slate-700 text-secondary-900 dark:text-white transition-colors"
           >
-            Back to Home
+            {t("public.backHome")}
           </Link>
         </div>
       </div>
@@ -184,11 +186,11 @@ export default function AdminDashboardPage() {
                   <i className="ri-shield-star-line" />
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-black text-secondary-900 dark:text-white tracking-tight">
-                  Admin Hub & Platform Control Center
+                  {t("admin.hubHeading")}
                 </h1>
               </div>
               <p className="text-sm text-secondary-500 dark:text-slate-400 mt-1 pl-11">
-                Manage listing submissions, verify business ownership claims, track traffic analytics, and triage VIP concierge enquiries.
+                {t("admin.hubHelp")}
               </p>
             </div>
 
@@ -198,7 +200,7 @@ export default function AdminDashboardPage() {
                 onClick={() => fetchGlobalBadgeCounts(true)}
                 disabled={isRefreshing}
                 className={`px-3.5 py-2 text-xs font-semibold text-secondary-700 dark:text-slate-200 bg-secondary-100 dark:bg-slate-800 hover:bg-secondary-200 dark:hover:bg-slate-700 border border-transparent dark:border-slate-700 rounded-xl transition-colors flex items-center space-x-1.5 ${isRefreshing ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
-                title="Refresh badge counts"
+                title={t("admin.refreshCounts")}
               >
                 <i className={`ri-refresh-line ${isRefreshing ? 'animate-spin' : ''}`} />
                 <span>{isRefreshing ? 'Refreshing...' : 'Refresh Hub'}</span>
