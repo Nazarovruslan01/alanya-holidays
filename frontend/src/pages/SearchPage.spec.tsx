@@ -1,264 +1,242 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
-import React from "react";
+import { render, screen, fireEvent, act, within } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
+import i18n from "@/i18n";
 
-const { mockGetThreads, mockGetMembers, mockGetEvents } = vi.hoisted(() => ({
-  mockGetThreads: vi.fn(),
-  mockGetMembers: vi.fn(),
-  mockGetEvents: vi.fn(),
+const api = vi.hoisted(() => ({
+  threads: vi.fn(),
+  events: vi.fn(),
+  members: vi.fn(),
+  businesses: vi.fn(),
+  products: vi.fn(),
+  articles: vi.fn(),
 }));
-
 vi.mock("@/api-services/forum.service", () => ({
-  forumService: {
-    getThreads: mockGetThreads,
-    getMembers: mockGetMembers,
-  },
+  forumService: { getThreads: api.threads, getMembers: api.members },
 }));
-
 vi.mock("@/api-services/events.service", () => ({
-  eventsService: {
-    getEvents: mockGetEvents,
-  },
+  eventsService: { getEvents: api.events },
 }));
-
-vi.mock("@/pages/home/components/Navbar", () => ({
-  default: () => <div data-testid="mock-navbar">Navbar</div>,
+vi.mock("@/api-services/directory.service", () => ({
+  directoryService: { searchListings: api.businesses },
 }));
-
-vi.mock("@/pages/home/components/Footer", () => ({
-  default: () => <div data-testid="mock-footer">Footer</div>,
+vi.mock("@/api-services/products.service", () => ({
+  productsService: { getShopCatalog: api.products },
 }));
+vi.mock("@/api-services/blog.service", () => ({
+  blogService: { getPosts: api.articles },
+}));
+vi.mock("@/pages/home/components/Navbar", () => ({ default: () => null }));
+vi.mock("@/pages/home/components/Footer", () => ({ default: () => null }));
+import SearchPage, { HighlightMatch } from "./SearchPage";
 
-import SearchPage from "./SearchPage";
-
-describe("SearchPage (Server-Side Debounced Search)", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.useFakeTimers();
-
-    mockGetThreads.mockResolvedValue({
-      threads: [
-        {
-          id: "thread-1",
-          title: "Best Beaches in Alanya",
-          excerpt: "Cleopatra beach is stunning...",
-          author: "Elena Rostova",
-          authorAvatar: "https://avatar.url/elena.jpg",
-          category: "Beaches & Nature",
-          replies: 12,
-          views: 340,
-          likes: 25,
-          postedAt: "2 hours ago",
-          isHot: true,
-        },
-      ],
-      total: 1,
-    });
-
-    mockGetEvents.mockResolvedValue([
-      {
-        id: "event-1",
-        title: "Alanya Expat Beach Volleyball",
-        description: "Join us this Sunday at Cleopatra Beach",
-        location: "Cleopatra Beach",
-        category: "Expat Socials",
-        date: "2026-08-30",
-        day: "30",
-        month: "AUG",
-        time: "10:00 AM",
-        attendees: 15,
-        maxAttendees: 20,
-        host: "Community Host",
-        hostAvatar: "https://avatar.url/host.jpg",
-        image: "https://image.url/volley.jpg",
-        isFeatured: false,
-      },
-    ]);
-
-    mockGetMembers.mockResolvedValue([
-      {
-        id: "member-1",
-        fullName: "Elena Rostova",
-        username: "elenar",
-        bio: "Beach guide and digital nomad living in Alanya",
-        role: "Community Guide",
-        avatar: "https://avatar.url/elena.jpg",
-        isOnline: true,
-      },
-    ]);
+const tick = () =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(350);
   });
+const start = (q = "") => {
+  window.history.replaceState(
+    {},
+    "",
+    `/search${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+  );
+  render(
+    <BrowserRouter>
+      <SearchPage />
+    </BrowserRouter>,
+  );
+};
+const search = async (q: string) => {
+  fireEvent.change(screen.getByRole("searchbox"), { target: { value: q } });
+  await tick();
+};
 
+describe("Public search", () => {
+  beforeEach(async () => {
+    vi.resetAllMocks();
+    await i18n.changeLanguage("en");
+    vi.useFakeTimers();
+    api.threads.mockResolvedValue({
+      threads: [{ id: "thread-1", title: "Beach discussion" }],
+    });
+    api.events.mockResolvedValue([{ id: "event-1", title: "Beach meetup" }]);
+    api.members.mockResolvedValue([
+      { id: "member-99", fullName: "Beach Guide" },
+    ]);
+    api.businesses.mockResolvedValue({
+      data: [{ id: "business-1", name: "Beach Cafe" }],
+    });
+    api.products.mockResolvedValue({
+      products: [{ id: 1, name: "Beach towel" }],
+    });
+    api.articles.mockResolvedValue({
+      posts: [{ id: "article-1", title: "Beach guide", slug: "beach-guide" }],
+    });
+  });
   afterEach(() => {
     vi.useRealTimers();
+    window.history.replaceState({}, "", "/");
   });
 
-  it("does not fetch server results on mount when query is empty", () => {
-    render(
-      <BrowserRouter>
-        <SearchPage />
-      </BrowserRouter>
+  it("does not fetch empty or whitespace queries, and keeps suggestions usable", async () => {
+    start("   ");
+    await tick();
+    Object.values(api).forEach((method) =>
+      expect(method).not.toHaveBeenCalled(),
     );
-
-    expect(mockGetThreads).not.toHaveBeenCalled();
-    expect(mockGetEvents).not.toHaveBeenCalled();
-    expect(screen.getByText("Search across the entire forum")).toBeInTheDocument();
-  });
-
-  it("debounces server requests by 300ms upon typing", async () => {
-    render(
-      <BrowserRouter>
-        <SearchPage />
-      </BrowserRouter>
-    );
-
-    const searchInput = screen.getByPlaceholderText("Search threads, members, events...");
-
-    // User types 'cleopatra'
-    fireEvent.change(searchInput, { target: { value: "cleopatra" } });
-
-    // Immediate check: before 300ms timer expires, no API calls
-    expect(mockGetThreads).not.toHaveBeenCalled();
-    expect(mockGetEvents).not.toHaveBeenCalled();
-
-    // Advance timer by 200ms (still below 300ms)
-    act(() => {
-      vi.advanceTimersByTime(200);
-    });
-    expect(mockGetThreads).not.toHaveBeenCalled();
-
-    // Advance timer past 300ms
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(150);
-    });
-
-    expect(mockGetThreads).toHaveBeenCalledWith(
+    fireEvent.click(screen.getByText("Alanya beaches"));
+    await tick();
+    expect(api.members).toHaveBeenCalledWith(
       expect.objectContaining({
-        params: expect.objectContaining({ search: "cleopatra" }),
-      })
-    );
-    expect(mockGetEvents).toHaveBeenCalledWith(
-      expect.objectContaining({
-        params: expect.objectContaining({ search: "cleopatra" }),
-      })
+        params: { search: "Alanya beaches", offset: 0 },
+        limit: 20,
+      }),
     );
   });
 
-  it("renders search results, tabs, and counts when server responds", async () => {
-    render(
-      <BrowserRouter>
-        <SearchPage />
-      </BrowserRouter>
+  it("restores URL query and links all six public result types", async () => {
+    start("beach");
+    await tick();
+    expect(screen.getByRole("searchbox")).toHaveValue("beach");
+    for (const [name, href] of [
+      ["Beach discussion", "/thread/thread-1"],
+      ["Beach meetup", "/events"],
+      ["Beach Guide", "/member/member-99"],
+      ["Beach Cafe", "/business/business-1"],
+      ["Beach towel", "/shop/1"],
+      ["Beach guide", "/blog/beach-guide"],
+    ]) {
+      expect(screen.getByRole("link", { name })).toHaveAttribute(
+        "href",
+        href,
+      );
+    }
+    expect(api.articles).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "published", contentType: "blog" }),
     );
-
-    const searchInput = screen.getByPlaceholderText("Search threads, members, events...");
-    fireEvent.change(searchInput, { target: { value: "beach" } });
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(350);
-    });
-
-    expect(screen.getByText(/Found 3 results for "beach"/i)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /best beaches in alanya/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /alanya expat beach volleyball/i })).toBeInTheDocument();
-    expect(screen.getAllByText("Elena Rostova").length).toBe(2);
+    expect(api.events).toHaveBeenCalledWith(
+      expect.objectContaining({ includeUnpublished: false }),
+    );
+    expect(screen.queryByText(/Found 6 results/)).not.toBeInTheDocument();
   });
 
-  it("allows switching between result tabs (Threads, Members, Events)", async () => {
-    render(
-      <BrowserRouter>
-        <SearchPage />
-      </BrowserRouter>
-    );
-
-    const searchInput = screen.getByPlaceholderText("Search threads, members, events...");
-    fireEvent.change(searchInput, { target: { value: "beach" } });
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(350);
+  it("debounces changes, persists q, switches sections, and clears the URL", async () => {
+    start();
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "be" },
     });
-
-    expect(screen.getByText("Threads (1)")).toBeInTheDocument();
-
-    // Click Threads tab
-    fireEvent.click(screen.getByText("Threads (1)"));
-    expect(screen.getByRole("heading", { name: /best beaches in alanya/i })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: /alanya expat beach volleyball/i })).not.toBeInTheDocument();
-
-    // Click Events tab
-    fireEvent.click(screen.getByText("Events (1)"));
-    expect(screen.getByRole("heading", { name: /alanya expat beach volleyball/i })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: /best beaches in alanya/i })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "beach" },
+    });
+    await tick();
+    expect(api.threads).toHaveBeenCalledTimes(1);
+    expect(new URLSearchParams(window.location.search).get("q")).toBe("beach");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Products" }),
+    );
+    expect(
+      screen.getByRole("link", { name: "Beach towel" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Beach discussion" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /clear search/i }));
+    await tick();
+    expect(window.location.search).toBe("");
   });
 
-  it("clears search input when clear button is clicked", async () => {
-    render(
-      <BrowserRouter>
-        <SearchPage />
-      </BrowserRouter>
+  it("keeps successful sections when one fails and retries only that section", async () => {
+    api.products.mockRejectedValueOnce(new Error("offline"));
+    start("beach");
+    await tick();
+    expect(
+      screen.getByRole("link", { name: "Beach discussion" }),
+    ).toBeInTheDocument();
+    const products = within(screen.getByRole("region", { name: "Products" }));
+    expect(products.getByRole("alert")).toHaveTextContent(
+      "could not be loaded",
     );
-
-    const searchInput = screen.getByPlaceholderText("Search threads, members, events...");
-    fireEvent.change(searchInput, { target: { value: "alanya" } });
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(350);
-    });
-
-    const clearButton = screen.getByRole("button", { name: /clear/i });
-    fireEvent.click(clearButton);
-
-    expect(searchInput).toHaveValue("");
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(350);
-    });
-
-    expect(screen.getByText("Search across the entire forum")).toBeInTheDocument();
+    fireEvent.click(products.getByRole("button", { name: "Try again" }));
+    await tick();
+    expect(
+      products.getByRole("link", { name: "Beach towel" }),
+    ).toBeInTheDocument();
+    expect(api.threads).toHaveBeenCalledTimes(1);
   });
 
-  it("handles empty results state gracefully", async () => {
-    mockGetThreads.mockResolvedValue({ threads: [], total: 0 });
-    mockGetEvents.mockResolvedValue([]);
-    mockGetMembers.mockResolvedValue([]);
-
-    render(
-      <BrowserRouter>
-        <SearchPage />
-      </BrowserRouter>
+  it("loads next member page on the server and preserves previous results on failure", async () => {
+    api.members
+      .mockResolvedValueOnce(
+        Array.from({ length: 20 }, (_, id) => ({
+          id: String(id),
+          fullName: `Person ${id}`,
+        })),
+      )
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce([{ id: "20", fullName: "Person 20" }]);
+    start("Person");
+    await tick();
+    const members = within(screen.getByRole("region", { name: "Members" }));
+    fireEvent.click(members.getByRole("button", { name: "Load more" }));
+    await tick();
+    expect(
+      members.getByRole("link", { name: "Person 0" }),
+    ).toBeInTheDocument();
+    fireEvent.click(members.getByRole("button", { name: "Try again" }));
+    await tick();
+    expect(api.members).toHaveBeenLastCalledWith(
+      expect.objectContaining({ params: { search: "Person", offset: 20 } }),
     );
-
-    const searchInput = screen.getByPlaceholderText("Search threads, members, events...");
-    fireEvent.change(searchInput, { target: { value: "nonexistentquery123" } });
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(350);
-    });
-
-    expect(screen.getAllByText("No results found").length).toBeGreaterThan(0);
-    expect(screen.getByText("Try different keywords or check your spelling.")).toBeInTheDocument();
+    expect(members.getAllByRole("link")).toHaveLength(21);
+    expect(
+      members.queryByRole("button", { name: "Load more" }),
+    ).not.toBeInTheDocument();
   });
 
-  it("triggers search when clicking a suggestion chip", async () => {
-    render(
-      <BrowserRouter>
-        <SearchPage />
-      </BrowserRouter>
+  it("ignores late responses after a new query or a clear", async () => {
+    let resolve!: (value: unknown) => void;
+    api.products.mockReturnValueOnce(
+      new Promise((done) => {
+        resolve = done;
+      }),
     );
-
-    const chip = screen.getByText("Alanya beaches");
-    fireEvent.click(chip);
-
-    const searchInput = screen.getByPlaceholderText("Search threads, members, events...");
-    expect(searchInput).toHaveValue("Alanya beaches");
-
+    start("old");
+    await tick();
+    await search("new");
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(350);
+      resolve({ products: [{ id: 9, name: "Old product" }] });
     });
+    expect(screen.queryByText("Old product")).not.toBeInTheDocument();
+    expect(api.products.mock.calls[0][0].signal.aborted).toBe(true);
+    await search("");
+    expect(
+      screen.queryByRole("link", { name: "Beach towel" }),
+    ).not.toBeInTheDocument();
+  });
 
-    expect(mockGetThreads).toHaveBeenCalledWith(
-      expect.objectContaining({
-        params: expect.objectContaining({ search: "Alanya beaches" }),
-      })
+  it.each(["ru", "tr"])(
+    "translates new section and failure copy in %s",
+    async (language) => {
+      await i18n.changeLanguage(language);
+      api.products.mockRejectedValue(new Error("offline"));
+      start("beach");
+      await tick();
+      expect(
+        screen.queryByRole("button", { name: "Products" }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByRole("alert").textContent).not.toContain(
+        "could not be loaded",
+      );
+      expect(screen.getByRole("alert").textContent).not.toContain(
+        "public.search.",
+      );
+    },
+  );
+
+  it("highlights literal regex metacharacters without throwing", () => {
+    const { container } = render(
+      <HighlightMatch text="Cafe (A+B)" query="(A+B)" />,
     );
+    expect(container.querySelector("mark")).toHaveTextContent("(A+B)");
   });
 });

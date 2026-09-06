@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 
 export type TrustBadgeType =
   | "Recommended by Travellers"
@@ -391,7 +392,13 @@ export function TrustBadge({
   "aria-label": customAriaLabel,
   onClick,
 }: TrustBadgeProps) {
-  const resolvedBadge = resolveTrustBadge(badge || business);
+  const { t } = useTranslation();
+  // A claimed listing proves ownership, not an on-site inspection or endorsement.
+  const hasBusiness = business !== undefined && business !== null;
+  const ownershipConfirmed = typeof business === 'object' && business !== null && Boolean(business.claimed_at);
+  const resolvedBadge = hasBusiness
+    ? (ownershipConfirmed ? 'Verified Experience' : null)
+    : resolveTrustBadge(badge);
 
   if (!resolvedBadge) {
     return null;
@@ -404,16 +411,18 @@ export function TrustBadge({
 
   const sizeStyle = SIZE_STYLES[size] || SIZE_STYLES.sm;
   const variantStyle = config.styles[variant] || config.styles.glass;
+  const label = hasBusiness ? t('public.ownerConfirmed') : config.label;
+  const description = hasBusiness ? t('public.ownerConfirmedDescription') : config.description;
 
   return (
     <span
       role="status"
-      aria-label={customAriaLabel || config.label}
-      title={config.description}
+      aria-label={customAriaLabel || label}
+      title={description}
       onClick={onClick}
       className={`inline-flex items-center rounded-full font-semibold whitespace-nowrap transition-colors select-none ${sizeStyle.container} ${variantStyle} ${className}`}
       data-testid="trust-badge"
-      data-badge-type={resolvedBadge}
+      data-badge-type={hasBusiness ? 'owner-confirmed' : resolvedBadge}
     >
       {showIcon && (
         <i
@@ -422,7 +431,7 @@ export function TrustBadge({
         />
       )}
       <span className={`${sizeStyle.text} ${truncateOnMobile ? "truncate max-w-[130px] sm:max-w-none" : ""}`}>
-        {config.label}
+        {label}
       </span>
     </span>
   );

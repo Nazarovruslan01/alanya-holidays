@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import type { ProductVariant, ProductSku } from "./types";
 
 interface ProductVariantSelectorProps {
@@ -14,6 +15,7 @@ export function ProductVariantSelector({
   selectedSkuId,
   onSelectSkuId,
 }: ProductVariantSelectorProps) {
+  const { t } = useTranslation();
   const selectedSku = skus.find((s) => s.id === selectedSkuId) || null;
 
   return (
@@ -50,9 +52,9 @@ export function ProductVariantSelector({
                   disabled={isOutOfStock}
                   title={
                     isOutOfStock
-                      ? "Out of stock"
+                      ? t("product.outOfStock")
                       : matchingSku
-                        ? `${matchingSku.stock} in stock`
+                        ? t("product.stockCount", { count: matchingSku.stock })
                         : ""
                   }
                   className={`px-4 py-2.5 rounded-full border text-sm font-medium transition-all cursor-pointer whitespace-nowrap ${
@@ -73,10 +75,10 @@ export function ProductVariantSelector({
       {selectedSku && (
         <p className="text-xs text-foreground-400 flex items-center gap-1">
           <i className="ri-information-line"></i>
-          Selected: <strong className="text-foreground-600">{selectedSku.label}</strong>
+          {t("product.selectedLabel")} <strong className="text-foreground-600">{selectedSku.label}</strong>
           {selectedSku.stock <= 5 && selectedSku.stock > 0 && (
             <span className="text-amber-600 ml-1">
-              — Only {selectedSku.stock} left
+              — {t("product.onlyLeft", { count: selectedSku.stock })}
             </span>
           )}
         </p>

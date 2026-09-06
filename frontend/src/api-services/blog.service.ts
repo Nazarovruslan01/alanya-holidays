@@ -162,6 +162,7 @@ export const mockTravelGuides: BlogPostItem[] = [
 ];
 
 export interface GetBlogPostsOptions {
+  signal?: AbortSignal;
   page?: number;
   limit?: number;
   offset?: number;
@@ -322,7 +323,7 @@ export class BlogService {
 
     const response = await apiClient.get<BackendBlogResponse | BackendBlogPostItem[]>(
       "/blog/posts",
-      { params }
+      { params, ...(options.signal ? { signal: options.signal } : {}) }
     );
 
     if (Array.isArray(response)) {

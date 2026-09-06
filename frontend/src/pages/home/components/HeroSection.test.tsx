@@ -49,15 +49,16 @@ describe("HeroSection Component", () => {
     );
   });
 
-  it("displays community statistics bar with members, discussions, and replies", () => {
+  it("displays community statistics bar with members, discussions, and replies", async () => {
+    vi.spyOn(forumService, 'getForumStats').mockResolvedValue({ totalDiscussions: 0, activeMembers: 0, questionsAnswered: 0, localExperts: 0 });
     render(
       <MemoryRouter>
         <HeroSection />
       </MemoryRouter>
     );
 
+    expect(await screen.findByText(/Discussions/i)).toBeInTheDocument();
     expect(screen.getAllByText(/travelers/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Discussions/i)).toBeInTheDocument();
     expect(screen.getByText(/Replies/i)).toBeInTheDocument();
   });
 
@@ -86,5 +87,14 @@ describe("HeroSection Component", () => {
     expect(screen.getByText("Replies")).toBeInTheDocument();
     expect(screen.getByText("Online Now")).toBeInTheDocument();
     expect(screen.queryByText("Local Experts")).not.toBeInTheDocument();
+  });
+
+  it("does not invent zero metrics or traveler portraits when stats fail", async () => {
+    vi.spyOn(forumService, "getForumStats").mockRejectedValue(new Error('offline'));
+    const { act } = await import('@testing-library/react');
+    await act(async () => { render(<MemoryRouter><HeroSection /></MemoryRouter>); });
+    expect(screen.queryByText(/travelers discovering/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('Discussions')).not.toBeInTheDocument();
+    expect(screen.queryByAltText(/Traveler (Sarah|Alex|Elena)/)).not.toBeInTheDocument();
   });
 });

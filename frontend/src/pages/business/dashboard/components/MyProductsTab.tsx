@@ -343,7 +343,7 @@ export const MyProductsTab: React.FC<MyProductsTabProps> = ({
                 <p className="text-xs text-secondary-500 dark:text-slate-400 mt-1">
                   {t("merchant.stock")}: {product.stock} · {t("merchant.added")} {" "}
                   {product.created_at &&
-                    new Date(product.created_at).toLocaleDateString("en-US", {
+                    new Date(product.created_at).toLocaleDateString(i18n.language, {
                       month: "short",
                       day: "numeric",
                       year: "numeric",
@@ -368,7 +368,7 @@ export const MyProductsTab: React.FC<MyProductsTabProps> = ({
                 type="button"
                 onClick={() => setProductToDelete(product)}
                 disabled={deleting}
-                aria-label={`Delete ${product.name}`}
+                aria-label={t("merchant.deleteNamed", { name: product.name })}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 px-4 py-2 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 disabled:opacity-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/30"
               >
                 <Trash2 className="h-3.5 w-3.5" />

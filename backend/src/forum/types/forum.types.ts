@@ -149,6 +149,7 @@ export interface ForumPostsRepoFilter extends ForumPostsFilter {
 }
 
 export interface ForumEventsFilter {
+  offset?: number;
   upcomingOnly?: boolean;
   limit?: number;
   includeUnpublished?: boolean;

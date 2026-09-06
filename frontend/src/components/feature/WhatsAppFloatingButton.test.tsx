@@ -58,11 +58,11 @@ describe("WhatsAppFloatingButton Component", () => {
     expect(rootDiv).not.toHaveClass("flex-col");
   });
 
-  it("has accessible dark mode, smooth micro-interactions, and pulse ring styling classes", () => {
+  it("keeps smooth button interactions without an expanding pulse ring", () => {
     renderButton();
     const link = screen.getByRole("link", { name: /chat on whatsapp/i });
     const pulseRing = link.querySelector(".animate-ping");
-    expect(pulseRing).toBeInTheDocument();
+    expect(pulseRing).not.toBeInTheDocument();
     expect(link).toHaveClass("ease-out");
     expect(link).toHaveClass("hover:-translate-y-0.5");
     expect(link).not.toHaveClass("hover:scale-110");

@@ -869,7 +869,7 @@ export class ForumService {
       }
       return [];
     } catch (err) {
-      if (err instanceof ApiError && (err.status === 404 || err.status === 401)) {
+      if (!options?.params?.search && err instanceof ApiError && (err.status === 404 || err.status === 401)) {
         return [];
       }
       throw err;

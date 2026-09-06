@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import React from "react";
 
 export type AdminTab = "publishing" | "listings" | "claims" | "business-applications" | "content" | "forum" | "bookings" | "reviews" | "users" | "audit" | "analytics" | "concierge";
@@ -29,78 +30,79 @@ export default function AdminTabsNav({
   onChangeTab,
   counts,
 }: AdminTabsNavProps) {
+  const { t } = useTranslation();
   const tabs: TabDef[] = [
     {
       id: "publishing",
-      label: "Content Library",
+      label: t("admin.contentLibrary"),
       icon: "ri-edit-box-line",
     },
     {
       id: "listings",
-      label: "Listings Moderation",
+      label: t("admin.navListings"),
       icon: "ri-file-list-3-line",
       badge: counts?.pendingListings,
       badgeColor: "bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800",
     },
     {
       id: "claims",
-      label: "Claims Queue",
+      label: t("admin.navClaims"),
       icon: "ri-shield-check-line",
       badge: counts?.pendingClaims,
       badgeColor: "bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800",
     },
     {
       id: "business-applications",
-      label: "Business Applications",
+      label: t("admin.navBusiness"),
       icon: "ri-briefcase-4-line",
     },
     {
       id: "content",
-      label: "Content Moderation",
+      label: t("admin.navContent"),
       icon: "ri-article-line",
       badge: counts?.pendingContent,
       badgeColor: "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
     },
     {
       id: "forum",
-      label: "Forum Moderation",
+      label: t("admin.navForum"),
       icon: "ri-discuss-line",
       badge: counts?.pendingReports,
       badgeColor: "bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border-rose-200 dark:border-rose-800",
     },
     {
       id: "bookings",
-      label: "Bookings",
+      label: t("admin.navBookings"),
       icon: "ri-calendar-check-line",
       badge: counts?.pendingBookings,
       badgeColor: "bg-sky-100 dark:bg-sky-950/80 text-sky-800 dark:text-sky-300 border-sky-200 dark:border-sky-800",
     },
     {
       id: "reviews",
-      label: "Reviews",
+      label: t("admin.navReviews"),
       icon: "ri-star-line",
       badge: counts?.pendingReviews,
       badgeColor: "bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800",
     },
     {
       id: "users",
-      label: "Users",
+      label: t("admin.navUsers"),
       icon: "ri-group-line",
     },
     {
       id: "audit",
-      label: "Audit Log",
+      label: t("admin.navAudit"),
       icon: "ri-history-line",
     },
     {
       id: "analytics",
-      label: "Platform Analytics",
+      label: t("admin.navAnalytics"),
       icon: "ri-bar-chart-box-line",
     },
 
     {
       id: "concierge",
-      label: "Concierge Enquiries",
+      label: t("admin.navConcierge"),
       icon: "ri-customer-service-2-line",
       badge: counts?.newEnquiries,
       badgeColor: "bg-accent-100 dark:bg-accent-950/80 text-accent-800 dark:text-accent-300 border-accent-200 dark:border-accent-800",
@@ -113,7 +115,7 @@ export default function AdminTabsNav({
         <nav
           className="-mb-px flex space-x-2 sm:space-x-8 overflow-x-auto scrollbar-none py-1"
           role="tablist"
-          aria-label="Admin Hub Navigation Tabs"
+          aria-label={t("admin.navTabs")}
         >
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;

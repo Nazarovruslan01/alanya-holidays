@@ -1,9 +1,18 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import i18n from '@/i18n';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ErrorState } from '../ErrorState';
 
 describe('ErrorState', () => {
+  beforeEach(async () => { await i18n.changeLanguage('en'); });
+  it.each(['ru', 'tr'])('translates errors and retry in %s', async (language) => {
+    await i18n.changeLanguage(language);
+    render(<ErrorState onRetry={vi.fn()} />);
+    expect(screen.getByRole('alert')).toHaveTextContent(i18n.t('public.loadErrorTitle'));
+    expect(screen.getByRole('button', { name: i18n.t('common.tryAgain') })).toBeInTheDocument();
+    expect(screen.queryByText('Unable to load content')).not.toBeInTheDocument();
+  });
   it('renders default title and message in card variant', () => {
     render(<ErrorState />);
     expect(screen.getByText('Unable to load content')).toBeInTheDocument();

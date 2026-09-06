@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import BlogComments from "./BlogComments";
 import { blogService, type BlogComment } from "@/api-services/blog.service";
+import i18n from "@/i18n";
 
 vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({ isAuthenticated: true }),
@@ -46,7 +47,8 @@ const childComment: BlogComment = {
 };
 
 describe("BlogComments nested replies", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
     vi.clearAllMocks();
     vi.mocked(blogService.getComments).mockResolvedValue([
       rootComment,
@@ -94,7 +96,8 @@ describe("BlogComments nested replies", () => {
     expect(screen.queryByText("-1")).not.toBeInTheDocument();
   });
 
-  it("opens and submits the reply form for a nested comment", async () => {
+  it.each(["en", "ru", "tr"])("opens and submits a nested reply in %s", async (locale) => {
+    await i18n.changeLanguage(locale);
     render(
       <MemoryRouter>
         <BlogComments postId="post-1" />
@@ -103,10 +106,10 @@ describe("BlogComments nested replies", () => {
 
     expect(await screen.findByText("Child comment")).toBeInTheDocument();
 
-    const replyButtons = screen.getAllByRole("button", { name: "Reply" });
+    const replyButtons = screen.getAllByRole("button", { name: i18n.t("comments.reply") });
     fireEvent.click(replyButtons[1]);
 
-    const replyInput = screen.getByPlaceholderText("Write a reply...");
+    const replyInput = screen.getByPlaceholderText(i18n.t("comments.replyPlaceholder"));
     fireEvent.change(replyInput, { target: { value: "Reply to child" } });
     const replyForm = replyInput.closest("form");
     expect(replyForm).not.toBeNull();

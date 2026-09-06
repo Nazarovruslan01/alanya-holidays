@@ -200,14 +200,15 @@ export default function ExplorePage() {
         <section className="w-full px-4 md:px-8 lg:px-12 bg-background-50">
           <div className="max-w-3xl mx-auto -mt-8 relative z-10">
             <div className="bg-white rounded-2xl border border-background-200/70 p-2 flex items-center gap-2 shadow-sm">
-              <div className="flex items-center gap-2 flex-1 px-3">
+              <div className="flex items-center gap-2 flex-1 min-w-0 px-1 sm:px-3">
                 <i className="ri-search-line text-foreground-400 text-lg" />
                 <input
                   type="text"
                   placeholder={t("public.directorySearch")}
                   value={searchQuery}
                   onChange={(e) => updateSearch(e.target.value)}
-                  className="flex-1 text-sm text-foreground-900 placeholder:text-foreground-400 py-3 bg-transparent border-none outline-none"
+                  aria-label={t("public.directorySearch")}
+                  className="flex-1 min-w-0 text-sm text-foreground-900 placeholder:text-foreground-400 py-3 bg-transparent border-none outline-none"
                 />
               </div>
               {searchQuery && (
@@ -233,7 +234,28 @@ export default function ExplorePage() {
         {/* Category Filters */}
         <section className="w-full px-4 md:px-8 lg:px-12 pt-8 pb-4 bg-background-50">
           <div className="max-w-7xl mx-auto">
-            <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide flex-wrap">
+            <label className="block mb-3 sm:hidden">
+              <span className="sr-only">{t("public.category")}</span>
+              <select
+                value={showFavoritesOnly ? "favorites" : activeCategory}
+                onChange={(event) => {
+                  if (event.target.value === "favorites") {
+                    setShowFavoritesOnly(true);
+                    setActiveCategory("all");
+                    setCurrentPage(1);
+                  } else {
+                    selectCategory(event.target.value);
+                  }
+                }}
+                className="w-full rounded-xl border border-foreground-200 bg-white p-3 text-sm"
+              >
+                {businessCategories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>{getBusinessCategoryLabel(cat.id, t, cat.name)}</option>
+                ))}
+                <option value="favorites">{t("public.myFavorites")}</option>
+              </select>
+            </label>
+            <div className="hidden sm:flex items-center gap-2 pb-2 flex-wrap">
               {businessCategories.map((cat) => (
                 <button
                   key={cat.id}
@@ -411,7 +433,7 @@ export default function ExplorePage() {
           <section className="w-full px-4 md:px-8 lg:px-12 pb-20 bg-background-50">
             <div className="max-w-7xl mx-auto">
               {error ? (
-                <ErrorState message={error} onRetry={loadData} className="my-12" />
+                <ErrorState onRetry={loadData} className="my-12" />
               ) : isLoading ? (
                 <LoadingSpinner size="lg" className="my-20" />
               ) : filteredBusinesses.length > 0 ? (
@@ -453,7 +475,7 @@ export default function ExplorePage() {
           <section className="w-full px-4 md:px-8 lg:px-12 pb-20 bg-background-50">
             <div className="max-w-7xl mx-auto">
               {error ? (
-                <ErrorState message={error} onRetry={loadData} className="my-12" />
+                <ErrorState onRetry={loadData} className="my-12" />
               ) : isLoading ? (
                 <LoadingSpinner size="lg" className="my-20" />
               ) : filteredBusinesses.length > 0 ? (
@@ -496,7 +518,7 @@ export default function ExplorePage() {
           <section className="w-full pb-20 bg-background-50">
             {error ? (
               <div className="max-w-7xl mx-auto px-4">
-                <ErrorState message={error} onRetry={loadData} className="my-12" />
+                <ErrorState onRetry={loadData} className="my-12" />
               </div>
             ) : isLoading ? (
               <LoadingSpinner size="lg" className="my-20" />
@@ -602,7 +624,7 @@ export default function ExplorePage() {
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-white/30 text-white text-sm font-medium hover:bg-white/10 transition-colors whitespace-nowrap"
               >
                 <i className="ri-user-add-line text-sm" />
-                Create Account
+                {t("auth.registerBtn")}
               </Link>
             </div>
           </div>

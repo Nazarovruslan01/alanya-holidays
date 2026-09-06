@@ -7,19 +7,27 @@ import "@/i18n";
 export default function UpcomingEventsCarousel() {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [allEvents, setAllEvents] = useState<ForumEvent[]>(() => eventsService.getEventsSync());
+  const [allEvents, setAllEvents] = useState<ForumEvent[]>([]);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [attempt, setAttempt] = useState(0);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
 
   useEffect(() => {
     let mounted = true;
-    eventsService.getEvents().then((data) => {
-      if (mounted && data) setAllEvents(data);
-    }).catch(() => {});
+    setStatus('loading');
+    eventsService.getEvents({ upcomingOnly: true }).then((data) => {
+      if (mounted) {
+        setAllEvents(data);
+        setStatus('ready');
+      }
+    }).catch(() => {
+      if (mounted) setStatus('error');
+    });
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [attempt]);
 
   const thisWeekEvents = useMemo(() => {
     const windowStart = new Date();
@@ -76,6 +84,18 @@ export default function UpcomingEventsCarousel() {
     });
     setTimeout(checkScroll, 350);
   };
+
+  if (status !== 'ready') {
+    return (
+      <div className="mt-10 w-full text-white">
+        <h3 className="font-heading text-lg mb-4">{t('home.thisWeeksEvents')}</h3>
+        <div role={status === 'error' ? 'alert' : 'status'} className="rounded-xl border border-white/10 bg-white/10 p-4">
+          <p>{t(status === 'error' ? 'home.eventsUnavailable' : 'common.loading')}</p>
+          {status === 'error' && <button type="button" onClick={() => setAttempt((value) => value + 1)} className="mt-3 rounded-full bg-white px-4 py-2 text-foreground-900">{t('common.tryAgain')}</button>}
+        </div>
+      </div>
+    );
+  }
 
   if (thisWeekEvents.length === 0) {
     return (

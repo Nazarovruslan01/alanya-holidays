@@ -81,6 +81,7 @@ describe("BusinessCard Component", () => {
     const customBusiness: Business = {
       ...mockBusiness,
       trustBadge: "Signature Collection",
+      claimed_at: '2026-08-20T12:00:00Z',
     };
 
     render(
@@ -91,7 +92,7 @@ describe("BusinessCard Component", () => {
 
     const badge = screen.getByRole("status");
     expect(badge).toBeInTheDocument();
-    expect(badge).toHaveTextContent("Signature Collection");
+    expect(badge).toHaveTextContent("Owner confirmed");
   });
 
   it("hides TrustBadge when compareMode is active", () => {

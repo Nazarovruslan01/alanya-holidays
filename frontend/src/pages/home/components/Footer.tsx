@@ -83,6 +83,7 @@ export default function Footer() {
                 <input
                   type="email"
                   name="email"
+                  aria-label={t('auth.email')}
                   placeholder={t("home.emailPlaceholder", "Your email")}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}

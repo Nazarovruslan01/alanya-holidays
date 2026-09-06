@@ -88,17 +88,18 @@ export class BlogRepository {
     if (filters.is_featured === 'true') query = query.eq('is_featured', true);
     if (filters.authorId) query = query.eq('author_id', filters.authorId);
     if (filters.search) {
-      const safe = filters.search
-        .trim()
-        .replace(/%/g, '\\%')
-        .replace(/_/g, '\\_')
-        .replace(/,/g, ' ');
-      if (safe)
-        query = query.or(`title.ilike.%${safe}%,content.ilike.%${safe}%`);
+      const trimmed = filters.search.trim();
+      if (trimmed) {
+        const safe = JSON.stringify(
+          `%${trimmed.replace(/[\\%_]/g, '\\$&').replace(/\*/g, ' ')}%`,
+        );
+        query = query.or(`title.ilike.${safe},content.ilike.${safe}`);
+      }
     }
 
     const { data, error, count } = await query
       .order('published_at', { ascending: false, nullsFirst: false })
+      .order('id', { ascending: true })
       .range(offset, offset + limit - 1);
 
     if (error) throw new Error(error.message);

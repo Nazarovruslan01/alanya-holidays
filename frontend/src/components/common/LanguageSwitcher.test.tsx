@@ -5,6 +5,17 @@ import "@/i18n";
 import i18n from "i18next";
 
 describe("LanguageSwitcher Component", () => {
+  it('closes with Escape from an option and returns focus to the trigger', () => {
+    render(<LanguageSwitcher />);
+    const trigger = screen.getByRole('button', { name: /Language selector/i });
+    fireEvent.click(trigger);
+    const option = screen.getByRole('button', { name: /Türkçe/i });
+    option.focus();
+    fireEvent.keyDown(option, { key: 'Escape' });
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(trigger).toHaveFocus();
+    expect(screen.queryByRole('button', { name: /Türkçe/i })).not.toBeInTheDocument();
+  });
   beforeEach(async () => {
     await i18n.changeLanguage("en");
   });
@@ -39,7 +50,7 @@ describe("LanguageSwitcher Component", () => {
     expect(i18n.language).toBe("ru");
     expect(handleLanguageChange).toHaveBeenCalledWith("ru");
     expect(
-      screen.getByRole("button", { name: "Language selector: RU (Русский)" }),
+      screen.getByRole("button", { name: i18n.t('nav.languageSelector', { code: 'RU', language: 'Русский' }) }),
     ).toBeInTheDocument();
   });
 

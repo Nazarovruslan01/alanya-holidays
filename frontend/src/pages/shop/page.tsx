@@ -209,7 +209,6 @@ export default function ShopPage() {
             {error && !loading && (
               <ErrorState
                 title={t("public.shopLoadError")}
-                message={error}
                 onRetry={loadCatalog}
                 className="py-20"
               />

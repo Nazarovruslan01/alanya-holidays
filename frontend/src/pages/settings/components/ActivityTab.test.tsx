@@ -249,7 +249,7 @@ describe("Activity Hub (Milestone 4 — R3)", () => {
       });
 
       expect(screen.getByText(/Private Mediterranean Yacht Charter/i)).toBeInTheDocument();
-      expect(screen.getByText(/4 Guests/i)).toBeInTheDocument();
+      expect(screen.getByText(/Guests: 4/i)).toBeInTheDocument();
 
       // Test cancel action on confirmed/pending booking
       const cancelBtn = screen.getByTestId("cancel-booking-bk-101");

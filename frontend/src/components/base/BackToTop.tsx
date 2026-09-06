@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 
 export default function BackToTop() {
+  const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -25,7 +27,9 @@ export default function BackToTop() {
           : "opacity-0 translate-y-4 pointer-events-none"
       }`}
       data-floating-widget="back-to-top"
-      aria-label="Back to top"
+      aria-label={t('public.backToTop')}
+      aria-hidden={!visible}
+      tabIndex={visible ? 0 : -1}
     >
       <i className="ri-arrow-up-line text-lg"></i>
     </button>

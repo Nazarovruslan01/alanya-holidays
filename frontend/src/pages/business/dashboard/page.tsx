@@ -106,7 +106,7 @@ export default function MerchantDashboardPage() {
       setClaims(fetchedClaims);
     } catch (err) {
       logger.error("Failed to load merchant dashboard data:", err);
-      setDashboardError(err instanceof Error ? err.message : t("merchant.contentLoadFailed"));
+      setDashboardError(t("merchant.contentLoadFailed"));
     } finally {
       setDashboardLoading(false);
     }
@@ -123,7 +123,7 @@ export default function MerchantDashboardPage() {
       setAnalytics(fetchedAnalytics);
     } catch (err) {
       logger.error("Failed to load merchant analytics:", err);
-      setAnalyticsError(err instanceof Error ? err.message : t("merchant.unableAnalytics"));
+      setAnalyticsError(t("merchant.unableAnalytics"));
     } finally {
       setAnalyticsLoading(false);
     }
@@ -287,7 +287,7 @@ export default function MerchantDashboardPage() {
       logger.error("Failed to delete listing:", err);
       showToast(
         t("merchant.deleteFailed"),
-        err instanceof Error ? err.message : t("merchant.deleteFailedDescription"),
+        t("merchant.deleteFailedDescription"),
         "error"
       );
     } finally {
@@ -319,7 +319,7 @@ export default function MerchantDashboardPage() {
             <span className="text-secondary-300 dark:text-slate-700 hidden sm:inline">|</span>
 
             {/* Visual Breadcrumbs */}
-            <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-secondary-500 dark:text-slate-400 text-xs">
+            <nav aria-label={t("common.breadcrumb")} className="flex items-center gap-1.5 text-secondary-500 dark:text-slate-400 text-xs">
               <Link to="/" className="hover:text-secondary-800 dark:hover:text-slate-200 transition-colors">
                 Alanya Holidays
               </Link>
@@ -350,7 +350,7 @@ export default function MerchantDashboardPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-8">
         {/* Merchant Hero Header with actionable live stat triggers */}
         <MerchantHero
-          merchantName={profile?.full_name || user?.email?.split("@")[0] || "Business Owner"}
+          merchantName={profile?.full_name || user?.email?.split("@")[0] || t("public.businessOwner")}
           email={profile?.email || user?.email || ""}
           activeListingsCount={activeCount}
           draftsCount={draftsCount}
@@ -596,7 +596,7 @@ export default function MerchantDashboardPage() {
         <UpgradeModal
           isOpen={isUpgradeModalOpen}
           onClose={() => setIsUpgradeModalOpen(false)}
-          businessName={businessToUpgrade?.name || listings[0]?.name || "Your Business"}
+          businessName={businessToUpgrade?.name || listings[0]?.name || t("merchant.businessFallback")}
           currentTier={(businessToUpgrade as unknown as { tier?: string })?.tier || highestTier}
         />
       )}

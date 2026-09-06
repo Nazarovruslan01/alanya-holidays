@@ -106,7 +106,7 @@ export const ClaimTrackerTab: React.FC<ClaimTrackerTabProps> = ({ claims, loadin
                   </div>
                   <div>
                     <h3 className="font-bold text-base sm:text-lg text-secondary-900 dark:text-white flex items-center gap-2">
-                      <span>{claim.business_name || "Business Claim"}</span>
+                      <span>{claim.business_name || t("merchant.claimFallback")}</span>
                       {claim.listing_id && (
                         <Link
                           to={`/business/${claim.listing_id}`}

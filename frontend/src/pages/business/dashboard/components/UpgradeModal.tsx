@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { X, Sparkles, Rocket, MessageCircle, CheckCircle2, Loader2 } from "lucide-react";
 import {
   billingService,
@@ -26,31 +27,27 @@ interface PlanCard {
   highlighted?: boolean;
 }
 
-const CUSTOM_WHATSAPP_MESSAGE = encodeURIComponent(
-  "Hi! I'm interested in the Custom plan (~$100/mo) for my business on Alanya Holidays. Please share the details."
-);
-
-const PLANS: PlanCard[] = [
+const getPlans = (t: import("i18next").TFunction): PlanCard[] => [
   {
     id: "voyager",
     name: "Voyager",
     monthlyPrice: "€19",
     annualPrice: "€190",
-    badge: "Growth",
+    badge: t("plans.growth"),
     badgeColor:
       "bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800",
     description:
-      "Boost engagement with direct customer contact channels and analytics.",
+      t("plans.voyagerDescription"),
     icon: <Rocket className="w-5 h-5 text-sky-500" />,
     highlighted: true,
     features: [
-      "Priority directory search placement",
-      "Direct website & WhatsApp buttons",
-      "Social media integration (IG, FB, TripAdvisor)",
-      "Promotional video embed (YouTube/Vimeo)",
-      "Instant booking redirect button",
-      "Up to 50 photo gallery uploads",
-      "Full interactive performance analytics",
+      t("plans.priorityPlacement"),
+      t("plans.directButtons"),
+      t("plans.socialIntegration"),
+      t("plans.video"),
+      t("plans.bookingButton"),
+      t("plans.fiftyPhotos"),
+      t("plans.analytics"),
     ],
   },
   {
@@ -58,19 +55,19 @@ const PLANS: PlanCard[] = [
     name: "Custom",
     monthlyPrice: "~$100",
     annualPrice: "~$100",
-    badge: "Enterprise",
+    badge: t("plans.enterprise"),
     badgeColor:
       "bg-purple-100 text-purple-900 border-purple-300 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800",
     description:
-      "Comprehensive 360° marketing partnership with multilingual AI reach.",
+      t("plans.customDescription"),
     icon: <MessageCircle className="w-5 h-5 text-purple-500" />,
     features: [
-      "Top Rated Destination Partner trust badge",
-      "AI translation & localization (8 languages)",
-      "Seasonal editorial campaigns & newsletter inclusion",
-      "Dedicated account manager & quarterly reports",
-      "Unlimited photos & video showcases",
-      "Custom branded business spotlight page",
+      t("plans.partnerBadge"),
+      t("plans.aiLanguages"),
+      t("plans.campaigns"),
+      t("plans.manager"),
+      t("plans.unlimitedPhotos"),
+      t("plans.spotlight"),
     ],
   },
 ];
@@ -78,9 +75,11 @@ const PLANS: PlanCard[] = [
 export const UpgradeModal: React.FC<UpgradeModalProps> = ({
   isOpen,
   onClose,
-  businessName = "Your Business",
+  businessName,
   currentTier = "explorer",
 }) => {
+  const { t } = useTranslation();
+  const PLANS = getPlans(t);
   const [billingPeriod, setBillingPeriod] =
     useState<SubscriptionPlan>("monthly");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -101,8 +100,8 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
         err instanceof Error ? err.message : "Something went wrong";
       setErrorMessage(
         message.includes("already has an active subscription")
-          ? "You already have an active subscription. Manage it from Settings → Billing."
-          : message
+          ? t("plans.activeSubscription")
+          : t("plans.checkoutFailed")
       );
       setIsSubmitting(false);
     }
@@ -121,22 +120,22 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 mb-2">
               <Sparkles className="w-3.5 h-3.5" />
-              Membership & Growth
+              {t("plans.membership")}
             </div>
             <h2
               id="upgrade-modal-title"
               className="text-xl sm:text-2xl font-bold font-display text-secondary-900 dark:text-white"
             >
-              Choose a Plan for {businessName}
+              {t("plans.chooseFor", { name: businessName || t("merchant.businessFallback") })}
             </h2>
             <p className="text-sm text-secondary-500 dark:text-slate-400">
-              Unlock priority placement, direct inquiry buttons, real-time analytics, and trust badges.
+              {t("plans.help")}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close modal"
+            aria-label={t("common.close")}
             className="p-2 rounded-xl text-secondary-400 hover:text-secondary-700 dark:hover:text-white hover:bg-secondary-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -167,9 +166,9 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
                     : "bg-white dark:bg-slate-900 text-secondary-600 dark:text-slate-300 border-secondary-200 dark:border-slate-700 hover:border-primary-300"
                 }`}
               >
-                {p}
+                {t(`plans.${p}`)}
                 {p === "annual" && (
-                  <span className="ml-1.5 text-[10px] opacity-80">2 months free</span>
+                  <span className="ml-1.5 text-[10px] opacity-80">{t("plans.freeMonths")}</span>
                 )}
               </button>
             ))}
@@ -211,7 +210,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
                       {plan.name}
                       {isCurrent && (
                         <span className="ml-2 text-xs font-medium text-emerald-600 dark:text-emerald-400 align-middle">
-                          Current
+                          {t("plans.current")}
                         </span>
                       )}
                     </h3>
@@ -225,7 +224,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
                       {price}
                     </span>
                     <span className="text-sm text-secondary-500">
-                      / month
+                      / {t(isSelfServe && billingPeriod === "annual" ? "plans.annual" : "plans.monthly")}
                     </span>
                   </div>
 
@@ -246,17 +245,17 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
                       className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white transition-all cursor-pointer"
                     >
                       {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                      Subscribe{billingPeriod === "annual" ? " — €190/year" : ""}
+                      {t("plans.subscribe")}{billingPeriod === "annual" ? t("plans.annualSuffix") : ""}
                     </button>
                   ) : (
                     <a
-                      href={`https://wa.me/${WHATSAPP_NUMBER}?text=${CUSTOM_WHATSAPP_MESSAGE}`}
+                      href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(t("plans.customInquiry"))}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-purple-600 hover:bg-purple-500 text-white transition-all cursor-pointer"
                     >
                       <MessageCircle className="w-4 h-4" />
-                      Contact us on WhatsApp
+                      {t("plans.whatsapp")}
                     </a>
                   )}
                 </div>
@@ -265,7 +264,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
           </div>
 
           <p className="text-xs text-secondary-400 dark:text-slate-500 text-center">
-            Cancel anytime — access continues until the end of your billing period.
+            {t("plans.cancelHelp")}
           </p>
         </div>
       </div>

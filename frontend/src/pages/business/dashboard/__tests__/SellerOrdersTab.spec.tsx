@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { SellerOrdersTab } from "../components/SellerOrdersTab";
 import { ordersService, type SellerOrder } from "@/api-services/orders.service";
+import i18n from "@/i18n";
 
 vi.mock("@/api-services/orders.service", async () => {
   const actual = await vi.importActual<typeof import("@/api-services/orders.service")>(
@@ -35,7 +36,8 @@ const paidOrder: SellerOrder = {
 };
 
 describe("SellerOrdersTab", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
     vi.clearAllMocks();
   });
 
@@ -73,14 +75,18 @@ describe("SellerOrdersTab", () => {
     expect(await screen.findByText(/Shipped/)).toBeInTheDocument();
   });
 
-  it("shows an error banner when the fulfillment transition fails", async () => {
+  it.each(["en", "ru", "tr"])("shows a safe localized error after a failed transition in %s", async (locale) => {
+    await i18n.changeLanguage(locale);
     mockedOrders.mockResolvedValueOnce([{ ...paidOrder }]);
     mockedUpdate.mockResolvedValueOnce({ success: false, message: "Invalid transition" });
 
     render(<SellerOrdersTab />);
-    fireEvent.click(await screen.findByRole("button", { name: /Mark as Shipped/i }));
+    fireEvent.click(await screen.findByRole("button", { name: i18n.t("merchant.markShipped") }));
 
-    expect(await screen.findByText(/Invalid transition/)).toBeInTheDocument();
+    expect(await screen.findByText(i18n.t("merchant.orderUpdateFailed"))).toBeInTheDocument();
+    expect(screen.queryByText("Invalid transition")).not.toBeInTheDocument();
+    expect(mockedUpdate).toHaveBeenCalledWith(7, "shipped");
+    expect(screen.getByRole("button", { name: i18n.t("merchant.markShipped") })).toBeInTheDocument();
   });
 
   it("does not interpret an empty delivery fee as an immutable zero quote", async () => {

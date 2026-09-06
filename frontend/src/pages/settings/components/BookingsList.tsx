@@ -6,7 +6,7 @@ import { logger } from "@/lib/logger";
 import { useTranslation } from "react-i18next";
 
 export function BookingsList() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [bookings, setBookings] = useState<BookingItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +21,7 @@ export function BookingsList() {
       setBookings(Array.isArray(data) ? data : []);
     } catch (err: unknown) {
       logger.error("Failed to load user bookings:", err);
-      setError(t("settings.loadBookingsError", { defaultValue: "Unable to load bookings. Please check your connection and try again." }));
+      setError(t("settings.loadBookingsError", { defaultValue: t("settings.loadBookingsError") }));
     } finally {
       setLoading(false);
     }
@@ -34,7 +34,7 @@ export function BookingsList() {
   const handleCancelBooking = async (bookingId: string) => {
     if (typeof window !== "undefined" && typeof window.confirm === "function") {
       try {
-        const confirmed = window.confirm("Are you sure you want to cancel this booking?");
+        const confirmed = window.confirm(t("settings.confirmCancelBooking"));
         if (!confirmed) return;
       } catch {
         // window.confirm not supported or mocked
@@ -46,16 +46,16 @@ export function BookingsList() {
     try {
       const res = await bookingsService.cancelBooking(bookingId);
       if (res.success) {
-        setActionMessage({ text: res.message || "Booking successfully cancelled.", type: "success" });
+        setActionMessage({ text: t("settings.bookingCancelled"), type: "success" });
         setBookings((prev) =>
           prev.map((b) => (b.id === bookingId ? { ...b, status: "cancelled" } : b))
         );
       } else {
-        setActionMessage({ text: res.message || "Could not cancel booking.", type: "error" });
+        setActionMessage({ text: t("settings.bookingCancelFailed"), type: "error" });
       }
     } catch (err: unknown) {
       logger.error("Cancel booking error:", err);
-      setActionMessage({ text: "An error occurred while cancelling the booking.", type: "error" });
+      setActionMessage({ text: t("settings.bookingCancelError"), type: "error" });
     } finally {
       setCancellingId(null);
     }
@@ -68,33 +68,33 @@ export function BookingsList() {
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            Confirmed
+            {t("settings.bookingConfirmed")}
           </span>
         );
       case "pending":
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
             <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
-            Pending Review
+            {t("settings.bookingPending")}
           </span>
         );
       case "cancelled":
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
             <XCircle className="w-3.5 h-3.5 text-slate-500" />
-            Cancelled
+            {t("settings.orderStatus.cancelled")}
           </span>
         );
       case "completed":
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
-            Completed
+            {t("settings.orderStatus.completed")}
           </span>
         );
       default:
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-            {status || "Active"}
+            {status || t("settings.active")}
           </span>
         );
     }
@@ -129,7 +129,7 @@ export function BookingsList() {
           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-rose-200 text-rose-700 rounded-lg text-xs font-semibold hover:bg-rose-100/50 transition-colors cursor-pointer"
         >
           <RefreshCw className="w-3.5 h-3.5" />
-          Retry
+          {t("public.retry")}
         </button>
       </div>
     );
@@ -143,13 +143,13 @@ export function BookingsList() {
         </div>
         <h3 className="text-lg font-bold text-slate-900 mb-1">{t("settings.noBookings")}</h3>
         <p className="text-sm text-slate-500 max-w-md mx-auto mb-6">
-          You haven't reserved any luxury villas, yacht charters, or VIP concierge experiences yet.
+          {t("settings.bookingEmpty")}
         </p>
         <Link
           to="/explore"
           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm transition-all shadow-xs"
         >
-          Explore Villas & Experiences
+          {t("settings.exploreBookings")}
           <ChevronRight className="w-4 h-4" />
         </Link>
       </div>
@@ -171,7 +171,7 @@ export function BookingsList() {
             onClick={() => setActionMessage(null)}
             className="text-xs underline cursor-pointer ml-4"
           >
-            Dismiss
+            {t("common.close")}
           </button>
         </div>
       )}
@@ -181,7 +181,7 @@ export function BookingsList() {
           booking.itemTitle ||
           booking.property?.title ||
           booking.service?.title ||
-          `Reservation #${booking.id}`;
+          t("settings.reservation", { id: booking.id });
 
         const location = booking.property?.location;
         const isCancellable =
@@ -190,7 +190,7 @@ export function BookingsList() {
         const formatDate = (d?: string) => {
           if (!d) return "—";
           try {
-            return new Date(d).toLocaleDateString(undefined, {
+            return new Date(d).toLocaleDateString(i18n.language, {
               month: "short",
               day: "numeric",
               year: "numeric",
@@ -210,7 +210,7 @@ export function BookingsList() {
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700">
-                    {booking.item_type || "Booking"}
+                    {booking.item_type || t("settings.booking")}
                   </span>
                   <h4 className="font-bold text-base text-slate-900">{title}</h4>
                 </div>
@@ -241,7 +241,7 @@ export function BookingsList() {
                 <div>
                   <div className="text-[11px] text-slate-400 uppercase font-semibold">{t("settings.partySize")}</div>
                   <div className="text-xs font-medium">
-                    {booking.guests ? `${booking.guests} Guests` : "1 Guest"}
+                    {t("booking.guests")}: {booking.guests || 1}
                   </div>
                 </div>
               </div>
@@ -266,7 +266,7 @@ export function BookingsList() {
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50/50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   <XCircle className="w-3.5 h-3.5" />
-                  {cancellingId === booking.id ? "Cancelling..." : "Cancel Reservation"}
+                  {cancellingId === booking.id ? t("settings.cancelling") : t("settings.cancelReservation")}
                 </button>
               </div>
             )}

@@ -27,7 +27,7 @@ const CHANNEL_COLORS: Record<string, string> = {
 };
 
 export default function PlatformAnalyticsTab() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [days, setDays] = useState<number>(30);
   const [analytics, setAnalytics] = useState<PlatformAnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,8 +39,8 @@ export default function PlatformAnalyticsTab() {
     try {
       const data = await adminService.getPlatformAnalytics(days, { throwOnError: true });
       setAnalytics(data);
-    } catch (err) {
-    setError(err instanceof Error ? err.message : t("merchant.unableAnalytics"));
+    } catch {
+    setError(t("merchant.unableAnalytics"));
     } finally {
       setLoading(false);
     }
@@ -117,7 +117,7 @@ export default function PlatformAnalyticsTab() {
             </div>
           </div>
           <div className="text-2xl font-black text-secondary-900 dark:text-white">
-            {loading ? "..." : (kpis?.totalViews ?? 0).toLocaleString()}
+            {loading ? "..." : (kpis?.totalViews ?? 0).toLocaleString(i18n.language)}
           </div>
           <div className="text-xs text-secondary-500 dark:text-slate-400">{t("admin.allPlatformListings")}</div>
         </div>
@@ -131,7 +131,7 @@ export default function PlatformAnalyticsTab() {
             </div>
           </div>
           <div className="text-2xl font-black text-secondary-900 dark:text-white">
-            {loading ? "..." : (kpis?.totalClicks ?? 0).toLocaleString()}
+            {loading ? "..." : (kpis?.totalClicks ?? 0).toLocaleString(i18n.language)}
           </div>
           <div className="text-xs text-secondary-500 dark:text-slate-400">{t("admin.whatsappWebMaps")}</div>
         </div>
@@ -145,7 +145,7 @@ export default function PlatformAnalyticsTab() {
             </div>
           </div>
           <div className="text-2xl font-black text-secondary-900 dark:text-white">
-            {loading ? "..." : (kpis?.activeListingsCount ?? 0).toLocaleString()}
+            {loading ? "..." : (kpis?.activeListingsCount ?? 0).toLocaleString(i18n.language)}
           </div>
           <div className="text-xs text-secondary-500 dark:text-slate-400">{t("admin.liveApproved")}</div>
         </div>
@@ -161,10 +161,10 @@ export default function PlatformAnalyticsTab() {
           <div className="text-2xl font-black text-secondary-900 dark:text-white">
             {loading
               ? "..."
-              : ((kpis?.pendingListingsCount ?? 0) + (kpis?.pendingClaimsCount ?? 0)).toLocaleString()}
+              : ((kpis?.pendingListingsCount ?? 0) + (kpis?.pendingClaimsCount ?? 0)).toLocaleString(i18n.language)}
           </div>
           <div className="text-xs text-secondary-500 dark:text-slate-400">
-            {kpis?.pendingListingsCount ?? 0} listings • {kpis?.pendingClaimsCount ?? 0} claims
+            {t("admin.pendingSummary", { listings: kpis?.pendingListingsCount ?? 0, claims: kpis?.pendingClaimsCount ?? 0 })}
           </div>
         </div>
 
@@ -183,7 +183,7 @@ export default function PlatformAnalyticsTab() {
                   (analytics?.tierDistribution.voyager ?? 0) +
                   (analytics?.tierDistribution.signature ?? 0) +
                   (analytics?.tierDistribution.partner ?? 0)
-                ).toLocaleString()}
+                ).toLocaleString(i18n.language)}
           </div>
           <div className="text-xs text-secondary-500 dark:text-slate-400">{t("admin.paidTierNames")}</div>
         </div>
@@ -200,7 +200,7 @@ export default function PlatformAnalyticsTab() {
             {loading ? "..." : `${kpis?.claimConversionRate?.toFixed(1) ?? "0.0"}%`}
           </div>
           <div className="text-xs text-secondary-500 dark:text-slate-400">
-            {kpis?.approvedClaimsCount ?? 0} / {kpis?.totalClaimsCount ?? 0} claims approved
+            {t("admin.approvedClaimsSummary", { approved: kpis?.approvedClaimsCount ?? 0, total: kpis?.totalClaimsCount ?? 0 })}
           </div>
         </div>
       </div>
@@ -247,7 +247,7 @@ export default function PlatformAnalyticsTab() {
                       const d = new Date(str);
                       return isNaN(d.getTime())
                         ? str
-                        : d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+                        : d.toLocaleDateString(i18n.language, { day: "numeric", month: "short" });
                     }}
                   />
                   <YAxis
@@ -270,7 +270,7 @@ export default function PlatformAnalyticsTab() {
                   <Area
                     type="monotone"
                     dataKey="views"
-                    name="Daily Views"
+                    name={t("admin.dailyViews")}
                     stroke="#3b82f6"
                     strokeWidth={2}
                     fillOpacity={1}
@@ -279,7 +279,7 @@ export default function PlatformAnalyticsTab() {
                   <Area
                     type="monotone"
                     dataKey="totalClicks"
-                    name="Inquiries (Clicks)"
+                    name={t("admin.inquiryClicks")}
                     stroke="#10b981"
                     strokeWidth={2}
                     fillOpacity={1}
@@ -379,25 +379,25 @@ export default function PlatformAnalyticsTab() {
             {[
               {
                 id: "explorer",
-                label: "Explorer (Free)",
+                label: t("admin.listingTier.explorer"),
                 count: analytics?.tierDistribution.explorer ?? 0,
                 color: "bg-slate-500",
               },
               {
                 id: "voyager",
-                label: "Voyager (Growth)",
+                label: t("admin.listingTier.voyager"),
                 count: analytics?.tierDistribution.voyager ?? 0,
                 color: "bg-blue-500",
               },
               {
                 id: "signature",
-                label: "Signature (Premium)",
+                label: t("admin.signaturePremium"),
                 count: analytics?.tierDistribution.signature ?? 0,
                 color: "bg-amber-500",
               },
               {
                 id: "partner",
-                label: "Platform Partner",
+                label: t("admin.platformPartner"),
                 count: analytics?.tierDistribution.partner ?? 0,
                 color: "bg-purple-500",
               },
@@ -470,10 +470,10 @@ export default function PlatformAnalyticsTab() {
                         </span>
                       </td>
                       <td className="py-2.5 text-right font-medium text-secondary-800 dark:text-slate-200">
-                        {item.views.toLocaleString()}
+                        {item.views.toLocaleString(i18n.language)}
                       </td>
                       <td className="py-2.5 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                        {item.clicks.toLocaleString()}
+                        {item.clicks.toLocaleString(i18n.language)}
                       </td>
                     </tr>
                   ))}
@@ -481,7 +481,7 @@ export default function PlatformAnalyticsTab() {
               </table>
             ) : (
               <div className="p-8 text-center text-xs text-secondary-400 dark:text-slate-500 bg-secondary-50 dark:bg-slate-950 rounded-xl">
-                No listing traffic recorded yet.
+                {t("admin.noListingTraffic")}
               </div>
             )}
           </div>

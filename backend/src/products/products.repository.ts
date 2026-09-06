@@ -512,6 +512,14 @@ export class ProductsRepository {
       }
     }
 
+    if (query?.search?.trim()) {
+      const pattern = query.search
+        .trim()
+        .replace(/[\\%_]/g, '\\$&')
+        .replace(/\*/g, ' ');
+      productsQuery = productsQuery.ilike('name', `%${pattern}%`);
+    }
+
     const page = query?.page ?? 1;
     const limit = query?.limit ?? 20;
     const from = (page - 1) * limit;

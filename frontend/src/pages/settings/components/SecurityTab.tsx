@@ -64,7 +64,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({ onPasswordUpdated }) =
       const result = await updatePassword(newPassword);
 
       if (result.error) {
-        setError(result.error.message || t("settings.passwordUpdateError", { defaultValue: "Failed to update password. Please try again." }));
+        setError(t("settings.passwordUpdateError"));
         return;
       }
 
@@ -74,8 +74,8 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({ onPasswordUpdated }) =
       if (onPasswordUpdated) {
         onPasswordUpdated();
       }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "An unexpected error occurred.";
+    } catch {
+      const msg = t("public.loadErrorMessage");
       setError(msg);
     } finally {
       setIsSubmitting(false);
@@ -100,7 +100,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({ onPasswordUpdated }) =
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">{t("settings.changePassword")}</h2>
                 <p className="text-xs sm:text-sm text-slate-500">
-                  Update your credentials to keep your Alanya Holidays account secure
+                  {t("settings.securityHelp")}
                 </p>
               </div>
             </div>
@@ -140,7 +140,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({ onPasswordUpdated }) =
                   htmlFor={newPasswordId}
                   className="block text-sm font-medium text-slate-700"
                 >
-                  New Password <span className="text-rose-500">*</span>
+                  {t("auth.newPassword")} <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -175,7 +175,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({ onPasswordUpdated }) =
                   htmlFor={confirmPasswordId}
                   className="block text-sm font-medium text-slate-700"
                 >
-                  Confirm Password <span className="text-rose-500">*</span>
+                  {t("auth.confirmPassword")} <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -219,7 +219,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({ onPasswordUpdated }) =
                       <Check className="w-2.5 h-2.5 stroke-[3]" />
                     </div>
                     <span className={hasMinLength ? "text-emerald-700 font-medium" : "text-slate-500"}>
-                      At least 8 characters
+                      {t("settings.minPassword")}
                     </span>
                   </div>
 
@@ -234,7 +234,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({ onPasswordUpdated }) =
                       <Check className="w-2.5 h-2.5 stroke-[3]" />
                     </div>
                     <span className={hasMatch ? "text-emerald-700 font-medium" : "text-slate-500"}>
-                      Passwords match
+                      {t("settings.passwordsMatch")}
                     </span>
                   </div>
                 </div>
@@ -272,7 +272,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({ onPasswordUpdated }) =
               <h3 className="font-semibold text-sm">{t("settings.securityRecommendations")}</h3>
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
-              To safeguard your luxury bookings, saved properties, and payment details:
+              {t("settings.protectAccount")}
             </p>
             <ul className="space-y-2.5 text-xs text-slate-300">
               <li className="flex items-start gap-2">
@@ -295,7 +295,7 @@ export const SecurityTab: React.FC<SecurityTabProps> = ({ onPasswordUpdated }) =
             <div className="space-y-1">
               <h4 className="text-xs font-semibold text-slate-900">{t("settings.recoverAccount")}</h4>
               <p className="text-xs text-slate-500">
-                If you encounter any issues accessing your profile, please contact our 24/7 concierge support.
+                {t("settings.supportHelp")}
               </p>
             </div>
           </div>

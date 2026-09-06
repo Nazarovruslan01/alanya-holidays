@@ -28,7 +28,7 @@ export default function HeroSection() {
       <div className="absolute inset-0">
         <img
           src="/images/hero-bg.webp"
-          alt="Alanya coastline"
+          alt=""
           className="w-full h-full object-cover"
           onError={(e) => {
             (e.currentTarget as HTMLImageElement).src = "/images/hero-bg.jpg";
@@ -42,28 +42,11 @@ export default function HeroSection() {
       <div className="relative z-10 w-full px-4 md:px-8 lg:px-12 py-20 pt-24 md:pt-32 pb-24 md:pb-28">
         <div className="max-w-4xl">
           {/* Social Proof */}
-          <div className="flex items-center gap-3 md:gap-4 mb-6 md:mb-8">
-            <div className="flex -space-x-3">
-              <img
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&h=120&q=80"
-                alt="Traveler Sarah"
-                className="w-9 h-9 md:w-10 md:h-10 rounded-full border-2 border-white object-cover shadow-sm"
-              />
-              <img
-                src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&h=120&q=80"
-                alt="Traveler Alex"
-                className="w-9 h-9 md:w-10 md:h-10 rounded-full border-2 border-white object-cover shadow-sm"
-              />
-              <img
-                src="https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=120&h=120&q=80"
-                alt="Traveler Elena"
-                className="w-9 h-9 md:w-10 md:h-10 rounded-full border-2 border-white object-cover shadow-sm"
-              />
-            </div>
+          {stats && <div className="flex items-center gap-3 md:gap-4 mb-6 md:mb-8">
             <span className="text-white/90 text-sm font-medium">
               {totalMembers.toLocaleString()} {t("home.travelersDiscovering", "travelers discovering Alanya")}
             </span>
-          </div>
+          </div>}
 
           {/* Title */}
           <h1 className="font-heading text-4xl md:text-7xl lg:text-8xl text-white leading-tight mb-4 md:mb-6">
@@ -93,7 +76,7 @@ export default function HeroSection() {
         </div>
 
         {/* Stats Bar */}
-        <div className="hidden md:block absolute bottom-8 left-4 right-4 md:left-8 md:right-8 lg:left-12 lg:right-12">
+        {stats && <div className="hidden md:block absolute bottom-8 left-4 right-4 md:left-8 md:right-8 lg:left-12 lg:right-12">
           <div className="flex flex-wrap gap-6 md:gap-10">
             <div>
               <p className="text-white text-2xl md:text-3xl font-bold">
@@ -120,7 +103,7 @@ export default function HeroSection() {
               <p className="text-white/60 text-sm">{t("home.onlineNow", "Online Now")}</p>
             </div>
           </div>
-        </div>
+        </div>}
       </div>
     </section>
   );

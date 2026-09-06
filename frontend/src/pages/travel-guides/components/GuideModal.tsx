@@ -188,8 +188,8 @@ export default function GuideModal({ guide, onClose }: GuideModalProps) {
         <button
           onClick={() => window.print()}
           className="print-hide absolute top-4 right-16 z-20 w-10 h-10 flex items-center justify-center rounded-full bg-white/90 hover:bg-white shadow-md backdrop-blur-md transition-all cursor-pointer text-foreground-700 border border-slate-200/80"
-          aria-label="Print or save as PDF"
-          title="Print or save as PDF"
+          aria-label={t("guides.printPdf")}
+          title={t("guides.printPdf")}
         >
           <i className="ri-printer-line text-lg"></i>
         </button>
@@ -197,7 +197,7 @@ export default function GuideModal({ guide, onClose }: GuideModalProps) {
         <button
           onClick={onClose}
           className="print-hide absolute top-4 right-4 z-20 w-10 h-10 flex items-center justify-center rounded-full bg-white/90 hover:bg-white shadow-md backdrop-blur-md transition-all cursor-pointer text-foreground-700 border border-slate-200/80"
-          aria-label="Close guide"
+          aria-label={t("guides.closeGuide")}
         >
           <i className="ri-close-line text-xl"></i>
         </button>
@@ -219,7 +219,7 @@ export default function GuideModal({ guide, onClose }: GuideModalProps) {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent flex items-end p-6 md:p-8 pointer-events-none">
                   <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/90 backdrop-blur-md text-foreground-900 text-xs font-semibold tracking-wide shadow-xs">
                     <i className="ri-compass-3-line text-primary-600"></i>
-                    {tag} • Alanya Travel Guide
+                    {tag} • {t("guides.printLabel")}
                   </span>
                 </div>
               </div>
@@ -283,7 +283,7 @@ export default function GuideModal({ guide, onClose }: GuideModalProps) {
 
                   {content.checklist && content.checklist.length > 0 && (
                     <ChecklistBlock
-                      title={content.checklistTitle || "Checklist"}
+                      title={content.checklistTitle || t("guides.checklist")}
                       items={content.checklist}
                       checkedItems={checkedItems}
                       onToggle={toggleItem}
@@ -293,7 +293,7 @@ export default function GuideModal({ guide, onClose }: GuideModalProps) {
                   {content.relatedLinks && content.relatedLinks.length > 0 && (
                     <div className="print-hide border-t border-slate-200 pt-8 mt-8">
                       <h4 className="font-heading text-sm text-foreground-500 uppercase tracking-wide mb-4">
-                        Keep Exploring
+                        {t("guides.keepExploring")}
                       </h4>
                       <div className="flex flex-wrap gap-3">
                         {content.relatedLinks.map((link) => (
@@ -336,6 +336,7 @@ function ChecklistBlock({
   checkedItems: Set<string>;
   onToggle: (id: string) => void;
 }) {
+  const { t } = useTranslation();
   const checkedCount = items.filter((i) => checkedItems.has(i.id)).length;
   const totalCount = items.length;
   const progressPercent =
@@ -358,7 +359,7 @@ function ChecklistBlock({
           <h3 className="font-heading text-lg text-foreground-900 font-bold">{title}</h3>
         </div>
         <span className="text-sm text-foreground-500 font-medium whitespace-nowrap">
-          {checkedCount} of {totalCount}
+          {t("guides.checkedCount", { checked: checkedCount, total: totalCount })}
         </span>
       </div>
 
@@ -378,7 +379,7 @@ function ChecklistBlock({
         <div className="mb-5 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-3">
           <i className="ri-emotion-happy-line text-emerald-600 text-xl"></i>
           <p className="text-sm text-emerald-800 font-medium">
-            Everything is checked off &mdash; you are ready for Alanya!
+            {t("guides.allChecked")}
           </p>
         </div>
       )}

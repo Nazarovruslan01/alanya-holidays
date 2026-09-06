@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import PlatformAnalyticsTab from "../components/PlatformAnalyticsTab";
 import { adminService } from "@/api-services/admin.service";
+import i18n from "@/i18n";
 
 // Mock Recharts responsive container and charts to prevent jsdom SVG layout errors
 vi.mock("recharts", async () => {
@@ -86,7 +87,8 @@ describe("PlatformAnalyticsTab", () => {
     ],
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
     vi.restoreAllMocks();
   });
 
@@ -130,14 +132,21 @@ describe("PlatformAnalyticsTab", () => {
     });
   });
 
-  it("renders graceful fallback message when service fails", async () => {
-    vi.spyOn(adminService, "getPlatformAnalytics").mockRejectedValue(new Error("API Timeout"));
+  it.each(["en", "ru", "tr"])("shows a localized safe error and recovers on retry in %s", async (locale) => {
+    await i18n.changeLanguage(locale);
+    vi.spyOn(adminService, "getPlatformAnalytics")
+      .mockRejectedValueOnce(new Error("API Timeout"))
+      .mockResolvedValue(mockAnalyticsData);
 
     render(<PlatformAnalyticsTab />);
 
     await waitFor(() => {
-      expect(screen.getByText("API Timeout")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Try Again" })).toBeInTheDocument();
+      expect(screen.getByText(i18n.t("merchant.unableAnalytics"))).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: i18n.t("common.tryAgain") })).toBeInTheDocument();
     });
+    expect(screen.queryByText("API Timeout")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("common.tryAgain") }));
+    expect(await screen.findByText("Cleopatra Blue Beach Club")).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("merchant.unableAnalytics"))).not.toBeInTheDocument();
   });
 });

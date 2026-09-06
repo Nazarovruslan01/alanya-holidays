@@ -43,8 +43,6 @@ export default function WhatsAppFloatingButton() {
         aria-label={label}
       >
         <i className="ri-whatsapp-line text-2xl"></i>
-        {/* Pulse ring */}
-        <span className="absolute inset-0 rounded-full bg-green-500 animate-ping opacity-25"></span>
       </a>
     </div>
   );

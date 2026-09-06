@@ -49,7 +49,7 @@ export default function MemberCard({ member }: MemberCardProps) {
           <p className="text-foreground-500 text-sm">@{member.username}</p>
           <div className="flex items-center gap-2 mt-1">
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-background-100 text-foreground-600">
-              {member.role}
+              {t(`members.role.${member.role}`, { defaultValue: member.role })}
             </span>
           </div>
         </div>
@@ -79,7 +79,7 @@ export default function MemberCard({ member }: MemberCardProps) {
         to={`/member/${member.id}`}
         className="block w-full mt-3 px-4 py-2 bg-background-100 text-foreground-700 rounded-lg text-sm font-medium text-center hover:bg-primary-100 hover:text-primary-700 transition-colors cursor-pointer"
       >
-        View Profile
+        {t("members.viewProfile")}
       </Link>
     </article>
   );

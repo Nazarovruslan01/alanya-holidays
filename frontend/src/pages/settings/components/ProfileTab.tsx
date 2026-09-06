@@ -192,7 +192,14 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
           !profileReadyRef.current
         ) return;
         revokeAvatarPreview();
-        setErrorMessage(error instanceof Error ? error.message : t("settings.avatarUploadError"));
+        const validationKeys: Record<string, string> = {
+          "Only JPEG, PNG, and WebP images are allowed": "events.imageTypeError",
+          "Image must not exceed 5 MB": "events.imageSizeError",
+          "Image file must not be empty": "settings.avatarEmptyError",
+        };
+        setErrorMessage(t(
+          (error instanceof Error && validationKeys[error.message]) || "settings.avatarUploadError"
+        ));
       })
       .finally(() => {
         if (
@@ -209,15 +216,15 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
     const newErrors: Record<string, string> = {};
 
     if (!fullName.trim()) {
-      newErrors.fullName = "Full name is required.";
+      newErrors.fullName = t("settings.nameRequired");
     }
 
     if (bio.length > 500) {
-      newErrors.bio = "Bio cannot exceed 500 characters.";
+      newErrors.bio = t("settings.bioTooLong");
     }
 
     if (socials.website.trim() && !/^https?:\/\//i.test(socials.website.trim())) {
-      newErrors.website = "Website URL must start with http:// or https://";
+      newErrors.website = t("settings.websiteProtocol");
     }
 
     setErrors(newErrors);
@@ -257,16 +264,16 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
       const result = await updateProfile(updates);
 
       if (result.error) {
-        setErrorMessage(result.error.message || "Failed to update profile. Please try again.");
+        setErrorMessage(t("settings.profileSaveFailed"));
         return;
       }
 
-      setSuccessMessage("Profile updated successfully!");
+      setSuccessMessage(t("settings.profileSaved"));
       if (result.profile && onProfileUpdated) {
         onProfileUpdated(result.profile);
       }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "An unexpected error occurred.";
+    } catch {
+      const msg = t("public.loadErrorMessage");
       setErrorMessage(msg);
     } finally {
       setIsSubmitting(false);
@@ -317,7 +324,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">{t("settings.personalInfo")}</h2>
                 <p className="text-xs sm:text-sm text-slate-500">
-                  Update your public profile details and avatar picture
+                  {t("settings.profileHelp")}
                 </p>
               </div>
             </div>
@@ -330,7 +337,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
                 htmlFor={fullNameId}
                 className="block text-sm font-medium text-slate-700"
               >
-                Full Name <span className="text-rose-500">*</span>
+                {t("settings.fullName")} <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <input
@@ -338,7 +345,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="e.g. Elena Rostova"
+                  placeholder={t("settings.nameExample")}
                   className={`w-full px-4 py-2.5 rounded-xl border bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-all ${
                     errors.fullName
                       ? "border-rose-300 focus:ring-rose-200 focus:border-rose-400"
@@ -357,7 +364,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
                 htmlFor={phoneId}
                 className="block text-sm font-medium text-slate-700"
               >
-                Phone Number
+                {t("settings.phoneNumber")}
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -380,7 +387,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
                 htmlFor={companyId}
                 className="block text-sm font-medium text-slate-700"
               >
-                Company / Agency Name (Optional)
+                {t("settings.companyLabel")}
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -391,12 +398,12 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
                   type="text"
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  placeholder="e.g. Alanya Luxury Villas LLC"
+                  placeholder={t("settings.companyExample")}
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
                 />
               </div>
               <p className="text-xs text-slate-500">
-                Shown on your public property listings, yacht charters, and partner activities.
+                {t("settings.companyHelp")}
               </p>
             </div>
           </div>
@@ -407,7 +414,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
               htmlFor={avatarUrlId}
               className="block text-sm font-medium text-slate-700"
             >
-              Avatar Image
+              {t("settings.avatarLabel")}
             </label>
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -415,7 +422,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
                 {avatarPreviewUrl || avatarUrl ? (
                   <img
                     src={avatarPreviewUrl || avatarUrl}
-                    alt="Avatar preview"
+                    alt={t("settings.avatarPreview")}
                     className="w-full h-full object-cover"
                     onError={() => {
                       // Fallback if URL fails to load
@@ -477,7 +484,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
                       >
                         <img
                           src={url}
-                          alt={`Preset ${idx + 1}`}
+                          alt={t("settings.presetAvatar", { number: idx + 1 })}
                           className="w-full h-full object-cover"
                         />
                       </button>
@@ -495,7 +502,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
                 htmlFor={bioId}
                 className="block text-sm font-medium text-slate-700"
               >
-                Bio & About You
+                {t("settings.bioLabel")}
               </label>
               <span
                 className={`text-xs ${
@@ -512,7 +519,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 maxLength={500}
-                placeholder="Tell the community about your travel experiences in Alanya, favorite beaches, or local hosting services..."
+                placeholder={t("settings.bioPlaceholder")}
                 className={`w-full px-4 py-2.5 rounded-xl border bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-all ${
                   errors.bio
                     ? "border-rose-300 focus:ring-rose-200"
@@ -533,7 +540,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
             <div>
               <h2 className="text-lg font-semibold text-slate-900">{t("settings.socialPresence")}</h2>
               <p className="text-xs sm:text-sm text-slate-500">
-                Connect your social channels to build trust and direct communication
+                {t("settings.socialHelp")}
               </p>
             </div>
           </div>
@@ -556,7 +563,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
                   type="text"
                   value={socials.instagram}
                   onChange={(e) => handleSocialChange("instagram", e.target.value)}
-                  placeholder="username or link"
+                  placeholder={t("settings.socialPlaceholder")}
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
                 />
               </div>
@@ -579,7 +586,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
                   type="text"
                   value={socials.telegram}
                   onChange={(e) => handleSocialChange("telegram", e.target.value)}
-                  placeholder="username or t.me/..."
+                  placeholder={t("settings.telegramPlaceholder")}
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
                 />
               </div>
@@ -602,7 +609,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
                   type="text"
                   value={socials.whatsapp}
                   onChange={(e) => handleSocialChange("whatsapp", e.target.value)}
-                  placeholder="+90 532... or wa.me/..."
+                  placeholder={t("settings.whatsappPlaceholder")}
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
                 />
               </div>
@@ -637,7 +644,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
                 htmlFor={websiteId}
                 className="block text-sm font-medium text-slate-700"
               >
-                Website URL
+                {t("settings.websiteLabel")}
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">

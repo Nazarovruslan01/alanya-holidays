@@ -1,4 +1,5 @@
 import React from "react";
+import i18n from '@/i18n';
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import TrustBadge, {
@@ -10,6 +11,16 @@ import TrustBadge, {
 } from "../TrustBadge";
 
 describe("TrustBadge Component & Evocative Labeling System", () => {
+  it.each(['en', 'ru', 'tr'])('uses only ownership evidence for live business badges in %s', async (language) => {
+    await i18n.changeLanguage(language);
+    const business = { tier: 'signature', featured: true, rating: 5, reviewCount: 200, trustBadge: 'Verified Experience', is_verified: true };
+    const { rerender } = render(<TrustBadge business={business} badge="Recommended by Travellers" />);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    rerender(<TrustBadge business={{ ...business, claimed_at: '2026-08-20T12:00:00Z' }} />);
+    expect(screen.getByRole('status')).toHaveTextContent(i18n.t('public.ownerConfirmed'));
+    expect(screen.getByRole('status')).toHaveAttribute('title', i18n.t('public.ownerConfirmedDescription'));
+    await i18n.changeLanguage('en');
+  });
   describe("Tier 1: Visual & Direct Contract Tests (7 Evocative Badges)", () => {
     it.each(TRUST_BADGES)("renders badge '%s' with exact label, role, title, and icon", (badgeName) => {
       const { container } = render(<TrustBadge badge={badgeName} variant="solid" />);
@@ -32,6 +43,7 @@ describe("TrustBadge Component & Evocative Labeling System", () => {
           business={{
             name: "Grand Palace",
             trustBadge: "Signature Collection",
+            claimed_at: '2026-08-20T12:00:00Z',
           }}
           variant="glass"
         />
@@ -39,10 +51,10 @@ describe("TrustBadge Component & Evocative Labeling System", () => {
 
       const badge = screen.getByRole("status");
       expect(badge).toBeInTheDocument();
-      expect(badge).toHaveTextContent("Signature Collection");
+      expect(badge).toHaveTextContent("Owner confirmed");
       expect(badge.className).toContain("backdrop-blur-md");
       const icon = container.querySelector("i");
-      expect(icon?.className).toContain(TRUST_BADGES_CONFIG["Signature Collection"].icon);
+      expect(icon?.className).toContain(TRUST_BADGES_CONFIG["Verified Experience"].icon);
     });
 
     it("applies correct variant styling classes", () => {

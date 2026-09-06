@@ -9,9 +9,9 @@ import { useTranslation } from "react-i18next";
 import "@/i18n";
 
 const priceRangeLabel: Record<string, string> = {
-  "$": "Budget",
-  "$$": "Moderate",
-  "$$$": "Premium",
+  "$": "compare.budget",
+  "$$": "compare.moderate",
+  "$$$": "compare.premium",
 };
 
 function StarRating({ rating }: { rating: number }) {
@@ -58,7 +58,7 @@ function allSame(values: string[]): boolean {
 }
 
 export default function ComparePage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [searchParams] = useSearchParams();
   const [highlightDiffs, setHighlightDiffs] = useState(false);
   const [showReport, setShowReport] = useState(false);
@@ -204,7 +204,7 @@ export default function ComparePage() {
                 <p className="text-sm text-foreground-500">
                   {hasData
                     ? `Comparing ${selectedBusinesses.length} businesses side by side`
-                    : "Select businesses from the directory to compare them"}
+                    : t("compare.emptyHint")}
                 </p>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
@@ -302,7 +302,7 @@ export default function ComparePage() {
                             <i className="ri-price-tag-3-line text-foreground-400 text-sm"></i>
                             <span className="text-xs font-semibold text-foreground-500 uppercase tracking-wider">{t("public.category")}</span>
                             {highlightDiffs && diffState.subcategory && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title="Businesses differ in this field"></span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title={t("compare.fieldDifference")}></span>
                             )}
                           </div>
                         </td>
@@ -320,14 +320,14 @@ export default function ComparePage() {
                             <i className="ri-money-dollar-circle-line text-foreground-400 text-sm"></i>
                             <span className="text-xs font-semibold text-foreground-500 uppercase tracking-wider">{t("public.price")}</span>
                             {highlightDiffs && diffState.priceRange && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title="Businesses differ in this field"></span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title={t("compare.fieldDifference")}></span>
                             )}
                           </div>
                         </td>
                         {selectedBusinesses.map((b) => (
                           <td key={b.id} className="px-4 py-3 border-b border-background-200/30">
                             <span className="inline-block px-2.5 py-1 rounded-full bg-background-100 text-sm font-semibold text-foreground-800 whitespace-nowrap">
-                              {priceRangeLabel[b.priceRange] || b.priceRange}
+                              {priceRangeLabel[b.priceRange] ? t(priceRangeLabel[b.priceRange]) : b.priceRange}
                             </span>
                           </td>
                         ))}
@@ -340,7 +340,7 @@ export default function ComparePage() {
                             <i className="ri-star-line text-foreground-400 text-sm"></i>
                             <span className="text-xs font-semibold text-foreground-500 uppercase tracking-wider">{t("public.rating")}</span>
                             {highlightDiffs && diffState.rating && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title="Businesses differ in this field"></span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title={t("compare.fieldDifference")}></span>
                             )}
                           </div>
                         </td>
@@ -362,7 +362,7 @@ export default function ComparePage() {
                             <i className="ri-file-text-line text-foreground-400 text-sm"></i>
                             <span className="text-xs font-semibold text-foreground-500 uppercase tracking-wider">{t("public.about")}</span>
                             {highlightDiffs && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title="Businesses differ in this field"></span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title={t("compare.fieldDifference")}></span>
                             )}
                           </div>
                         </td>
@@ -380,7 +380,7 @@ export default function ComparePage() {
                             <i className="ri-map-pin-line text-foreground-400 text-sm"></i>
                             <span className="text-xs font-semibold text-foreground-500 uppercase tracking-wider">{t("public.address")}</span>
                             {highlightDiffs && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title="Businesses differ in this field"></span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title={t("compare.fieldDifference")}></span>
                             )}
                           </div>
                         </td>
@@ -398,7 +398,7 @@ export default function ComparePage() {
                             <i className="ri-time-line text-foreground-400 text-sm"></i>
                             <span className="text-xs font-semibold text-foreground-500 uppercase tracking-wider">{t("public.hours")}</span>
                             {highlightDiffs && diffState.openingHours && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title="Businesses differ in this field"></span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title={t("compare.fieldDifference")}></span>
                             )}
                           </div>
                         </td>
@@ -416,7 +416,7 @@ export default function ComparePage() {
                             <i className="ri-phone-line text-foreground-400 text-sm"></i>
                             <span className="text-xs font-semibold text-foreground-500 uppercase tracking-wider">{t("public.phone")}</span>
                             {highlightDiffs && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title="Businesses differ in this field"></span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title={t("compare.fieldDifference")}></span>
                             )}
                           </div>
                         </td>
@@ -436,7 +436,7 @@ export default function ComparePage() {
                             <i className="ri-mail-line text-foreground-400 text-sm"></i>
                             <span className="text-xs font-semibold text-foreground-500 uppercase tracking-wider">{t("public.email")}</span>
                             {highlightDiffs && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title="Businesses differ in this field"></span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title={t("compare.fieldDifference")}></span>
                             )}
                           </div>
                         </td>
@@ -456,7 +456,7 @@ export default function ComparePage() {
                             <i className="ri-global-line text-foreground-400 text-sm"></i>
                             <span className="text-xs font-semibold text-foreground-500 uppercase tracking-wider">{t("public.website")}</span>
                             {highlightDiffs && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title="Businesses differ in this field"></span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title={t("compare.fieldDifference")}></span>
                             )}
                           </div>
                         </td>
@@ -481,7 +481,7 @@ export default function ComparePage() {
                             <i className="ri-hashtag text-foreground-400 text-sm"></i>
                             <span className="text-xs font-semibold text-foreground-500 uppercase tracking-wider">{t("public.tags")}</span>
                             {highlightDiffs && diffState.tags && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title="Businesses differ in this field"></span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title={t("compare.fieldDifference")}></span>
                             )}
                           </div>
                         </td>
@@ -508,7 +508,7 @@ export default function ComparePage() {
                               <button
                                 onClick={clearAllNotes}
                                 className="ml-auto flex items-center gap-1 px-2 py-1 rounded-md text-[10px] text-red-500 hover:bg-red-50 transition-colors whitespace-nowrap cursor-pointer"
-                                title="Clear all notes"
+                                title={t("compare.clearNotes")}
                               >
                                 <i className="ri-delete-bin-6-line text-[10px]"></i>
                                 {t("compare.clearAll")}
@@ -557,7 +557,7 @@ export default function ComparePage() {
                   <div className="flex items-center gap-2 px-4 py-3 bg-accent-50 border border-accent-200/50 rounded-xl">
                     <i className="ri-contrast-drop-2-fill text-accent-500 text-sm"></i>
                     <span className="text-sm text-accent-800 font-medium">
-                      {Object.values(diffState).filter(Boolean).length} fields have differences — dimmed fields are identical
+                      {t("compare.differenceSummary", { count: Object.values(diffState).filter(Boolean).length })}
                     </span>
                   </div>
                 )}
@@ -578,17 +578,17 @@ export default function ComparePage() {
 
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="px-2.5 py-1 rounded-full bg-background-100 text-xs font-semibold text-foreground-700 whitespace-nowrap">
-                          {priceRangeLabel[b.priceRange] || b.priceRange}
+                          {priceRangeLabel[b.priceRange] ? t(priceRangeLabel[b.priceRange]) : b.priceRange}
                         </span>
                         {highlightDiffs && diffState.priceRange && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title="Differs from others"></span>
+                          <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title={t("compare.otherDifference")}></span>
                         )}
                         <div className="flex items-center gap-1">
                           <i className="ri-star-fill text-yellow-400 text-xs"></i>
                           <span className="text-sm font-bold text-foreground-900">{b.rating}</span>
                           <span className="text-xs text-foreground-500">({b.reviewCount})</span>
                           {highlightDiffs && diffState.rating && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title="Differs from others"></span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title={t("compare.otherDifference")}></span>
                           )}
                         </div>
                       </div>
@@ -607,28 +607,28 @@ export default function ComparePage() {
                           <i className="ri-map-pin-line text-foreground-400 text-sm mt-0.5 shrink-0"></i>
                           <span className="text-xs text-foreground-600">{b.address}</span>
                           {highlightDiffs && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-accent-500 mt-0.5 shrink-0" title="Differs from others"></span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-accent-500 mt-0.5 shrink-0" title={t("compare.otherDifference")}></span>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
                           <i className="ri-time-line text-foreground-400 text-sm shrink-0"></i>
                           <span className="text-xs text-foreground-600">{b.openingHours}</span>
                           {highlightDiffs && diffState.openingHours && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title="Differs from others"></span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title={t("compare.otherDifference")}></span>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
                           <i className="ri-phone-line text-foreground-400 text-sm shrink-0"></i>
                           <a href={`tel:${b.phone}`} className="text-xs text-foreground-800 hover:text-primary-500 cursor-pointer">{b.phone}</a>
                           {highlightDiffs && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title="Differs from others"></span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title={t("compare.otherDifference")}></span>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
                           <i className="ri-mail-line text-foreground-400 text-sm shrink-0"></i>
                           <a href={`mailto:${b.email}`} className="text-xs text-foreground-800 hover:text-primary-500 cursor-pointer break-all">{b.email}</a>
                           {highlightDiffs && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title="Differs from others"></span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title={t("compare.otherDifference")}></span>
                           )}
                         </div>
                       </div>
@@ -798,7 +798,7 @@ export default function ComparePage() {
                       <div className="text-right">
                         <div className="text-xs text-foreground-400 mb-1">{t("compare.generatedOn")}</div>
                         <div className="text-sm font-medium text-foreground-700">
-                          {new Date().toLocaleDateString("en-US", {
+                          {new Date().toLocaleDateString(i18n.language, {
                             year: "numeric",
                             month: "long",
                             day: "numeric",
@@ -868,7 +868,7 @@ export default function ComparePage() {
                             {selectedBusinesses.map((b) => (
                               <td key={b.id} className="py-2.5 px-4">
                                 <span className="inline-block px-2.5 py-0.5 rounded-full bg-foreground-100 text-sm font-semibold text-foreground-800 whitespace-nowrap">
-                                  {priceRangeLabel[b.priceRange] || b.priceRange}
+                                  {priceRangeLabel[b.priceRange] ? t(priceRangeLabel[b.priceRange]) : b.priceRange}
                                 </span>
                               </td>
                             ))}
@@ -884,7 +884,7 @@ export default function ComparePage() {
                                 <div className="flex items-center gap-2">
                                   <span className="text-base font-bold text-foreground-900">{b.rating}</span>
                                   <StarRating rating={b.rating} />
-                                  <span className="text-xs text-foreground-500">({b.reviewCount} reviews)</span>
+                                  <span className="text-xs text-foreground-500">{t("compare.reviewsCount", { count: b.reviewCount })}</span>
                                 </div>
                               </td>
                             ))}
@@ -995,7 +995,7 @@ export default function ComparePage() {
                           {t("compare.businessDirectory")}
                         </p>
                         <p className="text-[11px] text-foreground-400">
-                          {t("compare.generated", { date: new Date().toLocaleDateString("en-US", {
+                          {t("compare.generated", { date: new Date().toLocaleDateString(i18n.language, {
                             year: "numeric",
                             month: "long",
                             day: "numeric",

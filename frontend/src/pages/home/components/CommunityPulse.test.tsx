@@ -99,7 +99,8 @@ describe("CommunityPulse", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Events API unavailable");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Upcoming events are unavailable");
+    expect(screen.queryByText("Events API unavailable")).not.toBeInTheDocument();
     expect(screen.queryByText("More events are coming soon")).not.toBeInTheDocument();
   });
 });

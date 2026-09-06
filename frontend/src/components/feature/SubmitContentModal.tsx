@@ -7,6 +7,7 @@ import { logger } from "@/lib/logger";
 import RichTextEditor from "@/components/base/RichTextEditor";
 import { useTranslation } from "react-i18next";
 import "@/i18n";
+import { getForumCategoryLabel, getForumSubcategoryLabel } from "@/i18n/display-labels";
 
 export interface CommunityPostPayload {
   categoryId: string;
@@ -131,29 +132,29 @@ export default function SubmitContentModal({
     if (mediaUploadPending) return;
 
     if (!isAuthenticated) {
-      const message = "Please sign in to share a post with the community.";
+      const message = t("community.signInToPost");
       setErrorMessage(message);
       toast.error(message);
       return;
     }
 
     if (!categoryId) {
-      setErrorMessage("Please pick a category for your post.");
-      toast.error("Please pick a category for your post.");
+      setErrorMessage(t("community.categoryRequired"));
+      toast.error(t("community.categoryRequired"));
       return;
     }
 
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
-      setErrorMessage("Please enter a title for your post.");
-      toast.error("Please enter a title for your post.");
+      setErrorMessage(t("community.titleRequired"));
+      toast.error(t("community.titleRequired"));
       return;
     }
 
     const trimmedBody = body.trim();
     if (!trimmedBody) {
-      setErrorMessage("Please share a short description or story.");
-      toast.error("Please share a short description or story.");
+      setErrorMessage(t("community.bodyRequired"));
+      toast.error(t("community.bodyRequired"));
       return;
     }
 
@@ -162,8 +163,8 @@ export default function SubmitContentModal({
       try {
         new URL(trimmedMediaUrl);
       } catch {
-        setErrorMessage("Please enter a valid media URL (https://…).");
-        toast.error("Please enter a valid media URL (https://…).");
+        setErrorMessage(t("community.mediaUrlInvalid"));
+        toast.error(t("community.mediaUrlInvalid"));
         return;
       }
     }
@@ -187,7 +188,7 @@ export default function SubmitContentModal({
         mediaUrl: trimmedMediaUrl || undefined,
       };
 
-      toast.success("Your post was published to the community.");
+      toast.success(t("community.postPublished"));
       if (onSubmitSuccess) onSubmitSuccess(payload);
 
       setTitle("");
@@ -205,9 +206,7 @@ export default function SubmitContentModal({
     } catch (err) {
       logger.error("Community post submission failed:", err);
       const message =
-        err instanceof Error && err.message
-          ? err.message
-          : "We couldn't publish your post. Please try again.";
+        t("community.postFailed");
       setErrorMessage(message);
       toast.error(message);
     } finally {
@@ -230,23 +229,23 @@ export default function SubmitContentModal({
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-primary-500/10 text-primary-600 dark:text-primary-400">
-                Community
+                {t("nav.community")}
               </span>
               <span className="text-xs text-foreground-500">
-                Share with the Alanya community
+                {t("community.shareSubtitle")}
               </span>
             </div>
             <h2
               id="submit-content-title"
               className="text-xl font-heading font-bold text-foreground-900"
             >
-              Share a Post
+              {t("community.shareHeading")}
             </h2>
           </div>
           <button
             onClick={onClose}
             className="w-9 h-9 flex items-center justify-center rounded-full text-foreground-400 hover:text-foreground-700 hover:bg-background-100 transition-colors"
-            aria-label="Close dialog"
+            aria-label={t("common.close")}
           >
             <i className="ri-close-line text-xl"></i>
           </button>
@@ -258,7 +257,7 @@ export default function SubmitContentModal({
         >
           {!authLoading && !isAuthenticated && (
             <div className="p-3 text-sm rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-              You need to be signed in to publish a post.{" "}
+              {t("community.signInRequired")}{" "}
               <button
                 type="button"
                 onClick={() => {
@@ -267,7 +266,7 @@ export default function SubmitContentModal({
                 }}
                 className="font-semibold underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-100"
               >
-                Sign in
+                {t("auth.signIn")}
               </button>
               .
             </div>
@@ -285,7 +284,7 @@ export default function SubmitContentModal({
                 htmlFor="content-category"
                 className="block text-sm font-semibold text-foreground-800 dark:text-background-200 mb-2"
               >
-                Category *
+                {t("public.categoryRequired")}
               </label>
               <select
                 id="content-category"
@@ -309,11 +308,11 @@ export default function SubmitContentModal({
                 {initialCategoryId &&
                   initialCategoryName &&
                   !sortedCategories.some((cat) => cat.id === initialCategoryId) && (
-                    <option value={initialCategoryId}>{initialCategoryName}</option>
+                    <option value={initialCategoryId}>{getForumCategoryLabel({ id: initialCategoryId, name: initialCategoryName }, t)}</option>
                   )}
                 {sortedCategories.map((cat) => (
                   <option key={cat.id} value={cat.id}>
-                    {cat.name}
+                    {getForumCategoryLabel(cat, t)}
                   </option>
                 ))}
               </select>
@@ -330,7 +329,7 @@ export default function SubmitContentModal({
                   htmlFor="content-subcategory"
                   className="block text-sm font-medium text-foreground-700 dark:text-background-200 mb-2"
                 >
-                  Topic
+                  {t("public.topic")}
                 </label>
                 <select
                   id="content-subcategory"
@@ -342,7 +341,7 @@ export default function SubmitContentModal({
                   <option value="">{t("public.allTopics")}</option>
                   {availableSubcategories.map((subcategory) => (
                     <option key={subcategory} value={subcategory}>
-                      {subcategory}
+                      {getForumSubcategoryLabel(subcategory, t)}
                     </option>
                   ))}
                 </select>
@@ -356,7 +355,7 @@ export default function SubmitContentModal({
                 htmlFor="content-title"
                 className="block text-sm font-medium text-foreground-700 dark:text-background-200 mb-1"
               >
-                Title *
+                {t("public.titleRequired")}
               </label>
               <input
                 id="content-title"
@@ -374,7 +373,7 @@ export default function SubmitContentModal({
                 htmlFor="content-description"
                 className="block text-sm font-medium text-foreground-700 dark:text-background-200 mb-1"
               >
-                Story *
+                {t("public.storyRequired")}
               </label>
               <RichTextEditor
                 inputId="content-description"
@@ -392,7 +391,7 @@ export default function SubmitContentModal({
                 htmlFor="content-media-url"
                 className="block text-sm font-medium text-foreground-700 dark:text-background-200 mb-1"
               >
-                Media URL <span className="text-xs text-foreground-400">(optional — YouTube, Drive, Instagram)</span>
+                {t("public.mediaUrl")} <span className="text-xs text-foreground-400">{t("community.mediaOptional")}</span>
               </label>
               <input
                 id="content-media-url"

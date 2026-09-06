@@ -5,7 +5,8 @@ import {
 } from "@/api-services/admin.service";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useTranslation } from "react-i18next";
-import "@/i18n";
+import i18n from "@/i18n";
+import { logger } from "@/lib/logger";
 
 type StatusFilter = "all" | "new" | "responded" | "archived";
 type EnquiryTypeFilter = string;
@@ -75,11 +76,11 @@ function getRelativeTime(dateStr: string, t: (key: string, options?: Record<stri
   if (diffHours < 24) return t("adminQueue.hoursAgo", { count: diffHours });
   if (diffDays === 1) return t("adminQueue.yesterday");
   if (diffDays < 7) return t("adminQueue.daysAgo", { count: diffDays });
-  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return date.toLocaleDateString(i18n.language, { day: "numeric", month: "short" });
 }
 
 function getFullDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleString("en-GB", {
+  return new Date(dateStr).toLocaleString(i18n.language, {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -117,7 +118,8 @@ export default function ConciergeTab({
         onEnquiriesCountUpdateRef.current({ total: data?.length || 0, newCount });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("adminQueue.enquiriesError"));
+      logger.warn("Failed to load enquiries:", err);
+      setError(t("adminQueue.enquiriesError"));
     } finally {
       setLoading(false);
     }
@@ -178,10 +180,10 @@ export default function ConciergeTab({
       const success = await adminService.updateEnquiryStatus(id, newStatus);
       if (success) return;
       await fetchEnquiries(true);
-      setError("Enquiry update failed. Please try again.");
+      setError(t("admin.enquiryUpdateError"));
     } catch {
       await fetchEnquiries(true);
-      setError("Enquiry update failed. Please try again.");
+      setError(t("admin.enquiryUpdateError"));
     }
   };
 
@@ -198,10 +200,10 @@ export default function ConciergeTab({
       );
       if (success) return;
       await fetchEnquiries(true);
-      setError("Enquiry assignment failed. Please try again.");
+      setError(t("admin.enquiryAssignError"));
     } catch {
       await fetchEnquiries(true);
-      setError("Enquiry assignment failed. Please try again.");
+      setError(t("admin.enquiryAssignError"));
     }
   };
 

@@ -34,6 +34,7 @@ export default function EventSearch({ query, onQueryChange }: EventSearchProps) 
         </div>
         <input
           ref={inputRef}
+          aria-label={t('events.searchPlaceholder')}
           type="text"
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}

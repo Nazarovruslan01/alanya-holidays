@@ -52,6 +52,7 @@ export class GetForumPostsQueryDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   search?: string;
 }
 

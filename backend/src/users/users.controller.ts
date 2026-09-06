@@ -14,7 +14,8 @@ import { RequireRole } from '../auth/decorators/require-role.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthUser } from '../auth/types/auth-user.interface';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
-import { PaginationDto, LimitQueryDto } from '../common/dto/pagination.dto';
+import { PaginationDto } from '../common/dto/pagination.dto';
+import { PublicMembersQueryDto } from './dto/public-members-query.dto';
 
 @Controller('users')
 export class UsersController {
@@ -22,12 +23,14 @@ export class UsersController {
 
   @Get('forum/members')
   async getForumMembers(
-    @Query() query?: LimitQueryDto,
+    @Query() query?: PublicMembersQueryDto,
     @Query('onlineOnly') onlineOnly?: string,
   ) {
     return this.usersService.getForumMembers(
       query?.limit,
       onlineOnly === 'true',
+      query?.search,
+      query?.offset,
     );
   }
 

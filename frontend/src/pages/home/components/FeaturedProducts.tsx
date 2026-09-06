@@ -145,7 +145,7 @@ export default function FeaturedProducts() {
     return (
       <section className="py-16 md:py-24 bg-background-100">
         <div className="w-full px-4 md:px-8 lg:px-12">
-          <ErrorState title={t("home.productsUnavailable")} message={error} onRetry={loadProducts} />
+          <ErrorState title={t("home.productsUnavailable")} onRetry={loadProducts} />
         </div>
       </section>
     );

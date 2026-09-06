@@ -963,7 +963,7 @@ describe("Empirical Challenger M3 Adversarial Stress Tests", () => {
       });
 
       // Close upgrade modal
-      const closeUpgradeBtn = screen.getByRole("button", { name: /Close modal/i });
+      const closeUpgradeBtn = screen.getByRole("button", { name: /^Close$/i });
       fireEvent.click(closeUpgradeBtn);
 
       await waitFor(() => {

@@ -546,10 +546,20 @@ describe('ForumController', () => {
   describe('Members routes', () => {
     it('should parse limit and onlineOnly and delegate getForumMembers', async () => {
       await controller.getForumMembers({ limit: 6 });
-      expect(mockUsersService.getForumMembers).toHaveBeenCalledWith(6, false);
+      expect(mockUsersService.getForumMembers).toHaveBeenCalledWith(
+        6,
+        false,
+        undefined,
+        undefined,
+      );
 
       await controller.getForumMembers({ limit: 10 }, 'true');
-      expect(mockUsersService.getForumMembers).toHaveBeenCalledWith(10, true);
+      expect(mockUsersService.getForumMembers).toHaveBeenCalledWith(
+        10,
+        true,
+        undefined,
+        undefined,
+      );
     });
 
     it('should delegate getForumMemberById', async () => {

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import Navbar from "@/pages/home/components/Navbar";
 import Footer from "@/pages/home/components/Footer";
@@ -10,15 +11,17 @@ import ErrorState from "@/components/base/ErrorState";
 import EmptyState from "@/components/base/EmptyState";
 
 const topCountries = [
-  { name: "Germany", count: 4120 },
-  { name: "United Kingdom", count: 3280 },
-  { name: "Netherlands", count: 2150 },
-  { name: "Sweden", count: 1840 },
-  { name: "Norway", count: 1620 },
-  { name: "Türkiye", count: 3890 },
+  { name: "Germany", code: "DE", count: 4120 },
+  { name: "United Kingdom", code: "GB", count: 3280 },
+  { name: "Netherlands", code: "NL", count: 2150 },
+  { name: "Sweden", code: "SE", count: 1840 },
+  { name: "Norway", code: "NO", count: 1620 },
+  { name: "Türkiye", code: "TR", count: 3890 },
 ];
 
 export default function MembersPage() {
+  const { t, i18n } = useTranslation();
+  const countryNames = new Intl.DisplayNames([i18n.language], { type: "region" });
   const [membersList, setMembersList] = useState<ForumMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -122,7 +125,7 @@ export default function MembersPage() {
                   <p className="text-xs text-foreground-500">@{member.username}</p>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-xs text-foreground-400">
-                      {member.posts.toLocaleString()} posts
+                      {member.posts.toLocaleString(i18n.language)} {t("public.posts")}
                     </span>
                   </div>
                 </div>
@@ -146,14 +149,11 @@ export default function MembersPage() {
 
           {/* Results count */}
           <p className="text-sm text-foreground-500 mb-6">
-            <span className="font-semibold text-foreground-900">
-              {filteredMembers.length}
-            </span>{" "}
-            {filteredMembers.length === 1 ? "member" : "members"} found
+            {t("members.countFound", { count: filteredMembers.length })}
             {(roleFilter || searchTerm) && (
               <span className="text-foreground-400">
                 {" "}
-                with active filters
+                {t("members.filtered")}
               </span>
             )}
           </p>
@@ -161,8 +161,8 @@ export default function MembersPage() {
           {/* Members grid */}
           {fetchError ? (
             <ErrorState
-              title="Unable to load community members"
-              message={fetchError}
+              title={t("public.loadErrorTitle")}
+              message={t("public.loadErrorMessage")}
               onRetry={loadMembers}
             />
           ) : isLoading ? (
@@ -189,10 +189,10 @@ export default function MembersPage() {
           ) : (
             <EmptyState
               icon={<i className="ri-user-search-line text-2xl" />}
-              title="No members found"
-              description="Try adjusting your search or filters to find who you are looking for."
+              title={t("members.empty")}
+              description={t("members.emptyHelp")}
               action={{
-                label: "Reset Filters",
+                label: t("public.resetFilters"),
                 onClick: () => {
                   setSearchTerm("");
                   setRoleFilter(null);
@@ -207,23 +207,23 @@ export default function MembersPage() {
             <div className="flex items-center gap-2 mb-2">
               <i className="ri-global-line text-accent-500 text-lg"></i>
               <span className="text-sm font-semibold text-accent-500 uppercase tracking-wider">
-                Global Community
+                {t("members.global")}
               </span>
             </div>
             <h2 className="font-heading text-2xl md:text-3xl text-foreground-900 mb-6">
-              Our members come from everywhere
+              {t("members.everywhere")}
             </h2>
             <div className="flex flex-wrap gap-3">
               {topCountries.map((country) => (
                 <div
-                  key={country.name}
+                  key={countryNames.of(country.code)}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-background-50 rounded-xl border border-background-200/70"
                 >
                   <span className="text-sm font-medium text-foreground-900">
-                    {country.name}
+                    {countryNames.of(country.code)}
                   </span>
                   <span className="text-xs text-foreground-400">
-                    {country.count.toLocaleString()}
+                    {country.count.toLocaleString(i18n.language)}
                   </span>
                 </div>
               ))}
@@ -233,17 +233,16 @@ export default function MembersPage() {
           {/* CTA */}
           <div className="mt-12 bg-gradient-to-r from-primary-500 to-primary-600 rounded-2xl p-8 md:p-10 text-center">
             <h2 className="font-heading text-2xl md:text-3xl text-white mb-3">
-              Ready to join the community?
+              {t("members.joinTitle")}
             </h2>
             <p className="text-white/80 text-sm md:text-base max-w-lg mx-auto mb-6">
-              Connect with fellow travelers, expats, and locals. Share your Alanya story and
-              become part of something special.
+              {t("members.joinHelp")}
             </p>
             <Link
               to="/register"
               className="inline-flex items-center gap-2 px-6 py-3 bg-white text-primary-600 rounded-full text-sm font-semibold hover:bg-white/95 transition-colors"
             >
-              Create Your Profile
+              {t("services.about.createProfile")}
               <i className="ri-arrow-right-line"></i>
             </Link>
           </div>
