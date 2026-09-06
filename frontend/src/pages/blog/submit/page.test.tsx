@@ -6,6 +6,10 @@ import { blogService } from "@/api-services/blog.service";
 import { deleteBlogImage, uploadBlogImage } from "@/api-services/storage.service";
 import { ApiError } from "@/lib/api-client";
 
+const testSupabaseOrigin = new URL(
+  import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_PUBLIC_SUPABASE_URL
+).origin;
+
 const { inlineUploadHarness } = vi.hoisted(() => ({
   inlineUploadHarness: {
     resolve: undefined as ((url: string) => void) | undefined,
@@ -171,7 +175,7 @@ describe("BlogSubmitPage taxonomy", () => {
 
   it("keeps a pending inline upload alive and blocks preview and submission until it finishes", async () => {
     const videoUrl =
-      "https://mdmizeyiyebvhkujjyjg.supabase.co/storage/v1/object/public/inline-media/10000000-0000-4000-8000-000000000001/videos/20000000-0000-4000-8000-000000000002.mp4";
+      `${testSupabaseOrigin}/storage/v1/object/public/inline-media/10000000-0000-4000-8000-000000000001/videos/20000000-0000-4000-8000-000000000002.mp4`;
     const { container } = renderPage();
     fireEvent.change(screen.getByPlaceholderText("e.g., Hidden Gems in Alanya Old Town"), {
       target: { value: "A video guide" },

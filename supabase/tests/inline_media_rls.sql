@@ -44,14 +44,21 @@ DO $$
 DECLARE
   visible_count integer;
 BEGIN
-  SELECT count(*)
-  INTO visible_count
-  FROM storage.objects
-  WHERE bucket_id = 'inline-media';
+  BEGIN
+    SELECT count(*)
+    INTO visible_count
+    FROM storage.objects
+    WHERE bucket_id = 'inline-media';
 
-  IF visible_count <> 0 THEN
-    RAISE EXCEPTION 'anonymous inline-media listing unexpectedly returned rows';
-  END IF;
+    IF visible_count <> 0 THEN
+      RAISE EXCEPTION 'anonymous inline-media listing unexpectedly returned rows';
+    END IF;
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      -- Existing policies for other buckets may consult admin-only tables.
+      -- A permission error is also a fail-closed denial of object listing.
+      RAISE NOTICE 'anonymous inline-media listing correctly denied';
+  END;
 END;
 $$;
 RESET ROLE;

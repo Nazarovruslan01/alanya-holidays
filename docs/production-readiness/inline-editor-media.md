@@ -83,6 +83,35 @@ passed `psql -v ON_ERROR_STOP=1 -f supabase/tests/inline_media_rls.sql` inside a
 The CI command is pinned in `.github/workflows/ci.yml`. Independent verification on PostgreSQL
 14.20 passed the migration, the RLS assertions, and an idempotent migration reapply.
 
+### Publication CI environment repairs
+
+Publication run `34049091894` exposed two test-environment assumptions. In the complete CI schema,
+existing storage policies for other buckets can consult `profiles`, which is intentionally unreadable
+to `anon`. The inline-media RLS test now treats only PostgreSQL `insufficient_privilege` as a
+fail-closed listing denial; when the query is permitted, it still requires exactly zero visible rows.
+No production policy, grant, role, or migration changed. PostgreSQL 14.20 reproduced the original
+failure after loading `test/fixtures/init_test_db.sql` and every migration, then passed
+`psql -v ON_ERROR_STOP=1 -f supabase/tests/inline_media_rls.sql` both with the CI grants and with the
+referenced policy dependencies readable, exercising the explicit zero-row branch.
+
+The deferred-upload page test also used a fixed storage origin while CI configures a mock Supabase
+origin. Its fixture URL now derives from the configured test origin; the production sanitizer
+allowlist is unchanged. These exact CI-environment checks passed after the repair:
+
+```text
+frontend$ VITE_SUPABASE_URL=https://mock-supabase-url.supabase.co VITE_SUPABASE_ANON_KEY=mock-supabase-anon-key ./node_modules/.bin/vitest run src/pages/blog/submit/page.test.tsx --reporter=verbose
+12 tests passed
+
+frontend$ VITE_SUPABASE_URL=https://mock-supabase-url.supabase.co VITE_SUPABASE_ANON_KEY=mock-supabase-anon-key ./node_modules/.bin/vitest run --reporter=dot
+151 files, 1577 tests passed
+
+frontend$ ./node_modules/.bin/tsc --noEmit
+passed
+
+frontend$ ./node_modules/.bin/eslint src/pages/blog/submit/page.test.tsx --report-unused-disable-directives --max-warnings=0
+passed with zero warnings
+```
+
 There is no global Jest sanitizer shim. Sanitizer mocks are file-scoped in
 `backend/src/admin/challenger-m3-adversarial.spec.ts`, `backend/src/blog/blog.controller.spec.ts`,
 `backend/src/blog/blog.service.spec.ts`, `backend/src/forum/application/forum-discussion.service.spec.ts`,
