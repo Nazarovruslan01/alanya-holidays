@@ -368,6 +368,34 @@ describe('DirectoryListingService - Admin Email Outbox Enqueueing (Task 2.4)', (
       );
 
       expect(mockEmailOutbox.enqueue).not.toHaveBeenCalled();
+      expect(mockRepository.insertDirectoryListing).toHaveBeenCalledWith(
+        expect.objectContaining({ creation_source: 'merchant' }),
+      );
+    });
+
+    it('preserves the creation source when saving an existing listing', async () => {
+      mockRepository.getDirectoryListingOwner.mockResolvedValue({
+        id: validListingId,
+        owner_user_id: validOwnerId,
+      });
+      mockRepository.updateDirectoryListing.mockResolvedValue({
+        id: validListingId,
+        name: 'Imported Restaurant',
+        status: 'draft',
+        owner_user_id: validOwnerId,
+        creation_source: 'import',
+      });
+
+      await service.saveDraft(
+        { name: 'Imported Restaurant' },
+        [],
+        validOwnerId,
+        validListingId,
+      );
+
+      const updatePayload = mockRepository.updateDirectoryListing.mock
+        .calls[0][1] as Record<string, unknown>;
+      expect(updatePayload).not.toHaveProperty('creation_source');
     });
   });
 

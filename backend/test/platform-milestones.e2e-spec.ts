@@ -23,11 +23,14 @@ import {
 } from '../src/notifications/domain/repositories/notifications.repository.interface';
 import { ForumController } from '../src/forum/forum.controller';
 import { ForumDiscussionService } from '../src/forum/application/forum-discussion.service';
+import { ForumEventService } from '../src/forum/application/forum-event.service';
+import { ForumReportService } from '../src/forum/application/forum-report.service';
 import { UsersService } from '../src/users/users.service';
 import { BlogController } from '../src/blog/blog.controller';
 import { BlogService } from '../src/blog/blog.service';
 import { MediaController } from '../src/media/media.controller';
 import { MediaProcessingService } from '../src/media/media-processing.service';
+import { EventMediaService } from '../src/media/event-media.service';
 import { AuthGuard } from '../src/auth/auth.guard';
 import { OptionalAuthGuard } from '../src/auth/optional-auth.guard';
 import { RolesGuard } from '../src/auth/roles.guard';
@@ -385,7 +388,7 @@ describe('Platform Milestones Comprehensive E2E & Multi-Tier Test Suite (Tiers 1
   };
 
   const supabaseAuthGetUserMock = jest.fn();
-  const userRolesRepoGetUserRoleMock = jest.fn();
+  const userRolesRepoGetRoleMock = jest.fn();
 
   beforeAll(async () => {
     const rateLimitStorage = new MemoryRateLimitStorage();
@@ -421,6 +424,14 @@ describe('Platform Milestones Comprehensive E2E & Multi-Tier Test Suite (Tiers 1
           useValue: forumServiceMock,
         },
         {
+          provide: ForumEventService,
+          useValue: forumServiceMock,
+        },
+        {
+          provide: ForumReportService,
+          useValue: forumServiceMock,
+        },
+        {
           provide: UsersService,
           useValue: usersServiceMock,
         },
@@ -433,9 +444,13 @@ describe('Platform Milestones Comprehensive E2E & Multi-Tier Test Suite (Tiers 1
           useValue: mediaProcessingServiceMock,
         },
         {
+          provide: EventMediaService,
+          useValue: {},
+        },
+        {
           provide: UserRolesRepository,
           useValue: {
-            getUserRole: userRolesRepoGetUserRoleMock,
+            getRole: userRolesRepoGetRoleMock,
           },
         },
         {
@@ -498,7 +513,7 @@ describe('Platform Milestones Comprehensive E2E & Multi-Tier Test Suite (Tiers 1
       });
     });
 
-    userRolesRepoGetUserRoleMock.mockImplementation((userId: string) => {
+    userRolesRepoGetRoleMock.mockImplementation((userId: string) => {
       if (userId === mockUserAdmin.id) return Promise.resolve('admin');
       return Promise.resolve('user');
     });
@@ -725,6 +740,7 @@ describe('Platform Milestones Comprehensive E2E & Multi-Tier Test Suite (Tiers 1
         const fakeBuffer = Buffer.from('fake-jpeg-image-bytes');
         const res = await request(httpApp)
           .post('/api/media/upload')
+          .set('Authorization', 'Bearer author-token')
           .attach('file', fakeBuffer, 'vacation-villa.jpg')
           .field('bucket', 'forum-media')
           .field('folder', 'threads')
@@ -732,7 +748,7 @@ describe('Platform Milestones Comprehensive E2E & Multi-Tier Test Suite (Tiers 1
 
         expect(res.body).toMatchObject({
           url: expect.stringContaining(
-            'forum-media/threads/optimized-uuid.webp',
+            'forum-media/user-author-101/threads/optimized-uuid.webp',
           ),
           bucket: 'forum-media',
           mimetype: 'image/webp',
@@ -784,6 +800,7 @@ describe('Platform Milestones Comprehensive E2E & Multi-Tier Test Suite (Tiers 1
       const fakeBuffer = Buffer.from('image-bytes');
       const res = await request(httpApp)
         .post('/api/media/upload')
+        .set('Authorization', 'Bearer author-token')
         .attach('file', fakeBuffer, 'pic.jpg')
         .expect(400);
 
@@ -872,6 +889,7 @@ describe('Platform Milestones Comprehensive E2E & Multi-Tier Test Suite (Tiers 1
       // 1. Upload image asset
       const mediaRes = await request(httpApp)
         .post('/api/media/upload')
+        .set('Authorization', 'Bearer author-token')
         .attach('file', Buffer.from('img-data'), 'cove.webp')
         .field('bucket', 'forum-media')
         .expect(201);

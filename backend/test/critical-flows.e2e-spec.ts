@@ -27,7 +27,7 @@ describe('Critical backend flows (e2e)', () => {
 
   const bookingsServiceMock = {
     createBooking: jest.fn<Promise<string>, [object, string]>(),
-    getUserBookings: jest.fn<Promise<unknown[]>, [string]>(),
+    getUserBookings: jest.fn<Promise<unknown[]>, [string, number?, number?]>(),
   };
 
   const stripeWebhookServiceMock = {
@@ -200,6 +200,8 @@ describe('Critical backend flows (e2e)', () => {
       ]);
       expect(bookingsServiceMock.getUserBookings).toHaveBeenCalledWith(
         'user-123',
+        20,
+        0,
       );
     });
   });

@@ -289,6 +289,18 @@ export default function BusinessDetailPage() {
 
     toggleFavorite(business.id);
   };
+  const handleClaimListing = () => {
+    if (authLoading) return;
+
+    if (!isAuthenticated) {
+      navigate("/login", {
+        state: { from: { pathname: `/business/${business.id}` } },
+      });
+      return;
+    }
+
+    setClaimModalOpen(true);
+  };
 
   return (
     <>
@@ -381,8 +393,9 @@ export default function BusinessDetailPage() {
                   {business.can_claim === true && (
                     <button
                       type="button"
-                      onClick={() => setClaimModalOpen(true)}
-                      className="flex items-center gap-2 px-5 py-3 rounded-full bg-accent-500 text-white text-sm font-medium hover:bg-accent-600 transition-colors whitespace-nowrap cursor-pointer shadow-sm"
+                      onClick={handleClaimListing}
+                      disabled={authLoading}
+                      className="flex items-center gap-2 px-5 py-3 rounded-full bg-accent-500 text-white text-sm font-medium hover:bg-accent-600 transition-colors whitespace-nowrap cursor-pointer shadow-sm disabled:opacity-60 disabled:cursor-wait"
                       title={t("business.claimListing")}
                     >
                       <i className="ri-shield-user-fill"></i>

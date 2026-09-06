@@ -387,7 +387,6 @@ export class DirectoryListingService {
       base_score: 0,
       status: 'draft',
       owner_user_id: userId,
-      creation_source: 'merchant',
       phone: typeof listing.phone === 'string' ? listing.phone : null,
       email: typeof listing.email === 'string' ? listing.email : null,
       ...(normalized.price_level !== undefined
@@ -408,7 +407,10 @@ export class DirectoryListingService {
         safeData,
       );
     } else {
-      data = await this.directoryRepository.insertDirectoryListing(safeData);
+      data = await this.directoryRepository.insertDirectoryListing({
+        ...safeData,
+        creation_source: 'merchant',
+      });
     }
 
     const effectiveId = draftId || data.id;

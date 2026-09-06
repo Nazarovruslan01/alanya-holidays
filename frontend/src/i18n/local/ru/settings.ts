@@ -35,4 +35,8 @@ export default {
   "settings.orderStatus.cancelled": "Отменён",
   "settings.orderStatus.expired": "Истёк",
   "settings.orderStatus.placed": "Оформлен",
+  "settings.avatarUpload": "Загрузить аватар",
+  "settings.avatarUploading": "Загрузка…",
+  "settings.avatarUploadRequirements": "JPEG, PNG или WebP до 5 МБ",
+  "settings.avatarUploadError": "Не удалось загрузить аватар. Повторите попытку.",
 };

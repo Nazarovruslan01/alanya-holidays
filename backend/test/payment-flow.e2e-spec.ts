@@ -16,7 +16,9 @@ import { StripeWebhookService } from '../src/webhooks/stripe-webhook.service';
 import { BookingWebhookHandler } from '../src/webhooks/handlers/booking-webhook.handler';
 import { AddonWebhookHandler } from '../src/webhooks/handlers/addon-webhook.handler';
 import { SubscriptionWebhookHandler } from '../src/webhooks/handlers/subscription-webhook.handler';
+import { ProductOrderWebhookHandler } from '../src/webhooks/handlers/product-order-webhook.handler';
 import { ProcessedStripeEventsRepository } from '../src/webhooks/processed-stripe-events.repository';
+import { ProductOrderPaymentsRepository } from '../src/webhooks/product-order-payments.repository';
 import { StripePaymentAdapter } from '../src/webhooks/adapters/stripe-payment.adapter';
 import { PAYMENT_GATEWAY } from '../src/webhooks/domain/payment-gateway.interface';
 import { AuthGuard } from '../src/auth/auth.guard';
@@ -127,9 +129,11 @@ describe('Payment flow e2e: booking -> checkout webhook -> confirmation', () => 
   };
 
   const processedEventsFake = {
-    tryClaimEvent: jest.fn<Promise<boolean>, [string]>((eventId) =>
-      Promise.resolve(!claimedEvents.has(eventId)),
-    ),
+    tryClaimEvent: jest.fn<Promise<boolean>, [string]>((eventId) => {
+      if (claimedEvents.has(eventId)) return Promise.resolve(false);
+      claimedEvents.add(eventId);
+      return Promise.resolve(true);
+    }),
     releaseEvent: jest.fn<Promise<void>, [string]>((eventId) => {
       claimedEvents.delete(eventId);
       return Promise.resolve();
@@ -140,6 +144,10 @@ describe('Payment flow e2e: booking -> checkout webhook -> confirmation', () => 
     notifyUser: jest.fn<Promise<void> | void, [string, object]>(() => {
       notifications.push({});
     }),
+  };
+
+  const productOrderPaymentsRepositoryFake = {
+    confirmStripePayment: jest.fn(),
   };
 
   function buildCheckoutSessionCompleted(overrides: {
@@ -206,6 +214,7 @@ describe('Payment flow e2e: booking -> checkout webhook -> confirmation', () => 
         UserRolesRepository,
         BookingsService,
         BookingWebhookHandler,
+        ProductOrderWebhookHandler,
         AddonWebhookHandler,
         SubscriptionWebhookHandler,
         StripeWebhookService,
@@ -215,6 +224,10 @@ describe('Payment flow e2e: booking -> checkout webhook -> confirmation', () => 
         {
           provide: ProcessedStripeEventsRepository,
           useValue: processedEventsFake,
+        },
+        {
+          provide: ProductOrderPaymentsRepository,
+          useValue: productOrderPaymentsRepositoryFake,
         },
         { provide: NotificationsService, useValue: notificationsServiceFake },
         {

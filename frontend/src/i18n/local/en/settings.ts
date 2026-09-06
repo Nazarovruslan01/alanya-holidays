@@ -35,4 +35,8 @@ export default {
   "settings.orderStatus.cancelled": "Cancelled",
   "settings.orderStatus.expired": "Expired",
   "settings.orderStatus.placed": "Placed",
+  "settings.avatarUpload": "Upload avatar",
+  "settings.avatarUploading": "Uploading…",
+  "settings.avatarUploadRequirements": "JPEG, PNG, or WebP up to 5 MB",
+  "settings.avatarUploadError": "Avatar upload failed. Please try again.",
 };

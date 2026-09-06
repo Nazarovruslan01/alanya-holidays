@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useId } from "react";
+import React, { useState, useEffect, useId, useRef } from "react";
 import {
   User,
   Image as ImageIcon,
@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useAuth, type UserProfile } from "@/context/AuthContext";
 import { useTranslation } from "react-i18next";
+import { uploadAvatarImage } from "@/api-services/storage.service";
 
 export interface ProfileTabProps {
   profile: UserProfile | null;
@@ -41,7 +42,9 @@ const PRESET_AVATARS = [
 
 export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdated }) => {
   const { t } = useTranslation();
-  const { updateProfile } = useAuth();
+  const { updateProfile, user } = useAuth();
+  const profileIdentity = `${user?.id ?? ""}:${profile?.id ?? ""}`;
+  const profileIsReady = Boolean(user?.id && profile?.id === user.id);
 
   const fullNameId = useId();
   const avatarUrlId = useId();
@@ -56,6 +59,8 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
 
   const [fullName, setFullName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
+  const [isAvatarUploading, setIsAvatarUploading] = useState(false);
   const [bio, setBio] = useState("");
   const [phone, setPhone] = useState("");
   const [companyName, setCompanyName] = useState("");
@@ -71,6 +76,29 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const avatarUploadTokenRef = useRef(0);
+  const avatarObjectUrlRef = useRef<string | null>(null);
+  const profileIdentityRef = useRef(profileIdentity);
+  const profileReadyRef = useRef(profileIsReady);
+  if (profileIdentityRef.current !== profileIdentity) {
+    profileIdentityRef.current = profileIdentity;
+    avatarUploadTokenRef.current += 1;
+  }
+  profileReadyRef.current = profileIsReady;
+
+  const revokeAvatarPreview = React.useCallback(() => {
+    if (avatarObjectUrlRef.current) {
+      URL.revokeObjectURL(avatarObjectUrlRef.current);
+      avatarObjectUrlRef.current = null;
+    }
+    setAvatarPreviewUrl(null);
+  }, []);
+
+  const invalidateAvatarUpload = React.useCallback(() => {
+    avatarUploadTokenRef.current += 1;
+    revokeAvatarPreview();
+    setIsAvatarUploading(false);
+  }, [revokeAvatarPreview]);
 
   const populateFromProfile = React.useCallback((p: UserProfile | null) => {
     if (!p) return;
@@ -94,11 +122,87 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
   }, []);
 
   useEffect(() => {
+    invalidateAvatarUpload();
+    if (!profileIsReady) {
+      setFullName("");
+      setAvatarUrl("");
+      setBio("");
+      setPhone("");
+      setCompanyName("");
+      setSocials({
+        instagram: "",
+        telegram: "",
+        whatsapp: "",
+        website: "",
+        twitter: "",
+      });
+      setErrors({});
+      setErrorMessage(null);
+      setSuccessMessage(null);
+      return;
+    }
     populateFromProfile(profile);
-  }, [profile, populateFromProfile]);
+  }, [profile, populateFromProfile, invalidateAvatarUpload, profileIsReady]);
+
+  useEffect(() => () => {
+    avatarUploadTokenRef.current += 1;
+    if (avatarObjectUrlRef.current) {
+      URL.revokeObjectURL(avatarObjectUrlRef.current);
+      avatarObjectUrlRef.current = null;
+    }
+  }, []);
 
   const handleSocialChange = (key: keyof SocialLinksState, value: string) => {
     setSocials((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleAvatarUrlChange = (value: string) => {
+    invalidateAvatarUpload();
+    setAvatarUrl(value);
+  };
+
+  const handleAvatarFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !profileIsReady) return;
+
+    invalidateAvatarUpload();
+    const token = avatarUploadTokenRef.current;
+    const uploadIdentity = profileIdentity;
+    const objectUrl = URL.createObjectURL(file);
+    avatarObjectUrlRef.current = objectUrl;
+    setAvatarPreviewUrl(objectUrl);
+    setErrorMessage(null);
+    setIsAvatarUploading(true);
+
+    uploadAvatarImage(file)
+      .then((uploaded) => {
+        if (
+          token !== avatarUploadTokenRef.current ||
+          profileIdentityRef.current !== uploadIdentity ||
+          !profileReadyRef.current
+        ) return;
+        setAvatarUrl(uploaded.url);
+        revokeAvatarPreview();
+      })
+      .catch((error: unknown) => {
+        if (
+          token !== avatarUploadTokenRef.current ||
+          profileIdentityRef.current !== uploadIdentity ||
+          !profileReadyRef.current
+        ) return;
+        revokeAvatarPreview();
+        setErrorMessage(error instanceof Error ? error.message : t("settings.avatarUploadError"));
+      })
+      .finally(() => {
+        if (
+          token === avatarUploadTokenRef.current &&
+          profileIdentityRef.current === uploadIdentity &&
+          profileReadyRef.current
+        ) {
+          setIsAvatarUploading(false);
+        }
+      });
   };
 
   const validateForm = (): boolean => {
@@ -122,6 +226,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isAvatarUploading || !profileIsReady) return;
     setSuccessMessage(null);
     setErrorMessage(null);
 
@@ -169,6 +274,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
   };
 
   const handleReset = () => {
+    if (!profileIsReady) return;
     populateFromProfile(profile);
   };
 
@@ -306,9 +412,9 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <div className="w-16 h-16 rounded-full overflow-hidden bg-slate-100 border-2 border-amber-400/40 shrink-0 shadow-inner flex items-center justify-center">
-                {avatarUrl ? (
+                {avatarPreviewUrl || avatarUrl ? (
                   <img
-                    src={avatarUrl}
+                    src={avatarPreviewUrl || avatarUrl}
                     alt="Avatar preview"
                     className="w-full h-full object-cover"
                     onError={() => {
@@ -326,11 +432,31 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
                     id={avatarUrlId}
                     type="url"
                     value={avatarUrl}
-                    onChange={(e) => setAvatarUrl(e.target.value)}
+                    onChange={(e) => handleAvatarUrlChange(e.target.value)}
+                    disabled={!profileIsReady}
                     placeholder="https://images.unsplash.com/..."
                     className="w-full px-4 py-2 text-sm rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
                   />
                 </div>
+                <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer transition-colors">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleAvatarFileChange}
+                    disabled={!profileIsReady}
+                    className="sr-only"
+                    aria-label={t("settings.avatarUpload")}
+                  />
+                  {isAvatarUploading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {t("settings.avatarUploading")}
+                    </>
+                  ) : (
+                    t("settings.avatarUpload")
+                  )}
+                </label>
+                <p className="text-xs text-slate-500">{t("settings.avatarUploadRequirements")}</p>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-500">{t("settings.choosePreset")}</span>
                   <div className="flex items-center gap-1.5">
@@ -338,7 +464,11 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
                       <button
                         key={idx}
                         type="button"
-                        onClick={() => setAvatarUrl(url)}
+                        onClick={() => {
+                          invalidateAvatarUpload();
+                          setAvatarUrl(url);
+                        }}
+                        disabled={!profileIsReady}
                         className={`w-7 h-7 rounded-full overflow-hidden border-2 transition-all cursor-pointer ${
                           avatarUrl === url
                             ? "border-amber-500 scale-110 shadow-sm"
@@ -538,7 +668,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
           <button
             type="button"
             onClick={handleReset}
-            disabled={isSubmitting}
+            disabled={!profileIsReady || isSubmitting || isAvatarUploading}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 text-sm font-medium transition-colors cursor-pointer disabled:opacity-50"
           >
             <RotateCcw className="w-4 h-4 text-slate-500" />
@@ -547,7 +677,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
 
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={!profileIsReady || isSubmitting || isAvatarUploading}
             className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-sm font-semibold shadow-md shadow-amber-500/20 hover:shadow-lg transition-all cursor-pointer disabled:opacity-60"
           >
             {isSubmitting ? (

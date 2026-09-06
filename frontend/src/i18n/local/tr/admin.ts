@@ -205,7 +205,7 @@ export default {
   "admin.emailField": "E-posta",
   "admin.phoneField": "Telefon",
   "admin.claimSource": "Talep kaynağı",
-  "admin.importNotClaimable": "İçe aktarma (talep edilemez)",
+  "admin.importNotClaimable": "İçe aktarma (yayındaysa ve sahipsizse talep edilebilir)",
   "admin.merchantNotClaimable": "İşletme sahibi (talep edilemez)",
   "admin.adminCuratedClaimable": "Yönetici seçimi (sahipsizse talep edilebilir)",
   "admin.price": "Fiyat",

@@ -46,7 +46,7 @@ export interface GetEventsOptions extends RequestOptions {
 export interface CreateEventPayload {
   title: string;
   categoryId?: string;
-  category_id?: string;
+  category_id?: string | null;
   eventDate?: string;
   event_date?: string;
   eventTime?: string;
@@ -266,7 +266,7 @@ export class EventsService {
     const combinedDate = payload.event_date
       ? payload.event_date
       : payload.eventDate && payload.eventTime
-        ? `${payload.eventDate}T${payload.eventTime}:00Z`
+        ? new Date(`${payload.eventDate}T${payload.eventTime}:00`).toISOString()
         : payload.eventDate || new Date().toISOString();
 
     const response = await apiClient.post<BackendForumEvent>(

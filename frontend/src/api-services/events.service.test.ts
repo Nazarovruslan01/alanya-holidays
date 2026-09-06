@@ -196,6 +196,7 @@ describe("events.service", () => {
           title: "Sunset Kayak Meetup",
           location: "Cleopatra Beach",
           description: "Kayaking along Cleopatra Beach at dusk.",
+          event_date: new Date("2026-07-10T17:00:00").toISOString(),
           category_id: "11111111-2222-4333-8444-555555555555",
           image_media_id: "11111111-1111-4111-a111-111111111111",
           video_media_id: "22222222-2222-4222-a222-222222222222",

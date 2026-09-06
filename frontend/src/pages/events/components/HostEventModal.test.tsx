@@ -1,7 +1,12 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import HostEventModal from "./HostEventModal";
-import { eventsService, type ForumEvent } from "@/api-services/events.service";
+import {
+  eventsService,
+  type BackendForumEvent,
+  type CreateEventPayload,
+  type ForumEvent,
+} from "@/api-services/events.service";
 import { forumService, type Category } from "@/api-services/forum.service";
 import { storageService } from "@/api-services/storage.service";
 
@@ -143,7 +148,7 @@ describe("HostEventModal", () => {
 
     await waitFor(() => {
       expect(eventsService.createEvent).toHaveBeenCalledWith(
-        expect.objectContaining({ categoryId }),
+        expect.objectContaining({ category_id: categoryId }),
         expect.stringMatching(
           /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
         ),
@@ -151,6 +156,90 @@ describe("HostEventModal", () => {
     });
     expect(onEventCreated).toHaveBeenCalledWith(createdEvent);
     expect(await screen.findByRole("heading", { name: "Event Published!" })).toBeInTheDocument();
+  });
+
+  it("edits an existing event with local datetime fields and preserves its instant", async () => {
+    const onSave = vi.fn(
+      async (_payload: CreateEventPayload, _idempotencyKey: string) => undefined,
+    );
+    const initialEventInstant = new Date(2026, 8, 1, 21, 0, 0, 456).toISOString();
+    const initialEvent: BackendForumEvent = {
+      id: "event-1",
+      title: "Harbour Meetup",
+      description: "Meet the community beside the harbour in Alanya.",
+      location: "Alanya Harbour",
+      event_date: initialEventInstant,
+      category_id: categoryId,
+      category: {
+        id: categoryId,
+        name: "Sports Activities",
+        slug: "events-sports",
+      },
+      image_url: "https://legacy.example/cover.jpg",
+      video_url: "https://legacy.example/clip.mp4",
+      is_published: false,
+    };
+
+    render(
+      <HostEventModal
+        isOpen
+        onClose={vi.fn()}
+        initialEvent={initialEvent}
+        isAdmin
+        onSave={onSave}
+      />,
+    );
+
+    await screen.findByRole("option", { name: "Sports Activities" });
+    expect(screen.getByLabelText("Date")).toHaveValue("2026-09-01");
+    expect(screen.getByLabelText("Time")).toHaveValue("21:00");
+    expect(screen.getByLabelText("Published")).not.toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Save event" }));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_date: initialEventInstant,
+          category_id: categoryId,
+          is_published: false,
+        }),
+        expect.any(String),
+      ),
+    );
+    const payload = onSave.mock.calls[0][0];
+    expect(payload).not.toHaveProperty("image_url");
+    expect(payload).not.toHaveProperty("video_url");
+    expect(payload).not.toHaveProperty("image_media_id");
+    expect(payload).not.toHaveProperty("video_media_id");
+  });
+
+  it("allows a metadata-only edit of a legacy event without a category", async () => {
+    const onSave = vi.fn(
+      async (_payload: CreateEventPayload, _idempotencyKey: string) => undefined,
+    );
+    render(
+      <HostEventModal
+        isOpen
+        onClose={vi.fn()}
+        isAdmin
+        initialEvent={{
+          id: "legacy-event",
+          title: "Old",
+          description: null,
+          location: null,
+          event_date: "2026-09-01T18:00:00.000Z",
+          category_id: null,
+        }}
+        onSave={onSave}
+      />,
+    );
+
+    await screen.findByRole("option", { name: "Sports Activities" });
+    fireEvent.click(screen.getByLabelText("Published"));
+    fireEvent.click(screen.getByRole("button", { name: "Save event" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0][0]).not.toHaveProperty("category_id");
   });
 
   it("keeps valid media local until submit, then persists opaque media IDs", async () => {

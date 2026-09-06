@@ -16,6 +16,8 @@ import {
 import { logger } from "@/lib/logger";
 import { useTranslation } from "react-i18next";
 import LanguageSwitcher from "@/components/common/LanguageSwitcher";
+import { directoryService } from "@/api-services/directory.service";
+import { businessApplicationsService } from "@/api-services/business-applications.service";
 import "@/i18n";
 
 interface NavDropdown {
@@ -23,6 +25,8 @@ interface NavDropdown {
   href?: string;
   children?: { label: string; href: string; icon: string }[];
 }
+
+type BusinessMenuMode = "dashboard" | "register";
 
 const discoverItems = [
   { label: "Explore", href: "/explore", icon: "ri-compass-3-line" },
@@ -87,18 +91,28 @@ export default function Navbar() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
   const [mobileNotificationsOpen, setMobileNotificationsOpen] = useState(false);
+  const [businessMenuAccess, setBusinessMenuAccess] = useState<{
+    userId: string;
+    mode: BusinessMenuMode;
+  } | null>(null);
+  const [businessMenuLoadingUserId, setBusinessMenuLoadingUserId] = useState<string | null>(null);
 
   const desktopDropdownRef = useRef<HTMLDivElement>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
   const notificationDropdownRef = useRef<HTMLDivElement>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const businessMenuRequestIdRef = useRef(0);
+  const businessMenuRequestRef = useRef<{ userId: string; requestId: number } | null>(null);
+  const currentUserIdRef = useRef<string | null>(null);
 
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
   const { totalItems } = useCart();
   const { user, profile, signOut, isAuthenticated } = useAuth();
+
+  currentUserIdRef.current = user?.id ?? null;
 
   const navLabel = (label: string) => {
     const key = NAV_LABEL_KEYS[label];
@@ -142,6 +156,73 @@ export default function Navbar() {
   const newThreadState = canCreateThread
     ? undefined
     : { from: { pathname: "/new-thread" } };
+
+  const isBusinessRole = profile?.role === "host" || profile?.role === "admin";
+  const businessMenuMode: BusinessMenuMode | null = isBusinessRole
+    ? "dashboard"
+    : businessMenuAccess && businessMenuAccess.userId === user?.id
+    ? businessMenuAccess.mode
+    : null;
+
+  useEffect(() => {
+    businessMenuRequestIdRef.current += 1;
+    businessMenuRequestRef.current = null;
+    setBusinessMenuAccess(null);
+    setBusinessMenuLoadingUserId(null);
+    setUserDropdownOpen(false);
+  }, [user?.id, profile?.role]);
+
+  const loadBusinessMenuAccess = () => {
+    const userId = user?.id;
+    if (!userId || isBusinessRole) return;
+    if (businessMenuLoadingUserId === userId) return;
+
+    setBusinessMenuAccess(null);
+    const requestId = ++businessMenuRequestIdRef.current;
+    businessMenuRequestRef.current = { userId, requestId };
+    setBusinessMenuLoadingUserId(userId);
+
+    void Promise.allSettled([
+      directoryService.getMyListings(),
+      directoryService.getMyClaims(),
+      businessApplicationsService.getMine(),
+    ]).then(([listingsResult, claimsResult, applicationResult]) => {
+      if (
+        businessMenuRequestRef.current?.requestId !== requestId ||
+        currentUserIdRef.current !== userId
+      ) {
+        return;
+      }
+
+      const hasOwnedListings =
+        listingsResult.status === "fulfilled" && listingsResult.value.length > 0;
+      const hasClaims = claimsResult.status === "fulfilled" && claimsResult.value.length > 0;
+      const hasApplication =
+        applicationResult.status === "fulfilled" && applicationResult.value !== null;
+      const hasPositiveEvidence = hasOwnedListings || hasClaims || hasApplication;
+      const hasRejectedRequest = [listingsResult, claimsResult, applicationResult].some(
+        (result) => result.status === "rejected",
+      );
+
+      if (hasPositiveEvidence || !hasRejectedRequest) {
+        setBusinessMenuAccess({ userId, mode: hasPositiveEvidence ? "dashboard" : "register" });
+      }
+      setBusinessMenuLoadingUserId(null);
+      businessMenuRequestRef.current = null;
+    });
+  };
+
+  const handleUserDropdownToggle = () => {
+    const nextOpen = !userDropdownOpen;
+    setUserDropdownOpen(nextOpen);
+    if (nextOpen) loadBusinessMenuAccess();
+  };
+
+  const handleMobileMenuToggle = () => {
+    const nextOpen = !mobileOpen;
+    setMobileOpen(nextOpen);
+    if (nextOpen) loadBusinessMenuAccess();
+  };
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -698,7 +779,7 @@ export default function Navbar() {
                 <button
                   aria-expanded={userDropdownOpen}
                   aria-haspopup="true"
-                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                  onClick={handleUserDropdownToggle}
                   className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold cursor-pointer transition-all overflow-hidden ${
                     isSolidNav
                       ? "bg-primary-500 text-white hover:bg-primary-600"
@@ -741,14 +822,18 @@ export default function Navbar() {
                         <i className="ri-bookmark-line w-4 h-4 flex items-center justify-center text-foreground-400"></i>
                         {t("nav.favorites")}
                       </Link>
-                      <Link
-                        to="/business/dashboard"
-                        onClick={() => setUserDropdownOpen(false)}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground-700 hover:bg-background-100 transition-colors cursor-pointer"
-                      >
-                        <i className="ri-store-3-line w-4 h-4 flex items-center justify-center text-foreground-400"></i>
-                        {t("nav.merchantDashboard")}
-                      </Link>
+                      {businessMenuMode && (
+                        <Link
+                          to={businessMenuMode === "dashboard" ? "/business/dashboard" : "/business/register"}
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground-700 hover:bg-background-100 transition-colors cursor-pointer"
+                        >
+                          <i className="ri-store-3-line w-4 h-4 flex items-center justify-center text-foreground-400"></i>
+                          {businessMenuMode === "dashboard"
+                            ? t("nav.merchantDashboard")
+                            : t("public.addBusiness")}
+                        </Link>
+                      )}
                       {profile?.role === "admin" && (
                         <Link
                           to="/admin"
@@ -803,7 +888,7 @@ export default function Navbar() {
               aria-haspopup="true"
               aria-controls="mobile-navigation"
               className="w-10 h-10 flex items-center justify-center cursor-pointer"
-              onClick={() => setMobileOpen(!mobileOpen)}
+              onClick={handleMobileMenuToggle}
               aria-label={mobileOpen ? t("nav.closeMenu") : t("nav.openMenu")}
             >
               <i
@@ -1001,14 +1086,18 @@ export default function Navbar() {
                     <i className="ri-bookmark-line mr-1.5"></i>
                     {t("nav.favorites")}
                   </Link>
-                  <Link
-                    to="/business/dashboard"
-                    className="block text-center text-sm font-medium py-2.5 rounded-full border border-foreground-200 text-foreground-700"
-                    onClick={closeAllMobile}
-                  >
-                    <i className="ri-store-3-line mr-1.5"></i>
-                    {t("nav.merchantDashboard")}
-                  </Link>
+                  {businessMenuMode && (
+                    <Link
+                      to={businessMenuMode === "dashboard" ? "/business/dashboard" : "/business/register"}
+                      className="block text-center text-sm font-medium py-2.5 rounded-full border border-foreground-200 text-foreground-700"
+                      onClick={closeAllMobile}
+                    >
+                      <i className="ri-store-3-line mr-1.5"></i>
+                      {businessMenuMode === "dashboard"
+                        ? t("nav.merchantDashboard")
+                        : t("public.addBusiness")}
+                    </Link>
+                  )}
                   {profile?.role === "admin" && (
                     <Link
                       to="/admin"

@@ -14,7 +14,9 @@ DECLARE
     v_response JSONB;
     v_retry JSONB;
     v_items JSONB;
+    v_recipient JSONB;
     v_request_payload JSONB;
+    v_guest_access_token_hash TEXT := repeat('a', 64);
     v_stock INTEGER;
     v_count INTEGER;
     v_conflict BOOLEAN;
@@ -31,6 +33,13 @@ BEGIN
     VALUES (v_product_id, 'Blue', '{}'::JSONB, 25, 5)
     RETURNING id INTO v_sku_id;
 
+    v_recipient := jsonb_build_object(
+        'name', 'Guest',
+        'email', 'guest@example.com',
+        'phone', '+905551234567',
+        'address', '10 Harbour Road',
+        'contact_method', 'email'
+    );
     v_items := jsonb_build_array(jsonb_build_object(
         'product_id', v_product_id::TEXT,
         'product_name', 'Lifecycle verification product',
@@ -45,16 +54,17 @@ BEGIN
         'currency', 'EUR',
         'subtotal', 50,
         'customerNotes', NULL,
-        'recipient', jsonb_build_object('name', 'Guest', 'email', 'guest@example.com'),
+        'recipient', v_recipient,
         'items', v_items
     );
 
     v_response := public.create_product_order(
         'EUR', 50, NULL, NULL,
-        jsonb_build_object('name', 'Guest', 'email', 'guest@example.com'),
+        v_recipient,
         v_items,
         '11111111-1111-4111-8111-111111111111',
-        v_request_payload
+        v_request_payload,
+        v_guest_access_token_hash
     );
     v_order_id := (v_response->>'data')::BIGINT;
 
@@ -81,10 +91,11 @@ BEGIN
 
     v_retry := public.create_product_order(
         'EUR', 50, NULL, NULL,
-        jsonb_build_object('name', 'Guest', 'email', 'guest@example.com'),
+        v_recipient,
         v_items,
         '11111111-1111-4111-8111-111111111111',
-        v_request_payload
+        v_request_payload,
+        v_guest_access_token_hash
     );
     IF (v_retry->>'data')::BIGINT <> v_order_id THEN
         RAISE EXCEPTION 'same idempotency request did not return the same order';
@@ -97,7 +108,8 @@ BEGIN
     v_retry := public.get_product_order_replay(
         '11111111-1111-4111-8111-111111111111',
         NULL,
-        v_request_payload
+        v_request_payload,
+        v_guest_access_token_hash
     );
     IF (v_retry->>'data')::BIGINT <> v_order_id THEN
         RAISE EXCEPTION 'preflight replay did not return the original order';
@@ -108,7 +120,8 @@ BEGIN
         PERFORM public.get_product_order_replay(
             '11111111-1111-4111-8111-111111111111',
             NULL,
-            v_request_payload || jsonb_build_object('subtotal', 51)
+            v_request_payload || jsonb_build_object('subtotal', 51),
+            v_guest_access_token_hash
         );
     EXCEPTION WHEN unique_violation THEN
         v_conflict := SQLERRM = 'Idempotency key conflict';
@@ -122,7 +135,8 @@ BEGIN
         PERFORM public.get_product_order_replay(
             '11111111-1111-4111-8111-111111111111',
             '22222222-2222-4222-8222-222222222222',
-            v_request_payload
+            v_request_payload,
+            NULL
         );
     EXCEPTION WHEN unique_violation THEN
         v_conflict := SQLERRM = 'Idempotency key conflict';
@@ -158,7 +172,7 @@ BEGIN
     -- restores stock before fulfillment commits it.
     v_response := public.create_product_order(
         'EUR', 25, NULL, NULL,
-        jsonb_build_object('name', 'Guest', 'email', 'guest@example.com'),
+        v_recipient,
         jsonb_build_array(jsonb_build_object(
             'product_id', v_product_id::TEXT,
             'product_name', 'Lifecycle verification product',
@@ -169,9 +183,14 @@ BEGIN
             'subtotal', 25
         )),
         '33333333-3333-4333-8333-333333333333',
-        jsonb_build_object('request', 'paid-order')
+        jsonb_build_object('request', 'paid-order'),
+        repeat('b', 64)
     );
     v_paid_order_id := (v_response->>'data')::BIGINT;
+    PERFORM public.confirm_product_order_delivery_quote(
+        v_paid_order_id, 0, 'No delivery charge'
+    );
+    PERFORM public.select_product_order_manual_payment(v_paid_order_id);
     PERFORM public.transition_product_order_status(
         v_paid_order_id, 'pending_payment', 'paid'
     );
@@ -212,7 +231,7 @@ BEGIN
     -- string "expired".
     v_response := public.create_product_order(
         'EUR', 75, NULL, NULL,
-        jsonb_build_object('name', 'Guest', 'email', 'guest@example.com'),
+        v_recipient,
         jsonb_build_array(jsonb_build_object(
             'product_id', v_product_id::TEXT,
             'product_name', 'Lifecycle verification product',
@@ -223,7 +242,8 @@ BEGIN
             'subtotal', 75
         )),
         '44444444-4444-4444-8444-444444444444',
-        jsonb_build_object('request', 'expiring-order')
+        jsonb_build_object('request', 'expiring-order'),
+        repeat('c', 64)
     );
     v_expiring_order_id := (v_response->>'data')::BIGINT;
     UPDATE public.order_headers
@@ -276,7 +296,7 @@ BEGIN
     v_conflict := FALSE;
     BEGIN
         PERFORM public.create_product_order(
-            'EUR', 25, NULL, NULL, '{}'::JSONB,
+            'EUR', 25, NULL, NULL, v_recipient,
             jsonb_build_array(jsonb_build_object(
                 'product_id', v_product_id::TEXT,
                 'product_name', 'Invalid quantity',
@@ -284,10 +304,11 @@ BEGIN
                 'unit_price', 25,
                 'final_price', 25,
                 'subtotal', 25
-            ))
+            )),
+            NULL, NULL, repeat('d', 64)
         );
     EXCEPTION WHEN raise_exception THEN
-        v_conflict := SQLERRM = 'Invalid order quantity';
+        v_conflict := SQLERRM = 'Invalid order item';
     END;
     IF NOT v_conflict THEN
         RAISE EXCEPTION 'fractional quantity was accepted';
@@ -296,7 +317,7 @@ BEGIN
     v_conflict := FALSE;
     BEGIN
         PERFORM public.create_product_order(
-            'EUR', 25, NULL, NULL, '{}'::JSONB,
+            'EUR', 25, NULL, NULL, v_recipient,
             jsonb_build_array(jsonb_build_object(
                 'product_id', v_other_product_id::TEXT,
                 'product_name', 'Wrong SKU product',
@@ -305,7 +326,8 @@ BEGIN
                 'unit_price', 25,
                 'final_price', 25,
                 'subtotal', 25
-            ))
+            )),
+            NULL, NULL, repeat('d', 64)
         );
     EXCEPTION WHEN raise_exception THEN
         v_conflict := SQLERRM = 'SKU unavailable for product';

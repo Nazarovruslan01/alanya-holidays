@@ -3,6 +3,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminContentLibraryTab from '../components/AdminContentLibraryTab';
 import { adminContentService } from '@/api-services/admin-content.service';
 import { storageService } from '@/api-services/storage.service';
+import { forumService, type Category } from '@/api-services/forum.service';
+
+vi.mock('@/api-services/forum.service', () => ({
+  forumService: {
+    getCategories: vi.fn(),
+  },
+}));
+
+vi.mock('@/context/AuthContext', () => ({
+  useAuth: () => ({ user: { id: 'admin-1' } }),
+}));
 
 vi.mock('@/api-services/storage.service', () => ({
   storageService: {
@@ -37,6 +48,10 @@ describe('AdminContentLibraryTab', () => {
         id: 'event-1',
         title: 'Harbour Meetup',
         event_date: '2026-09-01T18:00:00Z',
+        description: 'Meet the community beside the harbour in Alanya.',
+        location: 'Alanya Harbour',
+        category_id: 'category-1',
+        category: { id: 'category-1', name: 'Community', slug: 'community' },
         image_url: 'https://legacy.example/cover.jpg',
         video_url: 'https://legacy.example/clip.mp4',
       },
@@ -71,6 +86,9 @@ describe('AdminContentLibraryTab', () => {
       url: 'https://project.example/new-video.mp4',
     });
     vi.mocked(storageService.abandonEventMedia).mockResolvedValue(undefined);
+    vi.mocked(forumService.getCategories).mockResolvedValue([
+      { id: 'category-1', name: 'Community', slug: 'community' } as Category,
+    ]);
   });
 
   it('creates and deletes an article with explicit confirmation', async () => {
@@ -104,9 +122,15 @@ describe('AdminContentLibraryTab', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Events' }));
     expect(await screen.findByText('Harbour Meetup')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /create events/i }));
-    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'New Event' } });
-    fireEvent.change(screen.getByLabelText('Date and time'), { target: { value: '2026-09-02T18:00' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.change(screen.getByLabelText('Event title'), { target: { value: 'New Event' } });
+    fireEvent.change(await screen.findByLabelText('Category'), { target: { value: 'category-1' } });
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-09-02' } });
+    fireEvent.change(screen.getByLabelText('Time'), { target: { value: '18:00' } });
+    fireEvent.change(screen.getByLabelText('Location'), { target: { value: 'Alanya Harbour' } });
+    fireEvent.change(screen.getByLabelText('Description'), {
+      target: { value: 'Meet the community beside the harbour in Alanya.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save event' }));
     await waitFor(() =>
       expect(adminContentService.createEvent).toHaveBeenCalledWith(
         expect.objectContaining({ title: 'New Event' }),
@@ -114,6 +138,9 @@ describe('AdminContentLibraryTab', () => {
           /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
         ),
       ),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
     );
 
     fireEvent.click(screen.getByRole('tab', { name: 'Directory Listings' }));
@@ -151,10 +178,13 @@ describe('AdminContentLibraryTab', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Events' }));
     await screen.findByText('Harbour Meetup');
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
-    fireEvent.change(screen.getByLabelText('Title'), {
+    await screen.findByRole('option', { name: 'Community' });
+    fireEvent.change(screen.getByLabelText('Event title'), {
       target: { value: 'Updated harbour meetup' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    const saveMetadataButton = screen.getByRole('button', { name: 'Save event' });
+    await waitFor(() => expect(saveMetadataButton).toBeEnabled());
+    fireEvent.click(saveMetadataButton);
 
     await waitFor(() => expect(adminContentService.updateEvent).toHaveBeenCalled());
     const metadataPayload = vi.mocked(adminContentService.updateEvent).mock
@@ -163,7 +193,11 @@ describe('AdminContentLibraryTab', () => {
     expect(metadataPayload).not.toHaveProperty('video_url');
     expect(metadataPayload).not.toHaveProperty('image_media_id');
     expect(metadataPayload).not.toHaveProperty('video_media_id');
+    expect(metadataPayload.event_date).toBe('2026-09-01T18:00:00Z');
 
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
     const replacement = new File(['cover'], 'cover.png', {
       type: 'image/png',
@@ -172,7 +206,9 @@ describe('AdminContentLibraryTab', () => {
       target: { files: [replacement] },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Remove event video' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    const saveMediaButton = screen.getByRole('button', { name: 'Save event' });
+    await waitFor(() => expect(saveMediaButton).toBeEnabled());
+    fireEvent.click(saveMediaButton);
 
     await waitFor(() =>
       expect(adminContentService.updateEvent).toHaveBeenLastCalledWith(
@@ -209,18 +245,30 @@ describe('AdminContentLibraryTab', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Events' }));
     await screen.findByText('Harbour Meetup');
     fireEvent.click(screen.getByRole('button', { name: /create events/i }));
-    const title = screen.getByLabelText('Title');
+    const title = screen.getByLabelText('Event title');
     const image = screen.getByLabelText('Event cover image');
     fireEvent.change(title, { target: { value: 'New Event' } });
-    fireEvent.change(screen.getByLabelText('Date and time'), {
-      target: { value: '2026-09-02T18:00' },
+    fireEvent.change(await screen.findByLabelText('Category'), {
+      target: { value: 'category-1' },
+    });
+    fireEvent.change(screen.getByLabelText('Date'), {
+      target: { value: '2026-09-02' },
+    });
+    fireEvent.change(screen.getByLabelText('Time'), {
+      target: { value: '18:00' },
+    });
+    fireEvent.change(screen.getByLabelText('Location'), {
+      target: { value: 'Alanya Harbour' },
+    });
+    fireEvent.change(screen.getByLabelText('Description'), {
+      target: { value: 'Meet the community beside the harbour in Alanya.' },
     });
     fireEvent.change(image, {
       target: {
         files: [new File(['cover'], 'cover.png', { type: 'image/png' })],
       },
     });
-    const form = screen.getByRole('button', { name: 'Save' }).closest(
+    const form = screen.getByRole('button', { name: 'Save event' }).closest(
       'form',
     ) as HTMLFormElement;
 
@@ -229,6 +277,8 @@ describe('AdminContentLibraryTab', () => {
       expect(adminContentService.createEvent).toHaveBeenCalledTimes(1),
     );
     const firstCall = vi.mocked(adminContentService.createEvent).mock.calls[0];
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
     fireEvent.change(title, { target: { value: 'Changed while pending' } });
     fireEvent.change(image, {
       target: {
@@ -240,7 +290,7 @@ describe('AdminContentLibraryTab', () => {
     expect(adminContentService.createEvent).toHaveBeenCalledTimes(1);
     expect(storageService.abandonEventMedia).not.toHaveBeenCalled();
     rejectCreation?.(new Error('network response lost'));
-    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    await screen.findByText('Could not save this event right now. Please try again.');
     fireEvent.submit(form);
 
     await waitFor(() =>
