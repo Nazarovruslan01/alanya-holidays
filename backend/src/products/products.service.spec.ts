@@ -836,6 +836,7 @@ describe('ProductsService', () => {
           price: 12.5,
           currency: 'EUR',
           stock: 0,
+          media: [],
         }),
         'seller-1',
       );
