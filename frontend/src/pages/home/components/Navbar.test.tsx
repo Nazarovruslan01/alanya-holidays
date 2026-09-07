@@ -199,16 +199,16 @@ describe("Navbar Component (Milestone 5 — R4)", () => {
     expect(brandImage?.parentElement).not.toHaveClass("bg-white");
   });
 
-  it("shows only the brand mark on narrow mobile widths", () => {
+  it("shows the brand name beside the mark with a compact mobile line break", () => {
     render(
       <MemoryRouter>
         <Navbar />
       </MemoryRouter>
     );
 
-    const brandText = screen.getByText("Alanya Holidays");
-    expect(brandText).toHaveClass("hidden", "sm:block");
-    expect(brandText).not.toHaveClass("block");
+    const brandText = screen.getByText("Alanya");
+    expect(brandText).not.toHaveClass("hidden");
+    expect(screen.getByText("Holidays")).toHaveClass("block", "sm:inline");
     expect(screen.getByRole("link", { name: "Alanya Holidays" }).querySelector("img")).toBeInTheDocument();
   });
 

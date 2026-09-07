@@ -562,11 +562,11 @@ export default function Navbar() {
               />
             </div>
             <span
-              className={`hidden truncate font-heading text-lg font-bold transition-colors sm:block sm:text-xl 2xl:text-2xl ${
+              className={`min-w-0 font-heading text-sm leading-tight font-bold transition-colors sm:truncate sm:text-xl 2xl:text-2xl ${
                 isSolidNav ? "text-foreground-900" : "text-white"
               }`}
             >
-              Alanya Holidays
+              Alanya{" "}<span className="block sm:inline">Holidays</span>
             </span>
           </Link>
 

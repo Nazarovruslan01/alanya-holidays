@@ -307,7 +307,7 @@ export default function BusinessDetailPage() {
       <Navbar />
       <main>
         {/* Hero Section */}
-        <section className="relative w-full h-[350px] md:h-[480px] overflow-hidden">
+        <section className="relative flex items-end w-full min-h-[350px] md:min-h-[480px] overflow-hidden">
           <img
             src={business.image}
             alt={business.name}
@@ -315,10 +315,10 @@ export default function BusinessDetailPage() {
           />
           <div className="absolute inset-0 bg-gradient-to-t from-foreground-950/80 via-foreground-950/40 to-foreground-950/30"></div>
 
-          <div className="absolute bottom-0 left-0 right-0 w-full px-4 md:px-8 lg:px-12 pb-8 md:pb-12">
+          <div className="relative w-full px-4 md:px-8 lg:px-12 pt-24 md:pt-28 pb-8 md:pb-12">
             <div className="max-w-7xl mx-auto">
               {/* Breadcrumb */}
-              <div className="flex items-center gap-2 mb-4">
+              <div className="flex flex-wrap items-center gap-2 mb-4">
                 <Link to="/" className="text-white/50 hover:text-white/80 text-xs transition-colors underline underline-offset-2">{t("nav.home")}</Link>
                 <i className="ri-arrow-right-s-line text-white/30 text-xs"></i>
                 <Link to="/explore" className="text-white/50 hover:text-white/80 text-xs transition-colors underline underline-offset-2">{t("public.businessDirectory")}</Link>
