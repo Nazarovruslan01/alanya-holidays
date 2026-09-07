@@ -585,15 +585,16 @@ describe("directory.service", () => {
         category: "restaurants",
       });
 
-      expect(apiClient.post).toHaveBeenCalledWith("/directory/draft", {
-        listing: expect.objectContaining({
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/directory/draft",
+        expect.objectContaining({
           name: "Draft Cafe",
           category_id: "restaurants",
           status: "draft",
-        }),
-        draftId: undefined,
-        locationIds: [],
-      });
+          draftId: undefined,
+          locationIds: [],
+        })
+      );
       expect(result.id).toBe("draft-123");
       expect(result.name).toBe("Draft Cafe");
       expect(result.status).toBe("draft");
@@ -613,14 +614,15 @@ describe("directory.service", () => {
         "draft-456"
       );
 
-      expect(apiClient.post).toHaveBeenCalledWith("/directory/draft", {
-        listing: expect.objectContaining({
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/directory/draft",
+        expect.objectContaining({
           name: "Updated Draft Cafe",
           status: "draft",
-        }),
-        draftId: "draft-456",
-        locationIds: [],
-      });
+          draftId: "draft-456",
+          locationIds: [],
+        })
+      );
       expect(result.id).toBe("draft-456");
     });
   });

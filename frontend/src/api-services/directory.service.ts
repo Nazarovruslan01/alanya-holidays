@@ -656,7 +656,7 @@ export class DirectoryService {
     draftId?: string
   ): Promise<Business> {
     const response = await apiClient.post<DirectoryListingRecord>("/directory/draft", {
-      listing: this.buildListingFields(input, "draft"),
+      ...this.buildListingFields(input, "draft"),
       draftId,
       locationIds: [],
     });
