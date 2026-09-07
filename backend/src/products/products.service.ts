@@ -675,7 +675,7 @@ export class ProductsService {
         price: dto.price,
         currency: dto.currency || 'EUR',
         stock: dto.stock ?? 0,
-        media: dto.media ?? null,
+        media: dto.media ?? [],
         category_id: dto.category_id ?? null,
       },
       sellerId,
