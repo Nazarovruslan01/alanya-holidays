@@ -48,6 +48,7 @@ export class ReviewsController {
       body.rating,
       body.comment,
       user.id,
+      { title: body.title, visit_type: body.visit_type },
     );
   }
 

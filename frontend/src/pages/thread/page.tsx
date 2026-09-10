@@ -203,10 +203,10 @@ export default function ThreadPage() {
       } else {
         setReplies((prev) => [...prev, newReply]);
       }
+      setReplyTarget(null);
     } catch (err) {
       logger.warn("Failed to submit reply:", err);
-    } finally {
-      setReplyTarget(null);
+      throw err;
     }
   };
 

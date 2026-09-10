@@ -60,6 +60,8 @@ describe('AdminContentLibraryTab', () => {
       {
         id: 'listing-1',
         name: 'Castle Cafe',
+        description: null,
+        short_description: 'A welcoming cafe by the castle.',
         category_id: 'restaurants',
         creation_source: 'import',
         gallery: ['https://example.com/castle-1.jpg', 'https://example.com/castle-2.jpg'],
@@ -352,6 +354,58 @@ describe('AdminContentLibraryTab', () => {
             'https://example.com/castle-2.jpg',
           ],
         }),
+      ),
+    );
+  });
+
+  it('uses a listing short description when the full description is absent', async () => {
+    render(<AdminContentLibraryTab />);
+    await screen.findByText('Alanya Guide');
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Directory Listings' }));
+    await screen.findByText('Castle Cafe');
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+    expect(screen.getByLabelText('Description')).toHaveValue('A welcoming cafe by the castle.');
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(adminContentService.updateListing).toHaveBeenCalledWith(
+        'listing-1',
+        expect.objectContaining({
+          description: 'A welcoming cafe by the castle.',
+          short_description: 'A welcoming cafe by the castle.',
+        }),
+      ),
+    );
+  });
+
+  it('preserves an explicit empty listing description instead of falling back', async () => {
+    vi.mocked(adminContentService.listListings).mockResolvedValueOnce([
+      {
+        id: 'listing-empty-description',
+        name: 'Empty Description Cafe',
+        description: '',
+        short_description: 'Fallback should not be used',
+        category_id: 'restaurants',
+        creation_source: 'import',
+        gallery: [],
+      },
+    ]);
+
+    render(<AdminContentLibraryTab />);
+    await screen.findByText('Alanya Guide');
+    fireEvent.click(screen.getByRole('tab', { name: 'Directory Listings' }));
+    await screen.findByText('Empty Description Cafe');
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+    expect(screen.getByLabelText('Description')).toHaveValue('');
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(adminContentService.updateListing).toHaveBeenCalledWith(
+        'listing-empty-description',
+        expect.objectContaining({ description: '', short_description: '' }),
       ),
     );
   });

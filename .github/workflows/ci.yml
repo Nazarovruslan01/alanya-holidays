@@ -156,6 +156,30 @@ jobs:
         done
         echo "✓ All migrations successfully applied."
 
+    - name: Verify Blog Submission Updates and Resubmission
+      env:
+        PGPASSWORD: postgrespassword
+      run: |
+        psql -h localhost -U postgres -d alanya_holidays -v ON_ERROR_STOP=1 -v apply_fix=true -f supabase/tests/blog_submission_resubmission_and_updated_at.sql
+
+    - name: Verify Listing Claim Optional-Field Preservation
+      env:
+        PGPASSWORD: postgrespassword
+      run: |
+        psql -h localhost -U postgres -d alanya_holidays -v ON_ERROR_STOP=1 -v apply_fix=true -f supabase/tests/listing_claim_optional_fields_preservation.sql
+
+    - name: Verify Forum Notification Legacy Types
+      env:
+        PGPASSWORD: postgrespassword
+      run: |
+        psql -h localhost -U postgres -d alanya_holidays -v ON_ERROR_STOP=1 -v apply_fix=true -f supabase/tests/forum_notification_legacy_types.sql
+
+    - name: Verify Listing Review Metadata
+      env:
+        PGPASSWORD: postgrespassword
+      run: |
+        psql -h localhost -U postgres -d alanya_holidays -v ON_ERROR_STOP=1 -v apply_fix=true -f supabase/tests/listing_review_metadata.sql
+
     - name: Execute RLS Security Verification
       env:
         PGPASSWORD: postgrespassword

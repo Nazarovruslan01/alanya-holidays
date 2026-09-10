@@ -27,7 +27,7 @@ describe("useListingDraft Hook", () => {
     expect(result.current.draftId).toBeNull();
   });
 
-  it("detects existing draft in localStorage on mount", () => {
+  it("detects an existing legacy draft in localStorage on mount", () => {
     const savedData = {
       formData: {
         name: "Restored Beach Cafe",
@@ -128,7 +128,7 @@ describe("useListingDraft Hook", () => {
 
     vi.spyOn(directoryService, "saveDraft").mockResolvedValueOnce(mockBiz as any);
 
-    const { result } = renderHook(() => useListingDraft({ userId: mockUserId }));
+    const { result, unmount } = renderHook(() => useListingDraft({ userId: mockUserId }));
 
     act(() => {
       result.current.updateField("name", "Cloud Synced Cafe");
@@ -146,5 +146,38 @@ describe("useListingDraft Hook", () => {
     expect(result.current.draftId).toBe("new-cloud-draft-id");
     expect(result.current.isDirty).toBe(false);
     expect(savedBiz.id).toBe("new-cloud-draft-id");
+
+    unmount();
+    const { result: remounted } = renderHook(() => useListingDraft({ userId: mockUserId }));
+    expect(remounted.current.hasLocalDraft).toBe(false);
+  });
+
+  it("recovers an edit made after a cloud save when closed before debounce", async () => {
+    vi.spyOn(directoryService, "saveDraft").mockResolvedValueOnce({
+      id: "cloud-draft-with-newer-edit",
+    } as any);
+
+    const { result, unmount } = renderHook(() =>
+      useListingDraft({ userId: mockUserId, debounceMs: 500 })
+    );
+
+    act(() => {
+      result.current.updateField("name", "Cloud Snapshot");
+    });
+    await act(async () => {
+      await result.current.saveToCloud();
+    });
+
+    act(() => {
+      result.current.updateField("name", "Edited After Save");
+    });
+    unmount();
+
+    const { result: remounted } = renderHook(() => useListingDraft({ userId: mockUserId }));
+    expect(remounted.current.hasLocalDraft).toBe(true);
+    act(() => {
+      remounted.current.restoreLocalDraft();
+    });
+    expect(remounted.current.draft.name).toBe("Edited After Save");
   });
 });

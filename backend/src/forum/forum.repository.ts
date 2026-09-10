@@ -24,7 +24,7 @@ import {
 
 const POST_SELECT = `
     *,
-    category:forum_categories(id, name, slug, description, sort_order, parent_id, icon, image_url, accent, created_at, parent:forum_categories(id, name, slug, description, icon, image_url, accent)),
+    category:forum_categories(id, name, slug, description, sort_order, parent_id, icon, image_url, accent, created_at),
     author:profiles!forum_posts_author_id_fkey(full_name, avatar_url, bio, role, created_at)
 `;
 

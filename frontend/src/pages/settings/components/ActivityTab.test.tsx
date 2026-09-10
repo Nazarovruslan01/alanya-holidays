@@ -10,8 +10,16 @@ import { FavoritesList } from "./FavoritesList";
 import { ForumActivityList } from "./ForumActivityList";
 import { ordersService } from "@/api-services/orders.service";
 import { bookingsService } from "@/api-services/bookings.service";
-import { forumService } from "@/api-services/forum.service";
+import { forumService, type CategoryThread } from "@/api-services/forum.service";
 import { directoryService } from "@/api-services/directory.service";
+
+const authState = vi.hoisted(() => ({
+  user: { id: "user-1" } as { id: string } | null,
+}));
+
+vi.mock("@/context/AuthContext", () => ({
+  useAuth: () => authState,
+}));
 
 // Mock API services
 vi.mock("@/api-services/orders.service", () => ({
@@ -59,6 +67,8 @@ vi.mock("@/hooks/useFavorites", () => ({
 describe("Activity Hub (Milestone 4 — R3)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(forumService.getThreads).mockReset();
+    authState.user = { id: "user-1" };
     mockFavoritesSet = new Set<string>();
     vi.spyOn(window, "confirm").mockReturnValue(true);
   });
@@ -362,6 +372,7 @@ describe("Activity Hub (Milestone 4 — R3)", () => {
         threads: [
           {
             id: "th-best-beaches",
+            slug: "hidden-beaches",
             title: "Top 5 Hidden Beaches around Alanya Castle",
             category: "Beaches & Nature",
             categoryId: "beaches",
@@ -394,6 +405,189 @@ describe("Activity Hub (Milestone 4 — R3)", () => {
       expect(screen.getByText(/420/i)).toBeInTheDocument();
       expect(screen.getByText(/35/i)).toBeInTheDocument();
       expect(screen.getByText(/18/i)).toBeInTheDocument();
+    });
+
+    it("requests only the signed-in user's threads and links to each thread", async () => {
+      vi.mocked(forumService.getThreads).mockResolvedValue({
+        threads: [
+          {
+            id: "thread-with-slug",
+            slug: "my-beach-guide",
+            title: "My beach guide",
+            category: "Beaches",
+            categoryId: "beaches",
+            author: "Member",
+            authorAvatar: "",
+            replies: 1,
+            views: 2,
+            likes: 3,
+            postedAt: "today",
+            isHot: false,
+            isPinned: false,
+            isVerified: false,
+            excerpt: "",
+          },
+          {
+            id: "thread-without-slug",
+            title: "My second thread",
+            category: "Travel",
+            categoryId: "travel",
+            author: "Member",
+            authorAvatar: "",
+            replies: 4,
+            views: 5,
+            likes: 6,
+            postedAt: "today",
+            isHot: false,
+            isPinned: false,
+            isVerified: false,
+            excerpt: "",
+          },
+        ],
+        total: 2,
+      });
+
+      render(
+        <MemoryRouter>
+          <ForumActivityList />
+        </MemoryRouter>,
+      );
+
+      expect(await screen.findByText("My beach guide")).toBeInTheDocument();
+      expect(forumService.getThreads).toHaveBeenCalledWith(
+        expect.objectContaining({ params: { authorId: "user-1" } }),
+      );
+      expect(screen.getAllByRole("link", { name: "My beach guide" })[0]).toHaveAttribute(
+        "href",
+        "/thread/my-beach-guide",
+      );
+      expect(screen.getAllByRole("link", { name: "My second thread" })[0]).toHaveAttribute(
+        "href",
+        "/thread/thread-without-slug",
+      );
+      expect(screen.queryAllByRole("link", { name: "Open Thread" })[0]).toHaveAttribute(
+        "href",
+        "/thread/my-beach-guide",
+      );
+    });
+
+    it("does not load a general feed when no user is present", async () => {
+      authState.user = null;
+
+      render(
+        <MemoryRouter>
+          <ForumActivityList />
+        </MemoryRouter>,
+      );
+
+      expect(screen.getByText(/No forum discussions yet/i)).toBeInTheDocument();
+      expect(forumService.getThreads).not.toHaveBeenCalled();
+    });
+
+    it("ignores a late retry response after the user changes", async () => {
+      let rejectInitial!: (error: Error) => void;
+      let resolveRetry!: (value: { threads: CategoryThread[]; total: number }) => void;
+      let resolveNewUser!: (value: { threads: CategoryThread[]; total: number }) => void;
+      const initialRequest = new Promise<{ threads: CategoryThread[]; total: number }>((_, reject) => {
+        rejectInitial = reject;
+      });
+      const retryRequest = new Promise<{ threads: CategoryThread[]; total: number }>((resolve) => {
+        resolveRetry = resolve;
+      });
+      const newUserRequest = new Promise<{ threads: CategoryThread[]; total: number }>((resolve) => {
+        resolveNewUser = resolve;
+      });
+      vi.mocked(forumService.getThreads).mockImplementation((options) => {
+        const authorId = options?.params?.authorId;
+        if (authorId === "user-2") return newUserRequest;
+        return vi.mocked(forumService.getThreads).mock.calls.length === 1
+          ? initialRequest
+          : retryRequest;
+      });
+
+      const view = render(
+        <MemoryRouter>
+          <ForumActivityList />
+        </MemoryRouter>,
+      );
+
+      rejectInitial(new Error("offline"));
+      const retry = await screen.findByRole("button", { name: /retry/i });
+      fireEvent.click(retry);
+      await waitFor(() => expect(forumService.getThreads).toHaveBeenCalledTimes(2));
+
+      authState.user = { id: "user-2" };
+      view.rerender(
+        <MemoryRouter>
+          <ForumActivityList />
+        </MemoryRouter>,
+      );
+      await waitFor(() => expect(forumService.getThreads).toHaveBeenCalledTimes(3));
+
+      const newUserThread = {
+        id: "new-user-thread",
+        title: "New user's thread",
+        category: "Travel",
+        categoryId: "travel",
+        author: "New user",
+        authorAvatar: "",
+        replies: 0,
+        views: 0,
+        likes: 0,
+        postedAt: "today",
+        isHot: false,
+        excerpt: "",
+      } satisfies CategoryThread;
+      const oldRetryThread = { ...newUserThread, id: "old-retry-thread", title: "Old retry thread" };
+      resolveNewUser({ threads: [newUserThread], total: 1 });
+      expect(await screen.findByText("New user's thread")).toBeInTheDocument();
+      resolveRetry({ threads: [oldRetryThread], total: 1 });
+      await waitFor(() => expect(screen.queryByText("Old retry thread")).not.toBeInTheDocument());
+      expect(screen.getByText("New user's thread")).toBeInTheDocument();
+    });
+
+    it("ignores a late generic retry rejection after the user changes", async () => {
+      let rejectInitial!: (error: Error) => void;
+      let rejectRetry!: (error: Error) => void;
+      let resolveNewUser!: (value: { threads: CategoryThread[]; total: number }) => void;
+      const initialRequest = new Promise<{ threads: CategoryThread[]; total: number }>((_, reject) => {
+        rejectInitial = reject;
+      });
+      const retryRequest = new Promise<{ threads: CategoryThread[]; total: number }>((_, reject) => {
+        rejectRetry = reject;
+      });
+      const newUserRequest = new Promise<{ threads: CategoryThread[]; total: number }>((resolve) => {
+        resolveNewUser = resolve;
+      });
+      vi.mocked(forumService.getThreads).mockImplementation((options) => {
+        const authorId = options?.params?.authorId;
+        if (authorId === "user-2") return newUserRequest;
+        return vi.mocked(forumService.getThreads).mock.calls.length === 1
+          ? initialRequest
+          : retryRequest;
+      });
+
+      const view = render(
+        <MemoryRouter>
+          <ForumActivityList />
+        </MemoryRouter>,
+      );
+      rejectInitial(new Error("offline"));
+      fireEvent.click(await screen.findByRole("button", { name: /retry/i }));
+      await waitFor(() => expect(forumService.getThreads).toHaveBeenCalledTimes(2));
+
+      authState.user = { id: "user-2" };
+      view.rerender(
+        <MemoryRouter>
+          <ForumActivityList />
+        </MemoryRouter>,
+      );
+      await waitFor(() => expect(forumService.getThreads).toHaveBeenCalledTimes(3));
+      resolveNewUser({ threads: [], total: 0 });
+      expect(await screen.findByText(/No forum discussions yet/i)).toBeInTheDocument();
+      rejectRetry(new Error("late stale failure"));
+      await waitFor(() => expect(screen.getByText(/No forum discussions yet/i)).toBeInTheDocument());
+      expect(screen.queryByRole("button", { name: /retry/i })).not.toBeInTheDocument();
     });
   });
 

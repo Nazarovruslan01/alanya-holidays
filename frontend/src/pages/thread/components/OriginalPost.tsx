@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { forumService, type ThreadDetail } from "@/api-services/forum.service";
 import { deleteForumImage, uploadForumImage } from "@/api-services/storage.service";
 import { sanitizeForumHtml } from "@/utils/sanitizeHtml";
@@ -44,6 +44,8 @@ export default function OriginalPost({
   const [isSaving, setIsSaving] = useState(false);
   const [mediaUploadPending, setMediaUploadPending] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(Boolean(thread.isBookmarked));
+  const [isBookmarkPending, setIsBookmarkPending] = useState(false);
+  const bookmarkRequestPending = useRef(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   useEffect(() => {
@@ -140,17 +142,24 @@ export default function OriginalPost({
   };
 
   const handleToggleBookmark = async () => {
-    const nextState = !isBookmarked;
-    setIsBookmarked(nextState);
+    if (bookmarkRequestPending.current) return;
+    bookmarkRequestPending.current = true;
+    setIsBookmarkPending(true);
+    const previousState = isBookmarked;
     try {
       if (onBookmark) {
+        setIsBookmarked(!previousState);
         onBookmark();
       } else {
-        await forumService.toggleBookmark(thread.id);
+        const { bookmarked } = await forumService.toggleBookmark(thread.id);
+        setIsBookmarked(bookmarked);
       }
     } catch (err) {
       logger.warn("Failed to toggle bookmark:", err);
-      setIsBookmarked(!nextState);
+      setIsBookmarked(previousState);
+    } finally {
+      bookmarkRequestPending.current = false;
+      setIsBookmarkPending(false);
     }
   };
 
@@ -331,6 +340,7 @@ export default function OriginalPost({
         <button
           type="button"
           onClick={handleToggleBookmark}
+          disabled={isBookmarkPending}
           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
             isBookmarked
               ? "text-teal-600 bg-teal-50 font-semibold"

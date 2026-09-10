@@ -140,6 +140,7 @@ export default function AdminContentLibraryTab() {
     setEditing(item);
     const listingOverrides: Record<string, string | boolean> = resource === 'listings'
       ? {
+          description: String(item.description ?? item.short_description ?? ''),
           images: Array.isArray(item.gallery)
             ? item.gallery.map((entry) => String(entry)).join('\n')
             : '',

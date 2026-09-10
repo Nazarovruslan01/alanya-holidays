@@ -57,7 +57,10 @@ describe("directory.service", () => {
         reviews_count: 7,
         google_rating: 4.9,
         google_review_count: 120,
-        gallery: ["https://example.com/kale.jpg"],
+        gallery: [
+          "https://example.com/kale.jpg",
+          "https://example.com/kale-interior.jpg",
+        ],
         is_featured: true,
         can_claim: true,
         price_level: 3,
@@ -74,6 +77,10 @@ describe("directory.service", () => {
       expect(result.rating).toBe(4.3);
       expect(result.reviewCount).toBe(7);
       expect(result.image).toBe("https://example.com/kale.jpg");
+      expect(result.gallery).toEqual([
+        "https://example.com/kale.jpg",
+        "https://example.com/kale-interior.jpg",
+      ]);
       expect(result.tags).toEqual([]);
       expect(result.featured).toBe(true);
       expect(result.can_claim).toBe(true);
@@ -100,6 +107,34 @@ describe("directory.service", () => {
       expect(result.lat).toBeUndefined();
       expect(result.lng).toBeUndefined();
       expect(result.image).toContain("ui-avatars.com");
+    });
+
+    it("keeps an empty gallery separate from its display fallback", () => {
+      const result = mapBackendListingToBusiness({
+        id: "biz-empty-gallery",
+        name: "No Photo Cafe",
+        gallery: [],
+      });
+
+      expect(result.gallery).toEqual([]);
+      expect(result.image).toContain("ui-avatars.com");
+    });
+
+    it("prefers canonical location and falls back to legacy address", () => {
+      const canonical = mapBackendListingToBusiness({
+        id: "biz-location-1",
+        name: "Canonical Location Cafe",
+        location: "Canonical location",
+        address: "Legacy address",
+      });
+      const legacy = mapBackendListingToBusiness({
+        id: "biz-location-2",
+        name: "Legacy Address Cafe",
+        address: "Legacy address",
+      });
+
+      expect(canonical.address).toBe("Canonical location");
+      expect(legacy.address).toBe("Legacy address");
     });
 
     it("mapBackendReviewToBusinessReview should format backend review properly", () => {
@@ -442,6 +477,34 @@ describe("directory.service", () => {
       });
       expect(result.id).toBe("new-rev-1");
       expect(result.rating).toBe(5);
+    });
+
+    it("posts and maps optional review metadata", async () => {
+      vi.spyOn(apiClient, "post").mockResolvedValueOnce({
+        id: "new-rev-metadata",
+        listing_id: "biz-001",
+        rating: 5,
+        comment: "Outstanding service",
+        title: "A memorable visit",
+        visit_type: "Family",
+      });
+      const result = await directoryService.submitReview(
+        "biz-001",
+        5,
+        "Outstanding service",
+        { title: "A memorable visit", visitType: "Family" },
+      );
+
+      expect(apiClient.post).toHaveBeenCalledWith("/reviews/listing/biz-001", {
+        rating: 5,
+        comment: "Outstanding service",
+        title: "A memorable visit",
+        visit_type: "Family",
+      });
+      expect(result).toMatchObject({
+        title: "A memorable visit",
+        visitType: "Family",
+      });
     });
 
     it("should throw ApiError if submitReview fails", async () => {

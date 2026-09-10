@@ -33,6 +33,27 @@ import {
 } from '../domain/listing-input.schema';
 import { BillingService } from '../../billing/billing.service';
 
+function normalizeListingUpdateAliases(
+  input: Record<string, unknown>,
+): Record<string, unknown> {
+  const normalized = { ...input };
+
+  if (
+    normalized.category_id === undefined &&
+    normalized.category !== undefined
+  ) {
+    normalized.category_id = normalized.category;
+  }
+  if (normalized.location === undefined && normalized.address !== undefined) {
+    normalized.location = normalized.address;
+  }
+
+  delete normalized.category;
+  delete normalized.address;
+  delete normalized.subcategory;
+  return normalized;
+}
+
 @Injectable()
 export class DirectoryListingService {
   private readonly logger = new Logger(DirectoryListingService.name);
@@ -332,9 +353,9 @@ export class DirectoryListingService {
     ) {
       throw new BadRequestException('Invalid listing creation source');
     }
-    const allowed = stripProtectedFields(updates as Record<string, unknown>, [
-      'status',
-    ]);
+    const allowed = normalizeListingUpdateAliases(
+      stripProtectedFields(updates as Record<string, unknown>, ['status']),
+    );
     if (requestedSource !== undefined) {
       allowed.creation_source = requestedSource;
     }
@@ -497,7 +518,9 @@ export class DirectoryListingService {
 
     if (locationIds?.length) validateUUIDs(locationIds);
 
-    const stripped = stripProtectedFields(updates as Record<string, unknown>);
+    const stripped = normalizeListingUpdateAliases(
+      stripProtectedFields(updates as Record<string, unknown>),
+    );
 
     const safeUpdates: Record<string, unknown> = {
       ...stripped,
@@ -628,9 +651,8 @@ export class DirectoryListingService {
 
     if (locationIds?.length) validateUUIDs(locationIds);
 
-    const safeUpdates = stripProtectedFields(
-      updates as Record<string, unknown>,
-      ['status'],
+    const safeUpdates = normalizeListingUpdateAliases(
+      stripProtectedFields(updates as Record<string, unknown>, ['status']),
     );
 
     if (safeUpdates.price_level !== undefined) {

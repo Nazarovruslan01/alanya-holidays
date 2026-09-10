@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ThreadDetail } from "@/api-services/forum.service";
+import { forumService } from "@/api-services/forum.service";
 import OriginalPost from "./OriginalPost";
 import { deleteForumImage, uploadForumImage } from "@/api-services/storage.service";
 
@@ -50,6 +51,7 @@ const callbacks = {
 
 describe("OriginalPost", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
     mockUseAuth.mockReturnValue({ user: null, profile: null });
     vi.mocked(deleteForumImage).mockResolvedValue(true);
@@ -156,5 +158,74 @@ describe("OriginalPost", () => {
       "https://cdn.example.com/old.webp",
       "user-1",
     );
+  });
+
+  it("uses the server response when removing a bookmark loaded from post detail", async () => {
+    vi.spyOn(forumService, "toggleBookmark").mockResolvedValueOnce({ bookmarked: false });
+    render(<OriginalPost {...callbacks} thread={{ ...thread, isBookmarked: true }} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /remove bookmark/i }));
+
+    await waitFor(() => {
+      expect(forumService.toggleBookmark).toHaveBeenCalledWith(thread.id);
+      expect(screen.getByRole("button", { name: /bookmark post/i })).toBeInTheDocument();
+    });
+  });
+
+  it("uses a bookmarked server response even when local state was stale", async () => {
+    vi.spyOn(forumService, "toggleBookmark").mockResolvedValueOnce({ bookmarked: true });
+    render(<OriginalPost {...callbacks} thread={{ ...thread, isBookmarked: false }} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /bookmark post/i }));
+
+    expect(
+      await screen.findByRole("button", { name: /remove bookmark/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the actual server state when it differs from local inversion", async () => {
+    vi.spyOn(forumService, "toggleBookmark").mockResolvedValueOnce({ bookmarked: true });
+    render(<OriginalPost {...callbacks} thread={{ ...thread, isBookmarked: true }} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /remove bookmark/i }));
+
+    await waitFor(() => {
+      expect(forumService.toggleBookmark).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("button", { name: /remove bookmark/i })).toBeInTheDocument();
+    });
+  });
+
+  it("preserves bookmark state when the server rejects the toggle", async () => {
+    vi.spyOn(forumService, "toggleBookmark").mockRejectedValueOnce(
+      new Error("toggle failed"),
+    );
+    render(<OriginalPost {...callbacks} thread={{ ...thread, isBookmarked: true }} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /remove bookmark/i }));
+
+    await waitFor(() => {
+      expect(forumService.toggleBookmark).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("button", { name: /remove bookmark/i })).toBeInTheDocument();
+    });
+  });
+
+  it("allows only one bookmark toggle while the request is pending", async () => {
+    let resolveToggle: ((value: { bookmarked: boolean }) => void) | undefined;
+    vi.spyOn(forumService, "toggleBookmark").mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveToggle = resolve;
+      }),
+    );
+    render(<OriginalPost {...callbacks} thread={{ ...thread, isBookmarked: false }} />);
+
+    const button = screen.getByRole("button", { name: /bookmark post/i });
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    expect(forumService.toggleBookmark).toHaveBeenCalledTimes(1);
+    resolveToggle?.({ bookmarked: true });
+    expect(
+      await screen.findByRole("button", { name: /remove bookmark/i }),
+    ).toBeInTheDocument();
   });
 });

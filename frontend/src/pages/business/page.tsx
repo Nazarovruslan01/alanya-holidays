@@ -7,6 +7,7 @@ import {
   businessCategories,
   type Business,
   type BusinessReview,
+  type ReviewVisitType,
 } from "@/api-services/directory.service";
 import { ErrorState } from "@/components/base/ErrorState";
 import LoadingSpinner from "@/components/base/LoadingSpinner";
@@ -269,6 +270,7 @@ export default function BusinessDetailPage() {
 
   const categoryIcon = getCategoryIcon(business.category);
   const mapUrl = buildMapUrl(business);
+  const website = business.website.trim();
   const galleryExtras = getGalleryForBusiness(business.id);
   const hasGoogleRating =
     typeof business.googleRating === "number" &&
@@ -381,15 +383,17 @@ export default function BusinessDetailPage() {
                     <i className="ri-phone-line"></i>
                     {t("business.callNow")}
                   </a>
-                  <a
-                    href={business.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-5 py-3 rounded-full bg-white/20 backdrop-blur-sm text-white text-sm font-medium hover:bg-white/30 transition-colors whitespace-nowrap cursor-pointer border border-white/20"
-                  >
-                    <i className="ri-external-link-line"></i>
-                    {t("business.visitWebsite")}
-                  </a>
+                  {website && (
+                    <a
+                      href={website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-5 py-3 rounded-full bg-white/20 backdrop-blur-sm text-white text-sm font-medium hover:bg-white/30 transition-colors whitespace-nowrap cursor-pointer border border-white/20"
+                    >
+                      <i className="ri-external-link-line"></i>
+                      {t("business.visitWebsite")}
+                    </a>
+                  )}
                   {business.can_claim === true && (
                     <button
                       type="button"
@@ -649,25 +653,20 @@ export default function BusinessDetailPage() {
                           try {
                             const formData = new FormData(form);
                             const content = (formData.get("content") as string) || "";
-                            const name = ((formData.get("name") as string) || "").trim();
-                            const title = (formData.get("title") as string) || "";
+                            const title = ((formData.get("title") as string) || "").trim();
                             const visitType = ((formData.get("visit_type") as string) || "").trim();
 
-                            const newReview = await directoryService.submitReview(
+                            await directoryService.submitReview(
                               business.id,
                               reviewRating,
-                              content
+                              content,
+                              {
+                                title: title || undefined,
+                                visitType: visitType
+                                  ? (visitType as ReviewVisitType)
+                                  : undefined,
+                              },
                             );
-
-                            if (newReview) {
-                              const enriched: BusinessReview = {
-                                ...newReview,
-                                reviewerName: name || newReview.reviewerName,
-                                title: title || newReview.title,
-                                visitType: visitType || newReview.visitType,
-                              };
-                              setReviews((prev) => [enriched, ...prev]);
-                            }
 
                             setReviewFormSuccess(true);
                           } catch {
@@ -866,20 +865,22 @@ export default function BusinessDetailPage() {
                         <p className="text-sm font-medium text-foreground-900 truncate">{business.email}</p>
                       </div>
                     </a>
-                    <a
-                      href={business.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-3 py-3 px-4 rounded-xl bg-background-50 hover:bg-primary-50 transition-colors cursor-pointer group"
-                    >
-                      <div className="w-9 h-9 flex items-center justify-center rounded-full bg-primary-100 text-primary-600 group-hover:bg-primary-500 group-hover:text-white transition-colors shrink-0">
-                        <i className="ri-global-line"></i>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs text-foreground-500">{t("public.website")}</p>
-                        <p className="text-sm font-medium text-foreground-900 truncate">{business.website.replace("https://", "").replace("http://", "").replace(/\/$/, "")}</p>
-                      </div>
-                    </a>
+                    {website && (
+                      <a
+                        href={website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 py-3 px-4 rounded-xl bg-background-50 hover:bg-primary-50 transition-colors cursor-pointer group"
+                      >
+                        <div className="w-9 h-9 flex items-center justify-center rounded-full bg-primary-100 text-primary-600 group-hover:bg-primary-500 group-hover:text-white transition-colors shrink-0">
+                          <i className="ri-global-line"></i>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs text-foreground-500">{t("public.website")}</p>
+                          <p className="text-sm font-medium text-foreground-900 truncate">{website.replace("https://", "").replace("http://", "").replace(/\/$/, "")}</p>
+                        </div>
+                      </a>
+                    )}
                   </div>
 
                   {/* Map */}

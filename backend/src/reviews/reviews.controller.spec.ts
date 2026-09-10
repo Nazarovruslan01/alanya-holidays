@@ -70,7 +70,12 @@ describe('ReviewsController', () => {
 
   it('should pass req.user.id and DTO to submitListingReview', async () => {
     const user = createMockUser('u100');
-    const dto: SubmitReviewDto = { rating: 5, comment: 'Great!' };
+    const dto: SubmitReviewDto = {
+      rating: 5,
+      comment: 'Great!',
+      title: 'A memorable visit',
+      visit_type: 'Couple',
+    };
 
     await controller.submitListingReview('list-1', dto, user);
     expect(mockService.submitListingReview).toHaveBeenCalledWith(
@@ -78,6 +83,7 @@ describe('ReviewsController', () => {
       5,
       'Great!',
       'u100',
+      { title: 'A memorable visit', visit_type: 'Couple' },
     );
   });
 

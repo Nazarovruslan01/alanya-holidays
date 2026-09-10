@@ -84,7 +84,7 @@ export interface BackendForumEvent {
   created_by?: string;
   created_at?: string;
   updated_at?: string;
-  attendees_count?: number;
+  attendee_count?: number;
   max_attendees?: number;
   going_by_me?: boolean;
   is_featured?: boolean;
@@ -184,7 +184,7 @@ export function mapBackendEventToForumEvent(event: BackendForumEvent): ForumEven
     time: dateParts.time,
     location: event.location || "Alanya, Türkiye",
     category: event.category?.name || "Digital Nomad Events",
-    attendees: event.attendees_count ?? 0,
+    attendees: event.attendee_count ?? 0,
     maxAttendees: event.max_attendees ?? 50,
     host: event.host?.full_name || "Community Host",
     hostAvatar: event.host?.avatar_url || defaultHostAvatar,

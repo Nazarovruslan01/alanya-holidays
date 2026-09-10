@@ -5,6 +5,7 @@ export interface StoredEntityDraft<T> {
   formData: Partial<T>;
   draftId?: string | null;
   lastSavedAt: string;
+  cloudSynced?: boolean;
 }
 
 export interface UseEntityDraftOptions<T> {
@@ -50,26 +51,28 @@ export function useEntityDraft<T extends Record<string, unknown>>(
   } | null>(null);
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingLocalDraftRef = useRef<{
+    data: Partial<T>;
+    draftId: string | null;
+  } | null>(null);
+  const lastLocalWriteRef = useRef<string | null>(null);
   const draftRef = useRef(draft);
   draftRef.current = draft;
   const draftIdRef = useRef(draftId);
   draftIdRef.current = draftId;
-
-  useEffect(() => {
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        debounceTimerRef.current = null;
-      }
-    };
-  }, []);
+  const revisionRef = useRef(0);
+  const lifecycleGenerationRef = useRef(0);
 
   useEffect(() => {
     try {
       const stored = localStorage.getItem(storageKey);
       if (stored) {
         const parsed = JSON.parse(stored) as StoredEntityDraft<T>;
-        if (parsed?.formData && hasContent(parsed.formData)) {
+        if (
+          parsed?.formData &&
+          parsed.cloudSynced !== true &&
+          hasContent(parsed.formData)
+        ) {
           setHasLocalDraft(true);
           setLocalDraftSummary({
             name:
@@ -96,33 +99,69 @@ export function useEntityDraft<T extends Record<string, unknown>>(
       clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = null;
     }
+    pendingLocalDraftRef.current = null;
   }, []);
+
+  const writeLocalDraft = useCallback(
+    (
+      data: Partial<T>,
+      currentDraftId: string | null,
+      cloudSynced: boolean,
+      updateTimestamp = true,
+    ) => {
+      try {
+        const now = new Date();
+        const payload: StoredEntityDraft<T> = {
+          formData: data,
+          draftId: currentDraftId,
+          lastSavedAt: now.toISOString(),
+          cloudSynced,
+        };
+        const serializedPayload = JSON.stringify(payload);
+        localStorage.setItem(storageKey, serializedPayload);
+        lastLocalWriteRef.current = serializedPayload;
+        if (updateTimestamp) setLastSavedAt(now);
+      } catch (e) {
+        logger.warn("Failed to auto-save listing draft to localStorage:", e);
+      }
+    },
+    [storageKey],
+  );
+
+  useEffect(() => {
+    lifecycleGenerationRef.current += 1;
+    return () => {
+      lifecycleGenerationRef.current += 1;
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+      const pendingDraft = pendingLocalDraftRef.current;
+      pendingLocalDraftRef.current = null;
+      if (pendingDraft) {
+        writeLocalDraft(pendingDraft.data, pendingDraft.draftId, false, false);
+      }
+    };
+  }, [writeLocalDraft]);
 
   const persistLocally = useCallback(
     (data: Partial<T>, currentDraftId: string | null) => {
       if (!hasContent(data)) return;
       cancelPendingSave();
+      pendingLocalDraftRef.current = { data, draftId: currentDraftId };
       debounceTimerRef.current = setTimeout(() => {
-        try {
-          const now = new Date();
-          const payload: StoredEntityDraft<T> = {
-            formData: data,
-            draftId: currentDraftId,
-            lastSavedAt: now.toISOString(),
-          };
-          localStorage.setItem(storageKey, JSON.stringify(payload));
-          setLastSavedAt(now);
-        } catch (e) {
-          logger.warn("Failed to auto-save listing draft to localStorage:", e);
-        }
+        debounceTimerRef.current = null;
+        pendingLocalDraftRef.current = null;
+        writeLocalDraft(data, currentDraftId, false);
       }, debounceMs);
     },
-    [storageKey, debounceMs, cancelPendingSave, hasContent],
+    [debounceMs, cancelPendingSave, hasContent, writeLocalDraft],
   );
 
   const mutateDraft = useCallback(
     (updater: (current: Partial<T>) => Partial<T>) => {
       const updated = updater(draftRef.current);
+      revisionRef.current += 1;
       draftRef.current = updated;
       setDraft(updated);
       setIsDirty(true);
@@ -194,27 +233,51 @@ export function useEntityDraft<T extends Record<string, unknown>>(
 
   const saveDraftToCloud = useCallback(async () => {
     setIsSaving(true);
+    const lifecycleGeneration = lifecycleGenerationRef.current;
+    const savedRevision = revisionRef.current;
+    const savedSnapshot = draftRef.current;
     try {
-      const currentDraft = draftRef.current;
-      const saved = await saveToApi(currentDraft, draftIdRef.current || undefined);
-      if (saved?.id) {
+      const saved = await saveToApi(savedSnapshot, draftIdRef.current || undefined);
+      if (
+        saved?.id &&
+        lifecycleGenerationRef.current === lifecycleGeneration
+      ) {
         setDraftId(saved.id);
         draftIdRef.current = saved.id;
-        const now = new Date();
-        setLastSavedAt(now);
-        setIsDirty(false);
-        const payload: StoredEntityDraft<T> = {
-          formData: currentDraft,
-          draftId: saved.id,
-          lastSavedAt: now.toISOString(),
-        };
-        localStorage.setItem(storageKey, JSON.stringify(payload));
+        const hasNewerChanges = revisionRef.current !== savedRevision;
+        cancelPendingSave();
+        setIsDirty(hasNewerChanges);
+        writeLocalDraft(
+          hasNewerChanges ? draftRef.current : savedSnapshot,
+          saved.id,
+          !hasNewerChanges,
+        );
+      } else if (saved?.id && revisionRef.current === savedRevision) {
+        try {
+          const lastLocalWrite = lastLocalWriteRef.current;
+          if (
+            lastLocalWrite &&
+            localStorage.getItem(storageKey) === lastLocalWrite
+          ) {
+            writeLocalDraft(savedSnapshot, saved.id, true, false);
+          }
+        } catch (error) {
+          logger.warn("Failed to reconcile completed listing draft save:", error);
+        }
       }
       return saved;
+    } catch (error) {
+      if (lifecycleGenerationRef.current === lifecycleGeneration) {
+        cancelPendingSave();
+        writeLocalDraft(draftRef.current, draftIdRef.current, false);
+      }
+      throw error;
     } finally {
-      setIsSaving(false);
+      if (lifecycleGenerationRef.current === lifecycleGeneration) {
+        setIsSaving(false);
+      }
     }
-  }, [storageKey, saveToApi]);
+  }, [cancelPendingSave, saveToApi, storageKey, writeLocalDraft]);
 
   return {
     draft,

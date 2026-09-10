@@ -226,6 +226,7 @@ describe("forum.service", () => {
         views_count: 300,
         likes_count: 25,
         comments_count: 1,
+        bookmarked_by_me: true,
         created_at: new Date().toISOString(),
         category: { name: "Food & Nightlife", slug: "food-nightlife" },
         author: { full_name: "Foodie" },
@@ -251,6 +252,7 @@ describe("forum.service", () => {
       expect(result?.title).toBe("Best Breakfast");
       expect(result?.category).toBe("Food & Nightlife");
       expect(result?.subcategory).toBeUndefined();
+      expect(result?.isBookmarked).toBe(true);
       expect(result?.replies).toHaveLength(1);
       expect(result?.replies[0].content).toBe("Great recommendation!");
     });

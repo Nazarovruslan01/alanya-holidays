@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   Optional,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -14,6 +15,8 @@ import { EmailOutboxRepository } from '../../bookings/email-outbox.repository';
 
 @Injectable()
 export class ListingClaimService {
+  private readonly logger = new Logger(ListingClaimService.name);
+
   constructor(
     private readonly directoryRepository: DirectoryRepository,
     private readonly userRolesRepo: UserRolesRepository,
@@ -147,8 +150,26 @@ export class ListingClaimService {
           );
 
     const firstResult = rpcResult.data?.[0];
-    if (rpcResult.error || !firstResult?.success) {
-      throw new Error(firstResult?.message || `Failed to ${action} claim`);
+    if (rpcResult.error || !firstResult) {
+      const errorCode =
+        rpcResult.error &&
+        'code' in rpcResult.error &&
+        typeof rpcResult.error.code === 'string'
+          ? rpcResult.error.code
+          : 'UNKNOWN';
+      this.logger.error({
+        message: 'Listing claim RPC failed',
+        action,
+        claimId,
+        code: errorCode,
+      });
+      throw new Error(`Failed to ${action} claim`);
+    }
+
+    if (!firstResult.success) {
+      throw new BadRequestException(
+        firstResult.message || `Failed to ${action} claim`,
+      );
     }
 
     const claim = await this.directoryRepository.getListingClaimById(claimId);

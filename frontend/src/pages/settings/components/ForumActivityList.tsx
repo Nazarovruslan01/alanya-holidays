@@ -3,31 +3,50 @@ import { Link } from "react-router-dom";
 import { MessageSquare, Eye, ThumbsUp, MessageCircle, AlertCircle, RefreshCw, ChevronRight, Flame } from "lucide-react";
 import { forumService, type CategoryThread } from "@/api-services/forum.service";
 import { logger } from "@/lib/logger";
+import { isAbortError } from "@/lib/api-client";
+import { useAuth } from "@/context/AuthContext";
 import { useTranslation } from "react-i18next";
 
 export function ForumActivityList() {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [threads, setThreads] = useState<CategoryThread[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
-  const fetchThreads = useCallback(async () => {
+  const fetchThreads = useCallback(async (signal: AbortSignal) => {
+    if (!user?.id) {
+      setThreads([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
-      const res = await forumService.getThreads();
-      setThreads(res && Array.isArray(res.threads) ? res.threads : []);
+      const res = await forumService.getThreads({
+        params: { authorId: user.id },
+        signal,
+      });
+      if (!signal?.aborted) {
+        setThreads(res && Array.isArray(res.threads) ? res.threads : []);
+      }
     } catch (err: unknown) {
+      if (signal.aborted || isAbortError(err)) return;
       logger.error("Failed to load forum activity:", err);
       setError(t("settings.loadForumError", { defaultValue: "Unable to load forum activity. Please try again." }));
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  }, [t]);
+  }, [t, user?.id]);
 
   useEffect(() => {
-    void fetchThreads();
-  }, [fetchThreads]);
+    const controller = new AbortController();
+    void fetchThreads(controller.signal);
+    return () => controller.abort();
+  }, [fetchThreads, retryKey]);
 
   if (loading) {
     return (
@@ -51,7 +70,7 @@ export function ForumActivityList() {
           <p className="text-sm font-medium">{error}</p>
         </div>
         <button
-          onClick={() => void fetchThreads()}
+          onClick={() => setRetryKey((current) => current + 1)}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-rose-200 text-rose-700 rounded-lg text-xs font-semibold hover:bg-rose-100/50 transition-colors cursor-pointer"
         >
           <RefreshCw className="w-3.5 h-3.5" />
@@ -105,7 +124,7 @@ export function ForumActivityList() {
           </div>
 
           <h4 className="font-bold text-base text-slate-900 hover:text-emerald-600 transition-colors">
-            <Link to="/forum">{thread.title}</Link>
+            <Link to={`/thread/${thread.slug || thread.id}`}>{thread.title}</Link>
           </h4>
 
           {thread.excerpt && (
@@ -129,7 +148,7 @@ export function ForumActivityList() {
             </div>
 
             <Link
-              to="/forum"
+              to={`/thread/${thread.slug || thread.id}`}
               className="font-medium text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
             >
               Open Thread

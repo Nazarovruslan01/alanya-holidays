@@ -149,7 +149,7 @@ describe("Merchant Dashboard Unit & Component Tests", () => {
 
       expect(screen.getByText("Ali Merchant")).toBeInTheDocument();
       expect(screen.getByText("merchant@alanya.test")).toBeInTheDocument();
-      expect(screen.getByText("Verified Business Owner")).toBeInTheDocument();
+      expect(screen.queryByText("Verified Business Owner")).not.toBeInTheDocument();
       expect(screen.getByText(/Tier: Signature/i)).toBeInTheDocument();
 
       // Trigger metric pills
@@ -161,6 +161,8 @@ describe("Merchant Dashboard Unit & Component Tests", () => {
 
       fireEvent.click(screen.getByRole("button", { name: /View Performance Analytics/i }));
       expect(onSelectAnalytics).toHaveBeenCalledTimes(1);
+      expect(screen.getByText("View Performance Analytics")).toBeInTheDocument();
+      expect(screen.queryByText("Analytics Ready")).not.toBeInTheDocument();
 
       // Primary & Secondary Actions
       const listBtn = screen.getByRole("button", { name: /List New Business/i });
@@ -435,6 +437,54 @@ describe("Merchant Dashboard Unit & Component Tests", () => {
   });
 
   describe("MerchantDashboardPage Integration", () => {
+    it.each([
+      {
+        label: "retains the entire source gallery",
+        gallery: [
+          "https://example.com/hotel-front.jpg",
+          "https://example.com/hotel-room.jpg",
+        ],
+        displayImage: "https://example.com/hotel-front.jpg",
+      },
+      {
+        label: "does not persist a generated display avatar as a photo",
+        gallery: [],
+        displayImage: "https://ui-avatars.com/api/?name=Draft%20Boutique%20Hotel",
+      },
+    ])("$label when resuming a draft", async ({ gallery, displayImage }) => {
+      const resumedDraft = {
+        ...sampleListings[1],
+        gallery,
+        image: displayImage,
+      };
+      vi.spyOn(directoryService, "getMyListings").mockResolvedValue([resumedDraft]);
+      vi.spyOn(directoryService, "getMyClaims").mockResolvedValue([]);
+      vi.spyOn(directoryService, "getOwnerAnalytics").mockResolvedValue(sampleAnalytics);
+      vi.spyOn(businessApplicationsService, "getMine").mockResolvedValue(null);
+      const saveDraft = vi.spyOn(directoryService, "saveDraft").mockResolvedValue({
+        ...resumedDraft,
+        id: "draft-1",
+      });
+
+      render(
+        <MemoryRouter>
+          <MerchantDashboardPage />
+        </MemoryRouter>
+      );
+
+      fireEvent.click(await screen.findByRole("button", { name: /Resume Draft/i }));
+      await screen.findByRole("dialog");
+      expect(document.querySelector("#biz-photo")).toHaveValue(gallery[0] || "");
+
+      fireEvent.click(screen.getByRole("button", { name: /Save as Draft/i }));
+      await waitFor(() => {
+        expect(saveDraft).toHaveBeenCalledWith(
+          expect.objectContaining({ images: gallery }),
+          "draft-1"
+        );
+      });
+    });
+
     it("renders standalone top bar with return navigation, breadcrumbs, and live directory preview", async () => {
       vi.spyOn(directoryService, "getMyListings").mockResolvedValue(sampleListings);
       vi.spyOn(directoryService, "getMyClaims").mockResolvedValue(sampleClaims);

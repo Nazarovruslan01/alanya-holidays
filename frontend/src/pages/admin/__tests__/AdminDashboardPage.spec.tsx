@@ -93,7 +93,7 @@ describe("AdminDashboardPage (4-Tab Control Center)", () => {
       business_name: "Panorama Sky Lounge",
       contact_phone: "+90 555 999 8888",
       status: "pending",
-      verification_token: "tok-abc-123",
+      email_verified: false,
       directory_listing: {
         id: "l-101",
         name: "Panorama Sky Lounge",
@@ -323,6 +323,7 @@ describe("AdminDashboardPage (4-Tab Control Center)", () => {
     await waitFor(() => {
       expect(screen.getByText("Panorama Sky Lounge")).toBeInTheDocument();
       expect(screen.getByText("claimant@skylounge.test")).toBeInTheDocument();
+      expect(screen.getByText("Email Unverified")).toBeInTheDocument();
     });
 
     const approveClaimBtn = screen.getByTestId("approve-claim-claim-101");

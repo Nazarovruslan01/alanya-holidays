@@ -68,7 +68,7 @@ describe("events.service", () => {
           image_url: "https://example.com/yoga.jpg",
           video_url: "https://example.com/yoga.mp4",
           is_published: true,
-          attendees_count: 15,
+          attendee_count: 15,
           max_attendees: 30,
           going_by_me: true,
           host: {
@@ -121,7 +121,7 @@ describe("events.service", () => {
         event_date: "2026-06-15T18:30:00Z",
         image_url: "https://example.com/boat.jpg",
         is_published: true,
-        attendees_count: 20,
+        attendee_count: 20,
         max_attendees: 25,
         going_by_me: false,
         host: {

@@ -26,6 +26,13 @@ export interface BusinessReview {
   visitType: string | null;
 }
 
+export type ReviewVisitType = "Couple" | "Family" | "Solo" | "Friends" | "Business";
+
+export interface SubmitReviewMetadata {
+  title?: string;
+  visitType?: ReviewVisitType;
+}
+
 export const businessCategories: BusinessCategory[] = [
   { id: "all", name: "All Businesses", icon: "ri-store-2-line", sourceIds: [] },
   {
@@ -268,7 +275,7 @@ export function mapBackendListingToBusiness(
     category: normalizeBusinessCategory(item.category_id || item.category || "all"),
     subcategory: item.subcategory || "",
     description: item.description || item.short_description || "",
-    address: item.address || "",
+    address: item.location || item.address || "",
     phone: item.phone || "",
     email: item.email || "",
     website: item.website || "",
@@ -279,6 +286,7 @@ export function mapBackendListingToBusiness(
     image:
       item.gallery?.[0] ||
       `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || "Business")}&size=800&background=2C6E49&color=fff`,
+    gallery: item.gallery,
     tags: [],
     featured: Boolean(item.is_featured),
     priceRange,
@@ -548,11 +556,14 @@ export class DirectoryService {
   async submitReview(
     listingId: string,
     rating: number,
-    comment: string
+    comment: string,
+    metadata: SubmitReviewMetadata = {}
   ): Promise<BusinessReview> {
     const response = await apiClient.post<BackendReview>(`/reviews/listing/${listingId}`, {
       rating,
       comment,
+      ...(metadata.title !== undefined ? { title: metadata.title } : {}),
+      ...(metadata.visitType !== undefined ? { visit_type: metadata.visitType } : {}),
     });
 
     if (response && response.id) {
@@ -831,8 +842,12 @@ export const getListingReviews = (
   limit?: number,
   options?: RequestOptions
 ) => directoryService.getListingReviews(listingId, page, limit, options);
-export const submitReview = (listingId: string, rating: number, comment: string) =>
-  directoryService.submitReview(listingId, rating, comment);
+export const submitReview = (
+  listingId: string,
+  rating: number,
+  comment: string,
+  metadata?: SubmitReviewMetadata
+) => directoryService.submitReview(listingId, rating, comment, metadata);
 export const voteForListing = (listingId: string, vote: 1 | -1) =>
   directoryService.voteForListing(listingId, vote);
 export const submitClaim = (claim: SubmitClaimPayload) =>

@@ -3,9 +3,10 @@ import { useSearchParams, Link } from "react-router-dom";
 import QRCode from "qrcode";
 import Navbar from "@/pages/home/components/Navbar";
 import Footer from "@/pages/home/components/Footer";
-import { directoryService, businessCategories, type Business } from "@/api-services/directory.service";
+import { directoryService, type Business } from "@/api-services/directory.service";
 import { logger } from "@/lib/logger";
 import { useTranslation } from "react-i18next";
+import { getBusinessCategoryLabel } from "@/i18n/display-labels";
 import "@/i18n";
 
 const priceRangeLabel: Record<string, string> = {
@@ -26,10 +27,6 @@ function StarRating({ rating }: { rating: number }) {
       })}
     </span>
   );
-}
-
-function getCategoryInfo(categoryId: string) {
-  return businessCategories.find((c) => c.id === categoryId);
 }
 
 const NOTES_STORAGE_KEY = "compare-business-notes";
@@ -115,7 +112,7 @@ export default function ComparePage() {
   const diffState = useMemo(() => {
     if (!hasData) return {} as Record<string, boolean>;
     return {
-      subcategory: !allSame(selectedBusinesses.map((b) => b.subcategory)),
+      category: !allSame(selectedBusinesses.map((b) => b.category)),
       priceRange: !allSame(selectedBusinesses.map((b) => b.priceRange)),
       rating: !allSame(selectedBusinesses.map((b) => String(b.rating))),
       description: true, // descriptions are always different
@@ -286,7 +283,7 @@ export default function ComparePage() {
                             </Link>
                             <div className="flex items-center gap-1.5 mt-1.5">
                               <span className="text-[11px] text-foreground-500 px-2 py-0.5 rounded-full bg-secondary-100 font-medium whitespace-nowrap">
-                                {getCategoryInfo(b.category)?.name || b.subcategory}
+                                {getBusinessCategoryLabel(b.category, t, b.category)}
                               </span>
                             </div>
                           </th>
@@ -296,19 +293,19 @@ export default function ComparePage() {
 
                     <tbody>
                       {/* Category */}
-                      <tr className={`transition-opacity duration-300 ${rowCls("subcategory")}`}>
+                      <tr className={`transition-opacity duration-300 ${rowCls("category")}`}>
                         <td className="bg-background-100/60 px-4 py-3 border-b border-background-200/40">
                           <div className="flex items-center gap-2">
                             <i className="ri-price-tag-3-line text-foreground-400 text-sm"></i>
                             <span className="text-xs font-semibold text-foreground-500 uppercase tracking-wider">{t("public.category")}</span>
-                            {highlightDiffs && diffState.subcategory && (
+                            {highlightDiffs && diffState.category && (
                               <span className="w-1.5 h-1.5 rounded-full bg-accent-500 shrink-0" title={t("compare.fieldDifference")}></span>
                             )}
                           </div>
                         </td>
                         {selectedBusinesses.map((b) => (
                           <td key={b.id} className="px-4 py-3 border-b border-background-200/30 text-sm text-foreground-800">
-                            {b.subcategory}
+                            {getBusinessCategoryLabel(b.category, t, b.category)}
                           </td>
                         ))}
                       </tr>
@@ -462,14 +459,16 @@ export default function ComparePage() {
                         </td>
                         {selectedBusinesses.map((b) => (
                           <td key={b.id} className="px-4 py-3 border-b border-background-200/30">
-                            <a
-                              href={b.website}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm text-foreground-800 hover:text-primary-500 transition-colors cursor-pointer break-all"
-                            >
-                              {b.website.replace("https://", "").replace("http://", "").replace(/\/$/, "")}
-                            </a>
+                            {b.website.trim() && (
+                              <a
+                                href={b.website.trim()}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm text-foreground-800 hover:text-primary-500 transition-colors cursor-pointer break-all"
+                              >
+                                {b.website.trim().replace("https://", "").replace("http://", "").replace(/\/$/, "")}
+                              </a>
+                            )}
                           </td>
                         ))}
                       </tr>
@@ -855,7 +854,7 @@ export default function ComparePage() {
                             </td>
                             {selectedBusinesses.map((b) => (
                               <td key={b.id} className="py-2.5 px-4 text-sm text-foreground-800">
-                                {getCategoryInfo(b.category)?.name || b.category}
+                                {getBusinessCategoryLabel(b.category, t, b.category)}
                               </td>
                             ))}
                           </tr>
