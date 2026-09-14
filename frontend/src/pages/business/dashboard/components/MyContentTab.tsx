@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "@/i18n";
 import { FileText, Loader2, Pencil, RefreshCw, Send } from "lucide-react";
+import RichTextEditor from "@/components/base/RichTextEditor";
 import {
   blogService,
   type BlogPostItem,
@@ -229,7 +230,7 @@ export function MyContentTab() {
               <input value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} maxLength={80} className="mt-1 w-full rounded-xl border border-secondary-200 bg-white px-3 py-2 text-secondary-900 dark:border-slate-700 dark:bg-slate-950 dark:text-white" />
             </label>
             <label className="block text-sm font-semibold text-secondary-700 dark:text-slate-300">{t("merchant.content")}
-              <textarea value={form.content} onChange={(event) => setForm((current) => ({ ...current, content: event.target.value }))} rows={10} maxLength={100000} className="mt-1 w-full rounded-xl border border-secondary-200 bg-white px-3 py-2 text-secondary-900 dark:border-slate-700 dark:bg-slate-950 dark:text-white" />
+              <RichTextEditor value={form.content} onChange={(value) => setForm((current) => ({ ...current, content: value }))} maxLength={100000} ariaLabel={t("merchant.content")} />
             </label>
             <div className="flex justify-end gap-3">
               <button type="button" onClick={() => setEditing(null)} className="rounded-xl bg-secondary-100 px-4 py-2 text-sm font-semibold text-secondary-800 dark:bg-slate-800 dark:text-slate-200">{t("common.cancel")}</button>

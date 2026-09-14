@@ -1,9 +1,11 @@
 import { Injectable, Inject, UnauthorizedException } from '@nestjs/common';
 import {
   IReviewsRepository,
+  ListingReviewMetadata,
   REVIEWS_REPOSITORY,
 } from './domain/repositories/reviews.repository.interface';
 import { UserRolesRepository } from '../common/auth/user-roles.repository';
+import { RedisService } from '../common/redis/redis.service';
 import {
   PaginatedReviewsResponse,
   ReviewOperationResult,
@@ -18,6 +20,7 @@ export class ReviewsService {
     @Inject(REVIEWS_REPOSITORY)
     private readonly reviewsRepository: IReviewsRepository,
     private readonly userRolesRepo: UserRolesRepository,
+    private readonly redisService: RedisService,
   ) {}
 
   async getListingReviews(
@@ -43,6 +46,7 @@ export class ReviewsService {
     rating: number,
     comment: string,
     userId: string,
+    metadata: ListingReviewMetadata = {},
   ): Promise<Record<string, unknown>> {
     if (!UUID_RE.test(listingId) || !UUID_RE.test(userId)) {
       return {};
@@ -52,6 +56,7 @@ export class ReviewsService {
       rating,
       comment,
       userId,
+      metadata,
     );
   }
 
@@ -116,6 +121,7 @@ export class ReviewsService {
     await this.checkAdmin(requestUserId);
     if (!UUID_RE.test(id)) return { success: false };
     await this.reviewsRepository.updateReviewStatus(id, 'approved');
+    await this.redisService.delByPattern('directory:*');
     return { success: true };
   }
 
@@ -126,6 +132,7 @@ export class ReviewsService {
     await this.checkAdmin(requestUserId);
     if (!UUID_RE.test(id)) return { success: false };
     await this.reviewsRepository.updateReviewStatus(id, 'rejected');
+    await this.redisService.delByPattern('directory:*');
     return { success: true };
   }
 
@@ -136,6 +143,7 @@ export class ReviewsService {
     await this.checkAdmin(requestUserId);
     if (!UUID_RE.test(id)) return { success: false };
     await this.reviewsRepository.deleteReview(id);
+    await this.redisService.delByPattern('directory:*');
     return { success: true };
   }
 }

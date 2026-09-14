@@ -81,7 +81,7 @@ export interface DirectoryClaim {
   address?: string | null;
   description?: string | null;
   status: "pending" | "approved" | "rejected" | string;
-  verification_token?: string;
+  email_verified?: boolean;
   rejection_reason?: string | null;
   directory_listing?: {
     id: string;

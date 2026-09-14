@@ -7,6 +7,7 @@ import MemberHero from "./components/MemberHero";
 import MemberCard from "./components/MemberCard";
 import MemberFilters from "./components/MemberFilters";
 import { forumService, type ForumMember } from "@/api-services/forum.service";
+import { isAbortError } from "@/lib/api-client";
 import ErrorState from "@/components/base/ErrorState";
 import EmptyState from "@/components/base/EmptyState";
 
@@ -28,37 +29,38 @@ export default function MembersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState("posts");
+  const [retryKey, setRetryKey] = useState(0);
 
-  const loadMembers = useCallback(async () => {
+  const loadMembers = useCallback(async (search: string, signal: AbortSignal) => {
     setIsLoading(true);
     setFetchError(null);
     try {
-      const data = await forumService.getMembers();
-      setMembersList(data);
-    } catch {
+      const query = search.trim();
+      const data = await forumService.getMembers(
+        query ? { params: { search: query }, signal } : { signal },
+      );
+      if (!signal.aborted) setMembersList(data);
+    } catch (error) {
+      if (signal.aborted || isAbortError(error)) return;
       setFetchError("Failed to load community members. Please check your connection and try again.");
     } finally {
-      setIsLoading(false);
+      if (!signal.aborted) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadMembers();
-  }, [loadMembers]);
+    const controller = new AbortController();
+    void loadMembers(searchTerm, controller.signal);
+    return () => controller.abort();
+  }, [loadMembers, retryKey, searchTerm]);
+
+  const retryLoadMembers = useCallback(() => {
+    setRetryKey((current) => current + 1);
+  }, []);
 
   const filteredMembers = useMemo(() => {
     let result = [...membersList];
 
-    // Search
-    if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase();
-      result = result.filter(
-        (m) =>
-          m.fullName.toLowerCase().includes(q) ||
-          m.username.toLowerCase().includes(q) ||
-          m.bio.toLowerCase().includes(q)
-      );
-    }
     // Role filter
     if (roleFilter) {
       result = result.filter((m) => m.role === roleFilter);
@@ -76,7 +78,7 @@ export default function MembersPage() {
         break;
     }
     return result;
-  }, [membersList, searchTerm, roleFilter, sortBy]);
+  }, [membersList, roleFilter, sortBy]);
 
   // Top 3 for leaderboard
   const topMembers = useMemo(() => {
@@ -163,7 +165,7 @@ export default function MembersPage() {
             <ErrorState
               title={t("public.loadErrorTitle")}
               message={t("public.loadErrorMessage")}
-              onRetry={loadMembers}
+              onRetry={retryLoadMembers}
             />
           ) : isLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5">

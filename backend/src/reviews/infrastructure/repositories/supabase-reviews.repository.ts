@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../../../supabase/supabase.service';
 import {
   IReviewsRepository,
+  ListingReviewMetadata,
   ReviewListResult,
 } from '../../domain/repositories/reviews.repository.interface';
 import { ReviewEntity } from '../../domain/entities/review.entity';
@@ -111,6 +112,7 @@ export class SupabaseReviewsRepository implements IReviewsRepository {
     rating: number,
     comment: string,
     userId: string,
+    metadata: ListingReviewMetadata = {},
   ): Promise<Record<string, unknown>> {
     if (!UUID_RE.test(listingId) || !UUID_RE.test(userId)) {
       return {};
@@ -118,7 +120,16 @@ export class SupabaseReviewsRepository implements IReviewsRepository {
 
     const { data, error } = await this.client
       .from('listing_reviews')
-      .insert({ listing_id: listingId, user_id: userId, rating, comment })
+      .insert({
+        listing_id: listingId,
+        user_id: userId,
+        rating,
+        comment,
+        ...(metadata.title !== undefined ? { title: metadata.title } : {}),
+        ...(metadata.visit_type !== undefined
+          ? { visit_type: metadata.visit_type }
+          : {}),
+      })
       .select()
       .single();
 

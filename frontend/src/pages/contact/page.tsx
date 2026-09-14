@@ -102,6 +102,7 @@ export default function ContactPage() {
     email: "",
     subject: inquirySubject,
     message: inquiryName ? `I am interested in booking the ${inquiryName}. Please send me availability and pricing details.` : "",
+    phone: "",
     phone_alt: "",
   });
   const [formState, setFormState] = useState<FormState>({ status: "idle", message: "" });
@@ -116,6 +117,9 @@ export default function ContactPage() {
     if (name === "email") {
       if (!value.trim()) return t("services.validation.emailRequired");
       if (!validateEmail(value.trim())) return t("services.validation.emailInvalid");
+    }
+    if (name === "phone" && preferredContact !== "email" && !value.trim()) {
+      return t("services.validation.phoneRequired");
     }
     if (name === "message" && !value.trim()) return t("services.validation.message");
     return "";
@@ -141,7 +145,7 @@ export default function ContactPage() {
     const honeypot = form.phone_alt.trim();
     if (honeypot) {
       setFormState({ status: "success", message: t("services.contact.thanks") });
-      setForm({ name: "", email: "", subject: "", message: "", phone_alt: "" });
+      setForm({ name: "", email: "", subject: "", message: "", phone: "", phone_alt: "" });
       setTimeout(() => setFormState({ status: "idle", message: "" }), 5000);
       return;
     }
@@ -149,9 +153,10 @@ export default function ContactPage() {
     const nameErr = validateField("name", form.name);
     const emailErr = validateField("email", form.email);
     const messageErr = validateField("message", form.message);
-    setErrors({ name: nameErr, email: emailErr, message: messageErr });
-    setTouched({ name: true, email: true, message: true });
-    if (nameErr || emailErr || messageErr) {
+    const phoneErr = validateField("phone", form.phone);
+    setErrors({ name: nameErr, email: emailErr, message: messageErr, phone: phoneErr });
+    setTouched({ name: true, email: true, message: true, phone: true });
+    if (nameErr || emailErr || messageErr || phoneErr) {
       setFormState({ status: "error", message: t("services.validation.fixErrors") });
       return;
     }
@@ -166,6 +171,8 @@ export default function ContactPage() {
       await adminService.submitEnquiry({
         name: form.name.trim(),
         email: form.email.trim(),
+        phone: form.phone.trim() || undefined,
+        preferred_contact: preferredContact,
         subject: form.subject.trim() || "Concierge Enquiry",
         message: enrichedMessage,
         enquiry_type: "general",
@@ -352,7 +359,7 @@ export default function ContactPage() {
                 <Link
                   to="/contact"
                   onClick={() => {
-                    setForm({ name: "", email: "", subject: "", message: "", phone_alt: "" });
+                    setForm({ name: "", email: "", subject: "", message: "", phone: "", phone_alt: "" });
                   }}
                   className="flex items-center gap-1.5 text-xs text-foreground-400 hover:text-foreground-600 transition-colors shrink-0 whitespace-nowrap"
                 >
@@ -524,6 +531,35 @@ export default function ContactPage() {
                         )}
                       </div>
                     </div>
+
+                    {preferredContact !== "email" && (
+                      <div>
+                        <label htmlFor="concierge-phone" className="block text-sm font-medium text-foreground-700 mb-1.5">
+                          {t("services.phoneNumber")} <span className="text-primary-500">*</span>
+                        </label>
+                        <input
+                          id="concierge-phone"
+                          type="tel"
+                          name="phone"
+                          value={form.phone}
+                          onChange={handleChange}
+                          onBlur={handleBlur}
+                          required
+                          placeholder={t("services.phoneNumber")}
+                          className={`w-full px-4 py-2.5 rounded-lg border text-sm text-foreground-900 placeholder:text-foreground-400 focus:outline-none focus:ring-2 transition-colors ${
+                            errors.phone && touched.phone
+                              ? "border-red-300 bg-red-50/30 focus:border-red-400 focus:ring-red-100"
+                              : "border-background-200 bg-background-50 focus:border-primary-300 focus:ring-primary-100"
+                          }`}
+                        />
+                        {errors.phone && touched.phone && (
+                          <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                            <i className="ri-error-warning-line text-[10px]"></i>
+                            {errors.phone}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     <div>
                       <label htmlFor="concierge-subject" className="block text-sm font-medium text-foreground-700 mb-1.5">

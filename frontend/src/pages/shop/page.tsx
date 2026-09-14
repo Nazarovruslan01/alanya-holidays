@@ -109,6 +109,7 @@ export default function ShopPage() {
 
   const handleAddToCart = useCallback(
     (product: ShopProduct) => {
+      if (product.stock <= 0) return;
       const imageUrl = product.media?.find(
         (media) => media.type === "image" && media.url,
       )?.url;
@@ -286,9 +287,10 @@ export default function ShopPage() {
                             e.stopPropagation();
                             handleAddToCart(product);
                           }}
+                          disabled={product.stock <= 0}
                           className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-500 text-background-50 rounded-full text-sm font-medium hover:bg-primary-600 transition-colors whitespace-nowrap cursor-pointer"
                         >
-                          {t("public.addToCart")}
+                          {product.stock <= 0 ? t("product.outOfStock") : t("public.addToCart")}
                           <i className="ri-shopping-cart-line text-sm"></i>
                         </button>
                       </div>

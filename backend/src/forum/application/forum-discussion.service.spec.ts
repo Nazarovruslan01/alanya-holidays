@@ -240,6 +240,62 @@ describe('ForumDiscussionService', () => {
 
       const res = await service.getForumPost('hidden-post');
       expect(res).toBeNull();
+      expect(mockRepository.checkBookmark).not.toHaveBeenCalled();
+    });
+
+    it('annotates post detail bookmarks for the current user only', async () => {
+      mockRepository.getPostBySlug
+        .mockResolvedValueOnce({
+          id: postId,
+          slug: 'visible-post',
+          title: 'Visible',
+          author_id: otherUserId,
+          is_removed: false,
+        })
+        .mockResolvedValueOnce({
+          id: postId,
+          slug: 'visible-post',
+          title: 'Visible',
+          author_id: otherUserId,
+          is_removed: false,
+        });
+      mockRepository.checkBookmark
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false);
+
+      const bookmarked = await service.getForumPost('visible-post', userId);
+      const notBookmarked = await service.getForumPost(
+        'visible-post',
+        otherUserId,
+      );
+
+      expect(bookmarked?.bookmarked_by_me).toBe(true);
+      expect(notBookmarked?.bookmarked_by_me).toBe(false);
+      expect(mockRepository.checkBookmark).toHaveBeenNthCalledWith(
+        1,
+        postId,
+        userId,
+      );
+      expect(mockRepository.checkBookmark).toHaveBeenNthCalledWith(
+        2,
+        postId,
+        otherUserId,
+      );
+    });
+
+    it('does not query bookmark membership for anonymous post detail', async () => {
+      mockRepository.getPostBySlug.mockResolvedValueOnce({
+        id: postId,
+        slug: 'visible-post',
+        title: 'Visible',
+        author_id: otherUserId,
+        is_removed: false,
+      });
+
+      const res = await service.getForumPost('visible-post');
+
+      expect(res?.bookmarked_by_me).toBe(false);
+      expect(mockRepository.checkBookmark).not.toHaveBeenCalled();
     });
 
     it('allows admin to view removed post details for moderation', async () => {

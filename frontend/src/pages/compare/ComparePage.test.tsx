@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import ComparePage from "./page";
@@ -53,7 +53,7 @@ describe("ComparePage Component", () => {
       address: "Kale Yolu 42",
       phone: "+902425134421",
       email: "kale@test.com",
-      website: "https://kalepanorama.com",
+      website: "   ",
       rating: 4.8,
       reviewCount: 347,
       image: "https://example.com/kale.jpg",
@@ -68,8 +68,8 @@ describe("ComparePage Component", () => {
     const mockBiz2 = {
       id: "biz-002",
       name: "Cleopatra Beach Bistro",
-      category: "restaurants-cafes",
-      subcategory: "Seafood & Grill",
+      category: "hotels",
+      subcategory: "Turkish Cuisine",
       description: "Beachfront bistro.",
       address: "Cleopatra Beach No:10",
       phone: "+902425139988",
@@ -104,6 +104,14 @@ describe("ComparePage Component", () => {
     });
 
     expect(screen.getByText(/Comparing 2 businesses side by side/i)).toBeInTheDocument();
+    const categoryRow = screen.getByText("Category").closest("tr")!;
+    expect(categoryRow).toContainElement(within(categoryRow).getByText("Restaurants & Cafés"));
+    expect(categoryRow).toContainElement(within(categoryRow).getByText("Hotels & Accommodation"));
+    expect(screen.queryAllByRole("link").filter((link) => link.getAttribute("href")?.trim() === "")).toHaveLength(0);
+    expect(screen.getAllByRole("link").some((link) => link.getAttribute("href") === "https://cleopatrabeach.com")).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: /Highlight Differences/i }));
+    expect(categoryRow).not.toHaveClass("opacity-25");
   });
 
   it("toggles highlight differences mode", async () => {

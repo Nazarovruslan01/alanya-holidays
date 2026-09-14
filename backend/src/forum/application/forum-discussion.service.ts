@@ -357,8 +357,12 @@ export class ForumDiscussionService {
       'post_id',
       userId,
     );
+    if (!annotated) return null;
+    annotated.bookmarked_by_me = userId
+      ? await this.forumRepository.checkBookmark(annotated.id, userId)
+      : false;
     await this.attachCategoryParents([annotated]);
-    return annotated ?? null;
+    return annotated;
   }
 
   async createForumPost(

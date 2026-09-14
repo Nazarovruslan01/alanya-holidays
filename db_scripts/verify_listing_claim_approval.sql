@@ -13,9 +13,22 @@ ADD COLUMN IF NOT EXISTS raw_user_meta_data JSONB DEFAULT '{}'::JSONB;
 ALTER TABLE public.directory_listings
   ADD COLUMN IF NOT EXISTS whatsapp TEXT,
   ADD COLUMN IF NOT EXISTS website TEXT,
-  ADD COLUMN IF NOT EXISTS address TEXT,
+  ADD COLUMN IF NOT EXISTS location TEXT,
   ADD COLUMN IF NOT EXISTS short_description TEXT,
   ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ;
+
+UPDATE public.directory_listings
+SET
+  location = COALESCE(location, 'Existing fixture location'),
+  short_description = COALESCE(short_description, 'Existing fixture description');
+
+ALTER TABLE public.directory_listings
+  ALTER COLUMN location SET NOT NULL,
+  ALTER COLUMN short_description SET NOT NULL;
+
+-- auth.users provisioning creates ordinary profiles in the local fixture.
+-- Assign the test administrator without changing the production trigger.
+ALTER TABLE public.profiles DISABLE TRIGGER protect_profile_privileges;
 
 DO $$
 DECLARE
@@ -56,12 +69,14 @@ BEGIN
     title,
     slug,
     status,
-    creation_source
+    creation_source,
+    location,
+    short_description
   )
   VALUES
-    (v_listing_id, 'Original Listing', 'Original Listing', 'claim-lock-test', 'approved', 'admin'),
-    (v_rejected_listing_id, 'Rejected Listing', 'Rejected Listing', 'claim-rejected-test', 'approved', 'admin'),
-    (v_historical_listing_id, 'Historical Listing', 'Historical Listing', 'claim-historical-test', 'approved', 'admin');
+    (v_listing_id, 'Original Listing', 'Original Listing', 'claim-lock-test', 'approved', 'admin', 'Original location', 'Original description'),
+    (v_rejected_listing_id, 'Rejected Listing', 'Rejected Listing', 'claim-rejected-test', 'approved', 'admin', 'Rejected location', 'Rejected description'),
+    (v_historical_listing_id, 'Historical Listing', 'Historical Listing', 'claim-historical-test', 'approved', 'admin', 'Historical location', 'Historical description');
 
   INSERT INTO public.listing_claims (
     id,
@@ -211,6 +226,8 @@ BEGIN
   END IF;
 END;
 $$;
+
+ALTER TABLE public.profiles ENABLE TRIGGER protect_profile_privileges;
 
 ROLLBACK;
 

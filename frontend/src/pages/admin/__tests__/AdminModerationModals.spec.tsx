@@ -142,7 +142,7 @@ describe("Admin Moderation Modals Suite", () => {
       contact_phone: "+90 555 333 2211",
       additional_notes: "Registered official commercial maritime license #TR-8821",
       status: "pending",
-      verification_token: undefined, // Email verified
+      email_verified: true,
       directory_listing: {
         id: "list-99",
         name: "Luxury Yacht Haven",
@@ -153,8 +153,13 @@ describe("Admin Moderation Modals Suite", () => {
       created_at: "2026-08-20T15:00:00Z",
     };
 
-    it("displays claimant credentials and triggers ownership transfer approval", () => {
-      const onApprove = vi.fn();
+    it("waits for ownership transfer approval before closing and blocks duplicate clicks", async () => {
+      let resolveApproval!: (approved: boolean) => void;
+      const onApprove = vi.fn(
+        () => new Promise<boolean>((resolve) => {
+          resolveApproval = resolve;
+        })
+      );
       const onClose = vi.fn();
 
       render(
@@ -174,8 +179,45 @@ describe("Admin Moderation Modals Suite", () => {
 
       const transferBtn = screen.getByRole("button", { name: /Approve & Transfer Ownership/i });
       fireEvent.click(transferBtn);
+
       expect(onApprove).toHaveBeenCalledWith("claim-88");
-      expect(onClose).toHaveBeenCalled();
+      expect(onApprove).toHaveBeenCalledTimes(1);
+      expect(onClose).not.toHaveBeenCalled();
+      expect(transferBtn).toBeDisabled();
+
+      fireEvent.click(transferBtn);
+      expect(onApprove).toHaveBeenCalledTimes(1);
+
+      resolveApproval(true);
+      await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    });
+
+    it("stays open after failed approval and allows retry", async () => {
+      const onApprove = vi.fn()
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true);
+      const onClose = vi.fn();
+
+      render(
+        <ClaimDetailModal
+          claim={{ ...mockClaim, email_verified: false }}
+          isOpen={true}
+          onClose={onClose}
+          onApprove={onApprove}
+        />
+      );
+
+      expect(screen.getByText("Email Unverified")).toBeInTheDocument();
+      const transferBtn = screen.getByRole("button", { name: /Approve & Transfer Ownership/i });
+      fireEvent.click(transferBtn);
+
+      await waitFor(() => expect(onApprove).toHaveBeenCalledTimes(1));
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      await waitFor(() => expect(transferBtn).not.toBeDisabled());
+
+      fireEvent.click(transferBtn);
+      await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
     });
   });
 });

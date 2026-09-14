@@ -47,6 +47,7 @@ export default {
   "services.preferredContact": "Предпочтительный способ связи",
   "services.fullName": "Ваше имя и фамилия",
   "services.emailAddress": "Ваш email",
+  "services.phoneNumber": "Ваш номер телефона",
   "services.phoneOptional": "Ваш телефон (необязательно)",
   "services.specialRequests": "Особые пожелания или вопросы? (необязательно)",
   "services.sending": "Отправляем...",
@@ -532,5 +533,6 @@ export default {
   "services.form.requestAvailability": "Запросить наличие",
   "services.validation.name": "Укажите ваше имя.",
   "services.validation.message": "Введите ваше сообщение.",
+  "services.validation.phoneRequired": "Укажите номер телефона для WhatsApp или телефонного звонка.",
   "services.contact.thanks": "Спасибо, что написали! Мы ответим в течение 24 часов.",
 };

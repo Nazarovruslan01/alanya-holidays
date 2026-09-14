@@ -281,6 +281,67 @@ describe('DirectoryRepository', () => {
     });
   });
 
+  describe('claim approval RPC errors', () => {
+    it('preserves the database error code for safe service logging', async () => {
+      mockSupabaseClient.rpc.mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: '42703',
+          message: 'record "v_listing" has no field "address"',
+          details: 'SQL statement UPDATE public.directory_listings',
+        },
+      });
+
+      const result = await repository.callApproveListingClaimRpc(
+        'claim-1',
+        'admin-1',
+      );
+
+      expect(result.data).toBeNull();
+      expect(result.error).toEqual(
+        expect.objectContaining({
+          code: '42703',
+          message: 'record "v_listing" has no field "address"',
+        }),
+      );
+      expect(result.error).not.toHaveProperty('details');
+    });
+
+    it('preserves reject error codes without changing the rejection reason', async () => {
+      mockSupabaseClient.rpc.mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: '40001',
+          message: 'serialization failure',
+          details: 'database detail',
+        },
+      });
+
+      const result = await repository.callRejectListingClaimRpc(
+        'claim-2',
+        'Ownership evidence did not match',
+        'admin-1',
+      );
+
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith(
+        'reject_listing_claim',
+        {
+          p_claim_id: 'claim-2',
+          p_reason: 'Ownership evidence did not match',
+          p_user_id: 'admin-1',
+        },
+      );
+      expect(result.data).toBeNull();
+      expect(result.error).toEqual(
+        expect.objectContaining({
+          code: '40001',
+          message: 'serialization failure',
+        }),
+      );
+      expect(result.error).not.toHaveProperty('details');
+    });
+  });
+
   describe('getListingClaimById', () => {
     it('should return null immediately for non-UUID id', async () => {
       const res = await repository.getListingClaimById('non-uuid');

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import RichTextEditor from "@/components/base/RichTextEditor";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/context/AuthContext";
@@ -7,7 +7,7 @@ import "@/i18n";
 interface ReplyInputProps {
   replyTo: string | null;
   replyToAuthor?: string;
-  onSubmit: (content: string, parentId: string | null) => void;
+  onSubmit: (content: string, parentId: string | null) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -24,12 +24,28 @@ export default function ReplyInput({ replyTo, replyToAuthor, onSubmit, onCancel 
   const { user } = useAuth();
   const [content, setContent] = useState("");
   const [mediaUploadPending, setMediaUploadPending] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const isSubmittingRef = useRef(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim() || mediaUploadPending) return;
-    onSubmit(content.trim(), replyTo);
-    setContent("");
+    const submittedDraft = content;
+    const submittedContent = submittedDraft.trim();
+    if (!submittedContent || mediaUploadPending || isSubmittingRef.current) return;
+
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+    setSubmitError(null);
+    try {
+      await onSubmit(submittedContent, replyTo);
+      setContent((current) => (current === submittedDraft ? "" : current));
+    } catch {
+      setSubmitError(t("public.replySubmitError"));
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -44,6 +60,7 @@ export default function ReplyInput({ replyTo, replyToAuthor, onSubmit, onCancel 
           <button
             type="button"
             onClick={onCancel}
+            disabled={isSubmitting}
             className="text-xs text-foreground-400 hover:text-foreground-600 transition-colors"
           >
             <i className="ri-close-line"></i>
@@ -64,12 +81,19 @@ export default function ReplyInput({ replyTo, replyToAuthor, onSubmit, onCancel 
         onUploadStateChange={setMediaUploadPending}
       />
 
+      {submitError && (
+        <p role="alert" className="mt-3 text-xs text-red-600">
+          {submitError}
+        </p>
+      )}
+
       <div className="flex items-center justify-end mt-3">
         <div className="flex items-center gap-2">
           {replyTo && (
             <button
               type="button"
               onClick={onCancel}
+              disabled={isSubmitting}
               className="px-3 py-1.5 rounded-lg text-xs font-medium text-foreground-500 hover:bg-background-100 transition-colors"
             >
               {t("common.cancel")}
@@ -77,10 +101,14 @@ export default function ReplyInput({ replyTo, replyToAuthor, onSubmit, onCancel 
           )}
           <button
             type="submit"
-            disabled={!content.trim() || mediaUploadPending}
+            disabled={!content.trim() || mediaUploadPending || isSubmitting}
             className="px-4 py-1.5 rounded-lg text-xs font-medium bg-primary-500 text-background-50 hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all whitespace-nowrap"
           >
-            {replyTo ? t("public.postReply") : t("public.postComment")}
+            {isSubmitting
+              ? t("comments.posting")
+              : replyTo
+                ? t("public.postReply")
+                : t("public.postComment")}
           </button>
         </div>
       </div>

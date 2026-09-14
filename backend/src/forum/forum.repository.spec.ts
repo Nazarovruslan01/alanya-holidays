@@ -242,6 +242,37 @@ describe('ForumRepository', () => {
       expect(slugs).toEqual(['my-post', 'my-post-1']);
     });
 
+    it('selects top-level post categories without a reverse self-join', async () => {
+      const queryChain = createQueryChain({
+        data: {
+          id: 'p-support',
+          slug: 'support-topic',
+          category: {
+            id: 'cat-support',
+            name: 'Support & Help',
+            slug: 'support-help',
+            parent_id: null,
+          },
+        },
+      });
+      mockClient.from.mockReturnValue(queryChain);
+
+      const post = await repository.getPostBySlug('support-topic');
+      await repository.attachCategoryParents([post!]);
+
+      const projection = String(queryChain.select.mock.calls[0][0]);
+      expect(projection).toContain('category:forum_categories(');
+      expect(projection).not.toContain('parent:forum_categories');
+      expect(post?.category).toEqual(
+        expect.objectContaining({
+          name: 'Support & Help',
+          slug: 'support-help',
+          parent_id: null,
+        }),
+      );
+      expect(mockClient.from).toHaveBeenCalledTimes(1);
+    });
+
     it('should insert, update, getById, delete, and set pinned / removed on posts', async () => {
       const queryChain = createQueryChain({
         data: { id: 'p-new', title: 'Post' },
@@ -855,11 +886,10 @@ describe('ForumRepository', () => {
     });
 
     it('should attach category parents to posts missing parent objects', async () => {
-      mockClient.from.mockReturnValue(
-        createQueryChain({
-          data: [{ id: 'cat-parent-1', name: 'Parent Category' }],
-        }),
-      );
+      const queryChain = createQueryChain({
+        data: [{ id: 'cat-parent-1', name: 'Parent Category' }],
+      });
+      mockClient.from.mockReturnValue(queryChain);
 
       const posts = [
         {
@@ -877,6 +907,34 @@ describe('ForumRepository', () => {
         id: 'cat-parent-1',
         name: 'Parent Category',
       });
+      expect(queryChain.in).toHaveBeenCalledWith('id', ['cat-parent-1']);
+    });
+
+    it('keeps bookmark lists scoped to the user and visible posts', async () => {
+      let bookmarkQuery: ReturnType<typeof createQueryChain> | undefined;
+      let postQuery: ReturnType<typeof createQueryChain> | undefined;
+      mockClient.from.mockImplementation((table: string) => {
+        if (table === 'forum_bookmarks') {
+          bookmarkQuery = createQueryChain({
+            data: [{ post_id: 'p-1' }, { post_id: 'p-2' }],
+          });
+          return bookmarkQuery;
+        }
+        postQuery = createQueryChain({
+          data: [
+            { id: 'p-2', title: 'Second' },
+            { id: 'p-1', title: 'First' },
+          ],
+        });
+        return postQuery;
+      });
+
+      const posts = await repository.getUserBookmarks('user-1');
+
+      expect(bookmarkQuery?.eq).toHaveBeenCalledWith('user_id', 'user-1');
+      expect(postQuery?.in).toHaveBeenCalledWith('id', ['p-1', 'p-2']);
+      expect(postQuery?.eq).toHaveBeenCalledWith('is_removed', false);
+      expect(posts.map((post) => post.id)).toEqual(['p-1', 'p-2']);
     });
   });
 });

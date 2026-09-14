@@ -3,6 +3,7 @@ import { UnauthorizedException } from '@nestjs/common';
 import { ReviewsService } from './reviews.service';
 import { REVIEWS_REPOSITORY } from './domain/repositories/reviews.repository.interface';
 import { UserRolesRepository } from '../common/auth/user-roles.repository';
+import { RedisService } from '../common/redis/redis.service';
 
 describe('ReviewsService', () => {
   let service: ReviewsService;
@@ -19,6 +20,7 @@ describe('ReviewsService', () => {
     updateReviewStatus: jest.Mock;
     deleteReview: jest.Mock;
   };
+  let mockRedisService: { delByPattern: jest.Mock };
 
   beforeEach(async () => {
     mockUserRolesRepo = {
@@ -34,6 +36,9 @@ describe('ReviewsService', () => {
       updateReviewStatus: jest.fn().mockResolvedValue(undefined),
       deleteReview: jest.fn().mockResolvedValue(undefined),
     };
+    mockRedisService = {
+      delByPattern: jest.fn().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -45,6 +50,10 @@ describe('ReviewsService', () => {
         {
           provide: UserRolesRepository,
           useValue: mockUserRolesRepo,
+        },
+        {
+          provide: RedisService,
+          useValue: mockRedisService,
         },
       ],
     }).compile();
@@ -103,6 +112,7 @@ describe('ReviewsService', () => {
         5,
         'Great place!',
         validUserId,
+        { title: 'Great stay', visit_type: 'Family' },
       );
       expect(res).toEqual({ id: 'r-new' });
       expect(mockRepository.insertListingReview).toHaveBeenCalledWith(
@@ -110,6 +120,7 @@ describe('ReviewsService', () => {
         5,
         'Great place!',
         validUserId,
+        { title: 'Great stay', visit_type: 'Family' },
       );
     });
 
@@ -252,6 +263,7 @@ describe('ReviewsService', () => {
       await expect(
         service.approveReview(validReviewId, 'user-1'),
       ).rejects.toThrow(UnauthorizedException);
+      expect(mockRedisService.delByPattern).not.toHaveBeenCalled();
     });
 
     it('should call repository updateReviewStatus when caller is admin', async () => {
@@ -263,6 +275,22 @@ describe('ReviewsService', () => {
         validReviewId,
         'approved',
       );
+      expect(mockRedisService.delByPattern).toHaveBeenCalledWith('directory:*');
+      expect(
+        mockRepository.updateReviewStatus.mock.invocationCallOrder[0],
+      ).toBeLessThan(mockRedisService.delByPattern.mock.invocationCallOrder[0]);
+    });
+
+    it('does not invalidate cache or report success when approval persistence fails', async () => {
+      mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');
+      mockRepository.updateReviewStatus.mockRejectedValueOnce(
+        new Error('write failed'),
+      );
+
+      await expect(
+        service.approveReview(validReviewId, validAdminId),
+      ).rejects.toThrow('write failed');
+      expect(mockRedisService.delByPattern).not.toHaveBeenCalled();
     });
 
     it('should return success false without calling repository when review id is not a valid UUID', async () => {
@@ -284,6 +312,7 @@ describe('ReviewsService', () => {
       await expect(
         service.rejectReview(validReviewId, 'user-1'),
       ).rejects.toThrow(UnauthorizedException);
+      expect(mockRedisService.delByPattern).not.toHaveBeenCalled();
     });
 
     it('should call repository updateReviewStatus with rejected when caller is admin', async () => {
@@ -295,6 +324,19 @@ describe('ReviewsService', () => {
         validReviewId,
         'rejected',
       );
+      expect(mockRedisService.delByPattern).toHaveBeenCalledWith('directory:*');
+    });
+
+    it('does not invalidate cache or report success when rejection persistence fails', async () => {
+      mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');
+      mockRepository.updateReviewStatus.mockRejectedValueOnce(
+        new Error('write failed'),
+      );
+
+      await expect(
+        service.rejectReview(validReviewId, validAdminId),
+      ).rejects.toThrow('write failed');
+      expect(mockRedisService.delByPattern).not.toHaveBeenCalled();
     });
 
     it('should return success false without calling repository when review id is not a valid UUID', async () => {
@@ -316,6 +358,7 @@ describe('ReviewsService', () => {
       await expect(
         service.deleteReview(validReviewId, 'user-1'),
       ).rejects.toThrow(UnauthorizedException);
+      expect(mockRedisService.delByPattern).not.toHaveBeenCalled();
     });
 
     it('should call repository deleteReview when caller is admin', async () => {
@@ -324,6 +367,19 @@ describe('ReviewsService', () => {
       const res = await service.deleteReview(validReviewId, validAdminId);
       expect(res).toEqual({ success: true });
       expect(mockRepository.deleteReview).toHaveBeenCalledWith(validReviewId);
+      expect(mockRedisService.delByPattern).toHaveBeenCalledWith('directory:*');
+    });
+
+    it('does not invalidate cache or report success when deletion persistence fails', async () => {
+      mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');
+      mockRepository.deleteReview.mockRejectedValueOnce(
+        new Error('write failed'),
+      );
+
+      await expect(
+        service.deleteReview(validReviewId, validAdminId),
+      ).rejects.toThrow('write failed');
+      expect(mockRedisService.delByPattern).not.toHaveBeenCalled();
     });
 
     it('should return success false without calling repository when review id is not a valid UUID', async () => {

@@ -96,6 +96,7 @@ describe('SupabaseReviewsRepository', () => {
         'listing_id',
         validUuid,
       );
+      expect(mockSupabaseClient.eq).toHaveBeenCalledWith('status', 'approved');
     });
 
     it('should return empty result gracefully when PostgREST returns 22P02 error', async () => {
@@ -189,7 +190,12 @@ describe('SupabaseReviewsRepository', () => {
 
     it('should insert review when valid UUIDs provided', async () => {
       mockSupabaseClient.single.mockResolvedValueOnce({
-        data: { id: 'rev-1', rating: 5 },
+        data: {
+          id: 'rev-1',
+          rating: 5,
+          title: 'Great stay',
+          visit_type: 'Family',
+        },
         error: null,
       });
 
@@ -198,9 +204,23 @@ describe('SupabaseReviewsRepository', () => {
         5,
         'Great',
         validUserId,
+        { title: 'Great stay', visit_type: 'Family' },
       );
-      expect(res).toEqual({ id: 'rev-1', rating: 5 });
+      expect(res).toEqual({
+        id: 'rev-1',
+        rating: 5,
+        title: 'Great stay',
+        visit_type: 'Family',
+      });
       expect(mockSupabaseClient.from).toHaveBeenCalledWith('listing_reviews');
+      expect(mockSupabaseClient.insert).toHaveBeenCalledWith({
+        listing_id: validUuid,
+        user_id: validUserId,
+        rating: 5,
+        comment: 'Great',
+        title: 'Great stay',
+        visit_type: 'Family',
+      });
     });
 
     it('should return empty object gracefully when database throws 22P02 or PGRST116', async () => {

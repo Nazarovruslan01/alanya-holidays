@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import type { DirectoryClaim } from "@/api-services/admin.service";
 import { useTranslation } from "react-i18next";
 import "@/i18n";
@@ -7,7 +7,7 @@ interface ClaimDetailModalProps {
   claim: DirectoryClaim | null;
   isOpen: boolean;
   onClose: () => void;
-  onApprove?: (claimId: string) => void;
+  onApprove?: (claimId: string) => Promise<boolean>;
   onRequestReject?: (claim: DirectoryClaim) => void;
 }
 
@@ -37,6 +37,7 @@ export default function ClaimDetailModal({
   onRequestReject,
 }: ClaimDetailModalProps) {
   const { t } = useTranslation();
+  const [isApproving, setIsApproving] = useState(false);
   if (!isOpen || !claim) return null;
 
   const statusStyle = statusBadgeConfig[claim.status] || {
@@ -45,7 +46,20 @@ export default function ClaimDetailModal({
     label: claim.status,
   };
 
-  const isEmailVerified = !claim.verification_token;
+  const isEmailVerified = claim.email_verified === true;
+
+  const handleApprove = async () => {
+    if (!onApprove || isApproving) return;
+
+    setIsApproving(true);
+    try {
+      if (await onApprove(claim.id)) {
+        onClose();
+      }
+    } finally {
+      setIsApproving(false);
+    }
+  };
 
   return (
     <div
@@ -217,11 +231,9 @@ export default function ClaimDetailModal({
             {onApprove && claim.status !== "approved" && (
               <button
                 type="button"
-                onClick={() => {
-                  onClose();
-                  onApprove(claim.id);
-                }}
-                className="px-5 py-2 text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-xl shadow-xs transition-colors flex items-center space-x-1.5 cursor-pointer"
+                onClick={() => void handleApprove()}
+                disabled={isApproving}
+                className="px-5 py-2 text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-xl shadow-xs transition-colors flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer"
               >
                 <i className="ri-shield-check-line" />
                 <span>{t("adminQueue.approveTransfer")}</span>

@@ -259,6 +259,35 @@ describe('DirectoryListingService - Admin Email Outbox Enqueueing (Task 2.4)', (
         { creation_source: 'admin' },
       );
     });
+
+    it('writes supported admin aliases as canonical database columns', async () => {
+      mockUserRolesRepo.getRole.mockResolvedValue('admin');
+      mockRepository.updateDirectoryListing.mockResolvedValue({
+        id: validListingId,
+      });
+
+      await service.updateAdminDirectoryListing(
+        validListingId,
+        {
+          category: 'restaurants',
+          subcategory: 'Seafood',
+          address: 'Alanya Harbor',
+          website: 'https://example.com',
+          gallery: ['photo.jpg'],
+        },
+        validOwnerId,
+      );
+
+      expect(mockRepository.updateDirectoryListing).toHaveBeenCalledWith(
+        validListingId,
+        {
+          category_id: 'restaurants',
+          location: 'Alanya Harbor',
+          website: 'https://example.com',
+          gallery: ['photo.jpg'],
+        },
+      );
+    });
   });
 
   describe('publishDraft', () => {
@@ -344,6 +373,52 @@ describe('DirectoryListingService - Admin Email Outbox Enqueueing (Task 2.4)', (
 
       expect(result).toEqual(updatedRecord);
       expect(mockEmailOutbox.enqueue).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps canonical publish fields and omits frontend-only aliases at the database boundary', async () => {
+      mockRepository.getDirectoryListingOwner.mockResolvedValue({
+        id: validListingId,
+        owner_user_id: validOwnerId,
+        status: 'draft',
+      });
+      mockRepository.updateDirectoryListing.mockResolvedValue({
+        id: validListingId,
+      });
+
+      await service.publishDraft(
+        validListingId,
+        {
+          name: 'Harbor Bistro',
+          category_id: 'restaurants',
+          subcategory: 'Seafood',
+          description: 'Fresh seafood by the marina',
+          short_description: 'Fresh seafood by the marina',
+          location: 'Alanya Harbor',
+          address: 'Alanya Harbor',
+          email: 'harbor@example.com',
+          website: 'https://example.com',
+          phone: '+90 555 123 4567',
+          gallery: ['photo.jpg'],
+          tier: 'voyager',
+        },
+        [],
+        validOwnerId,
+      );
+
+      const written = mockRepository.updateDirectoryListing.mock.calls[0][1];
+      expect(written).toEqual(
+        expect.objectContaining({
+          category_id: 'restaurants',
+          location: 'Alanya Harbor',
+          website: 'https://example.com',
+          phone: '+90 555 123 4567',
+          gallery: ['photo.jpg'],
+          status: 'pending',
+        }),
+      );
+      expect(written).not.toHaveProperty('address');
+      expect(written).not.toHaveProperty('subcategory');
+      expect(written).not.toHaveProperty('category');
     });
   });
 
@@ -465,6 +540,43 @@ describe('DirectoryListingService - Admin Email Outbox Enqueueing (Task 2.4)', (
       );
 
       expect(mockEmailOutbox.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('keeps canonical update fields without forwarding frontend-only aliases', async () => {
+      mockRepository.getDirectoryListingOwner.mockResolvedValue({
+        id: validListingId,
+        owner_user_id: validOwnerId,
+      });
+      mockRepository.updateDirectoryListing.mockResolvedValue({
+        id: validListingId,
+      });
+
+      await service.updateDirectoryListing(
+        validListingId,
+        {
+          category_id: 'cafes',
+          category: 'ignored-alias',
+          subcategory: 'Breakfast',
+          location: 'Damlatas Street',
+          address: 'Ignored alias address',
+          phone: '+90 555 111 2233',
+          gallery: ['one.jpg', 'two.jpg'],
+          price_level: '$$',
+        },
+        [],
+        validOwnerId,
+      );
+
+      expect(mockRepository.updateDirectoryListing).toHaveBeenCalledWith(
+        validListingId,
+        {
+          category_id: 'cafes',
+          location: 'Damlatas Street',
+          phone: '+90 555 111 2233',
+          gallery: ['one.jpg', 'two.jpg'],
+          price_level: 2,
+        },
+      );
     });
   });
 

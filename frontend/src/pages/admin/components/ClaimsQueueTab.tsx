@@ -164,6 +164,7 @@ export default function ClaimsQueueTab({
       } else {
         toast.error(t("adminQueue.approveFailed"));
       }
+      return ok;
     } finally {
       setActionLoadingId(null);
     }
@@ -404,7 +405,7 @@ export default function ClaimsQueueTab({
                     text: "text-secondary-800 dark:text-slate-200",
                     label: claim.status,
                   };
-                  const isEmailVerified = !claim.verification_token;
+                  const isEmailVerified = claim.email_verified === true;
                   const isActionLoading = actionLoadingId === claim.id;
                   const isSelected = selectedIds.has(claim.id);
 
@@ -476,7 +477,7 @@ export default function ClaimsQueueTab({
                             ) : (
                               <>
                                 <i className="ri-time-line mr-1 text-xs" />
-                                {t("adminQueue.tokenPending")}
+                                {t("adminQueue.emailUnverified")}
                               </>
                             )}
                           </span>
