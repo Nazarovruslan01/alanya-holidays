@@ -265,6 +265,7 @@ export default function ListBusinessModal({
   };
 
   const handleClose = () => {
+    if (isDraftSaving) return;
     if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
     if (bankTimerRef.current) clearTimeout(bankTimerRef.current);
     setStep(propInitialData || propDraftId ? "form" : "tier");
@@ -310,7 +311,8 @@ export default function ListBusinessModal({
           <button
             type="button"
             onClick={handleClose}
-            className="w-9 h-9 rounded-full bg-background-100 text-foreground-500 hover:bg-background-200 hover:text-foreground-800 flex items-center justify-center transition-colors cursor-pointer"
+            disabled={isDraftSaving}
+            className="w-9 h-9 rounded-full bg-background-100 text-foreground-500 hover:bg-background-200 hover:text-foreground-800 flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label={t("public.close")}
           >
             <i className="ri-close-line text-lg" />

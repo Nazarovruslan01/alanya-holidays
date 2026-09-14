@@ -346,6 +346,52 @@ describe("Adversarial Empirical Verification: useListingDraft Hook", () => {
       );
     });
 
+    it("reconciles late success after saving a restored local draft", async () => {
+      const restoredPayload = {
+        formData: { name: "Restored Closing Draft" },
+        draftId: null,
+        lastSavedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(storageKey, JSON.stringify(restoredPayload));
+
+      let resolveSave!: (
+        value: Awaited<ReturnType<typeof directoryService.saveDraft>>
+      ) => void;
+      vi.spyOn(directoryService, "saveDraft").mockReturnValueOnce(
+        new Promise<Awaited<ReturnType<typeof directoryService.saveDraft>>>((resolve) => {
+          resolveSave = resolve;
+        })
+      );
+
+      const first = renderHook(() =>
+        useListingDraft({ userId: mockUserId, debounceMs: 500 })
+      );
+      act(() => {
+        first.result.current.restoreLocalDraft();
+      });
+      let saveRequest!: ReturnType<typeof first.result.current.saveToCloud>;
+      act(() => {
+        saveRequest = first.result.current.saveToCloud();
+      });
+      first.unmount();
+
+      await act(async () => {
+        resolveSave({
+          id: "restored-late-cloud-id",
+        } as Awaited<ReturnType<typeof directoryService.saveDraft>>);
+        await saveRequest;
+      });
+
+      expect(JSON.parse(localStorage.getItem(storageKey)!)).toMatchObject({
+        formData: { name: "Restored Closing Draft" },
+        draftId: "restored-late-cloud-id",
+        cloudSynced: true,
+      });
+
+      const remounted = renderHook(() => useListingDraft({ userId: mockUserId }));
+      expect(remounted.result.current.hasLocalDraft).toBe(false);
+    });
+
     it("does not let late save success overwrite a newer mounted instance", async () => {
       let resolveSave!: (
         value: Awaited<ReturnType<typeof directoryService.saveDraft>>

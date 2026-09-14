@@ -188,6 +188,7 @@ export function useEntityDraft<T extends Record<string, unknown>>(
       if (!stored) return;
       const parsed = JSON.parse(stored) as StoredEntityDraft<T>;
       if (!parsed?.formData) return;
+      lastLocalWriteRef.current = stored;
       const restored = { ...defaults, ...parsed.formData };
       draftRef.current = restored;
       setDraft(restored);
