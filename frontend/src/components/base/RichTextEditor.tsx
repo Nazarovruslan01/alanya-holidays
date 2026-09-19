@@ -399,7 +399,8 @@ export default function RichTextEditor({
     editor.setSelection(index + 1, 0);
   }, [insertContent]);
 
-  const textLength = value.replace(/<[^>]*>/g, '').length;
+  const textLength = new DOMParser().parseFromString(value, 'text/html').body
+    .textContent?.length ?? 0;
   const showCounter = maxLength !== undefined;
 
   return (

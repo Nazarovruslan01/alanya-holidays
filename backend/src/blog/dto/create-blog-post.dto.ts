@@ -26,7 +26,7 @@ export class CreateBlogPostDto {
   @IsString()
   @IsNotEmpty()
   @MinLength(10)
-  @MaxLength(100000)
+  @MaxLength(500000)
   content!: string;
 
   @IsString()

@@ -48,7 +48,45 @@ function sanitizeThroughForumUpdate(input: string): string {
   );
 }
 
+function validateRichTextLength(input: string): string {
+  try {
+    return execFileSync(
+      process.execPath,
+      [
+        '-r',
+        'ts-node/register',
+        '-e',
+        "const { assertRichTextLength, getRichTextVisibleText } = require('./src/utils/rich-text-html'); try { assertRichTextLength(JSON.parse(process.argv[1])); process.stdout.write(getRichTextVisibleText(JSON.parse(process.argv[1]))); } catch (error) { process.stderr.write(error.message); process.exit(1); }",
+        JSON.stringify(input),
+      ],
+      { cwd: process.cwd(), encoding: 'utf8' },
+    );
+  } catch (error) {
+    return String((error as { stderr?: string }).stderr || error);
+  }
+}
+
 describe('sanitizeRichTextHtml', () => {
+  it('counts visible text instead of formatting markup', () => {
+    expect(validateRichTextLength('<p><strong>hello</strong> world</p>')).toBe(
+      'hello world',
+    );
+    expect(validateRichTextLength(`<p>${'a'.repeat(100000)}</p>`)).toHaveLength(
+      100000,
+    );
+    expect(validateRichTextLength(`<p>${'a'.repeat(100001)}</p>`)).toContain(
+      'maximum visible length',
+    );
+    expect(
+      validateRichTextLength(`<p>${'<strong></strong>'.repeat(29000)}x</p>`),
+    ).toBe('x');
+    expect(
+      validateRichTextLength(`<p>${'<strong></strong>'.repeat(34000)}x</p>`),
+    ).toContain('maximum size');
+    expect(validateRichTextLength('<p>&amp;&nbsp;</p>')).toBe('&');
+    expect(validateRichTextLength('&amp;'.repeat(100000))).toHaveLength(100000);
+  });
+
   it('preserves the editor formatting and safe images', () => {
     const html = [
       '<h2>Heading</h2>',

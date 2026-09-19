@@ -224,6 +224,35 @@ describe("BlogSubmitPage taxonomy", () => {
     expect(blogService.submitGuide).not.toHaveBeenCalled();
   });
 
+  it("counts visible text rather than rich-text markup for the 100,000 limit", async () => {
+    renderPage();
+    fireEvent.change(screen.getByPlaceholderText("e.g., Hidden Gems in Alanya Old Town"), {
+      target: { value: "A formatted guide" },
+    });
+    const editor = screen.getByPlaceholderText(
+      "Write your blog post content here. Share your experiences, tips, and recommendations...",
+    );
+    fireEvent.change(editor, { target: { value: "&amp;".repeat(99999) } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit Post" }));
+    await waitFor(() => expect(blogService.submitGuide).toHaveBeenCalled());
+  });
+
+  it("rejects visible rich text over 100,000 characters", async () => {
+    renderPage();
+    fireEvent.change(screen.getByPlaceholderText("e.g., Hidden Gems in Alanya Old Town"), {
+      target: { value: "A long guide" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        "Write your blog post content here. Share your experiences, tips, and recommendations...",
+      ),
+      { target: { value: `<strong>${"a".repeat(100001)}</strong>` } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Submit Post" }));
+    expect(await screen.findByText("Content must be 100,000 characters or fewer.")).toBeInTheDocument();
+    expect(blogService.submitGuide).not.toHaveBeenCalled();
+  });
+
   it.each([
     [400, "Some fields are invalid. Please review your post and try again."],
     [401, "Your session has expired. Please sign in again."],

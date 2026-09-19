@@ -140,4 +140,23 @@ describe("MyContentTab", () => {
       expect.objectContaining({ content: editedHtml }),
     ));
   });
+
+  it("filters posts and submissions locally without changing the loaded data", async () => {
+    vi.mocked(blogService.getMyPosts).mockResolvedValue([
+      post,
+      { ...post, id: "post-2", title: "Mountain trails", content: "Pine route" },
+    ]);
+    vi.mocked(blogService.getMySubmissions).mockResolvedValue([submission]);
+
+    render(<MyContentTab />);
+    expect(await screen.findByText("Harbor guide")).toBeInTheDocument();
+    expect(screen.getByText("Harbor story")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Search" }), {
+      target: { value: "HARBOR" },
+    });
+    expect(screen.getByText("Harbor guide")).toBeInTheDocument();
+    expect(screen.getByText("Harbor story")).toBeInTheDocument();
+    expect(screen.queryByText("Mountain trails")).not.toBeInTheDocument();
+  });
 });

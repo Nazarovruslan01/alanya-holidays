@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { DirectoryListingService } from './application/directory-listing.service';
 import { ListingClaimService } from './application/listing-claim.service';
 import { DirectoryRepository } from './directory.repository';
@@ -469,12 +469,12 @@ describe('Directory Invariants Safety Net (PR-1 Invariant Spec)', () => {
           [],
           userBob,
         ),
-      ).rejects.toThrow(UnauthorizedException);
+      ).rejects.toThrow(ForbiddenException);
 
       // Bob cannot delete Alice's listing
       await expect(
         service.deleteDirectoryListing(draftId, userBob),
-      ).rejects.toThrow(UnauthorizedException);
+      ).rejects.toThrow(ForbiddenException);
 
       // Admin CAN update and delete Alice's listing
       mockUserRolesRepo.getRole.mockResolvedValue('admin');

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "@/i18n";
 import { FileText, Loader2, Pencil, RefreshCw, Send } from "lucide-react";
@@ -37,6 +37,8 @@ export function MyContentTab() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<EditableContent | null>(null);
+  const [search, setSearch] = useState("");
+  const [mediaUploadPending, setMediaUploadPending] = useState(false);
   const [form, setForm] = useState({ title: "", content: "", category: "" });
 
   const loadContent = useCallback(async () => {
@@ -121,6 +123,16 @@ export function MyContentTab() {
     }
   };
 
+  const query = search.trim().toLowerCase();
+  const visiblePosts = useMemo(
+    () => posts.filter((item) => !query || `${item.title} ${item.category || ""} ${item.content}`.toLowerCase().includes(query)),
+    [posts, query],
+  );
+  const visibleSubmissions = useMemo(
+    () => submissions.filter((item) => !query || `${item.title} ${item.category || ""} ${item.content} ${item.status}`.toLowerCase().includes(query)),
+    [submissions, query],
+  );
+
   if (loading) {
     return (
       <div className="flex min-h-48 items-center justify-center rounded-2xl border border-secondary-200 bg-white dark:border-slate-800 dark:bg-slate-900">
@@ -148,6 +160,14 @@ export function MyContentTab() {
         </a>
       </div>
 
+      <input
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder={t("common.search")}
+        aria-label={t("common.search")}
+        className="w-full rounded-xl border border-secondary-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+      />
+
       {error && (
         <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
           <span>{error}</span>
@@ -168,7 +188,7 @@ export function MyContentTab() {
         <h3 id="direct-posts-title" className="text-sm font-bold uppercase tracking-wide text-secondary-600 dark:text-slate-300">
           {t("merchant.directPosts")}
         </h3>
-        {posts.map((post) => (
+        {visiblePosts.map((post) => (
           <article key={post.id} className="rounded-2xl border border-secondary-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -191,7 +211,7 @@ export function MyContentTab() {
         <h3 id="submissions-title" className="text-sm font-bold uppercase tracking-wide text-secondary-600 dark:text-slate-300">
           {t("merchant.editorialSubmissions")}
         </h3>
-        {submissions.map((submission) => (
+        {visibleSubmissions.map((submission) => (
           <article key={submission.id} className="rounded-2xl border border-secondary-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -230,11 +250,11 @@ export function MyContentTab() {
               <input value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} maxLength={80} className="mt-1 w-full rounded-xl border border-secondary-200 bg-white px-3 py-2 text-secondary-900 dark:border-slate-700 dark:bg-slate-950 dark:text-white" />
             </label>
             <label className="block text-sm font-semibold text-secondary-700 dark:text-slate-300">{t("merchant.content")}
-              <RichTextEditor value={form.content} onChange={(value) => setForm((current) => ({ ...current, content: value }))} maxLength={100000} ariaLabel={t("merchant.content")} />
+              <RichTextEditor value={form.content} onChange={(value) => setForm((current) => ({ ...current, content: value }))} maxLength={100000} ariaLabel={t("merchant.content")} onUploadStateChange={setMediaUploadPending} />
             </label>
             <div className="flex justify-end gap-3">
               <button type="button" onClick={() => setEditing(null)} className="rounded-xl bg-secondary-100 px-4 py-2 text-sm font-semibold text-secondary-800 dark:bg-slate-800 dark:text-slate-200">{t("common.cancel")}</button>
-              <button type="button" disabled={saving || !form.title.trim() || form.content.trim().length < 10} onClick={() => void saveEdit()} className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50">
+              <button type="button" disabled={saving || mediaUploadPending || !form.title.trim() || form.content.trim().length < 10} onClick={() => void saveEdit()} className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50">
                 {saving && <Loader2 className="h-4 w-4 animate-spin" />} {t("merchant.saveChanges")}
               </button>
             </div>

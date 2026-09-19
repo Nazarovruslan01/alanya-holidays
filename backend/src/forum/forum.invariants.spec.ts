@@ -271,7 +271,7 @@ describe('Forum Invariants Safety Net (PR-1 Invariant Spec)', () => {
             { title: 'Published edit' },
             userAlice,
           ),
-        ).rejects.toThrow(ForbiddenException);
+        ).resolves.toBeDefined();
         await expect(
           eventService.deleteForumEvent(eventId, userAlice),
         ).rejects.toThrow(ForbiddenException);

@@ -15,7 +15,10 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { EmailOutboxRepository } from '../bookings/email-outbox.repository';
 import { slugify, generateUniqueSlug } from '../utils/slugify';
 import sanitizeHtml from 'sanitize-html';
-import { sanitizeRichTextHtml } from '../utils/rich-text-html';
+import {
+  assertRichTextLength,
+  sanitizeRichTextHtml,
+} from '../utils/rich-text-html';
 import {
   BlogComment,
   BlogPost,
@@ -170,6 +173,7 @@ export class BlogService {
 
     const baseSlug = data.slug || slugify(data.title);
     const uniqueSlug = await this.resolveSlug(baseSlug);
+    assertRichTextLength(data.content);
     const sanitizedContent = sanitizeRichTextHtml(data.content);
     const excerpt = data.excerpt
       ? sanitizeExcerpt(data.excerpt)
@@ -230,6 +234,7 @@ export class BlogService {
     }
     if (updates.slug !== undefined) safe.slug = updates.slug;
     if (updates.content !== undefined) {
+      assertRichTextLength(updates.content);
       safe.content = sanitizeRichTextHtml(updates.content);
     }
     if (updates.excerpt !== undefined) {
@@ -330,7 +335,7 @@ export class BlogService {
     const existing = await this.blogRepository.getBlogPostById(postId);
     if (!existing) throw new NotFoundException('Blog post not found');
     if (existing.author_id !== userId && role !== 'admin')
-      throw new UnauthorizedException('Not authorized');
+      throw new ForbiddenException('Not authorized');
     return { role, existing };
   }
 
@@ -416,6 +421,7 @@ export class BlogService {
     if (withinLimit === false)
       throw new BadRequestException('Daily submission limit reached');
 
+    assertRichTextLength(data.content);
     const sanitizedContent = sanitizeRichTextHtml(data.content);
 
     const submission = await this.blogRepository.insertBlogSubmission({
@@ -498,8 +504,10 @@ export class BlogService {
 
     const safe: UpdateBlogSubmissionPayload = {};
     if (updates.title !== undefined) safe.title = updates.title.trim();
-    if (updates.content !== undefined)
+    if (updates.content !== undefined) {
+      assertRichTextLength(updates.content);
       safe.content = sanitizeRichTextHtml(updates.content);
+    }
     if (updates.author_name !== undefined)
       safe.author_name = updates.author_name.trim();
     if (updates.author_email !== undefined)
