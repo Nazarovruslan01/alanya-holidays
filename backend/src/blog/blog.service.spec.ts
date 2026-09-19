@@ -304,6 +304,35 @@ describe('BlogService', () => {
   });
 
   describe('createBlogPost', () => {
+    it('enforces visible and raw HTML limits', async () => {
+      const formatted = '&amp;'.repeat(99999);
+      mockUserRolesRepo.getRole.mockResolvedValue('user');
+      mockRepository.getSlugs.mockResolvedValue([]);
+      mockRepository.insertBlogPost.mockResolvedValue(mockBlogPost);
+
+      await expect(
+        service.createBlogPost(
+          { title: 'Formatted', content: formatted },
+          'user-1',
+        ),
+      ).resolves.toBeDefined();
+      await expect(
+        service.createBlogPost(
+          { title: 'Too much text', content: 'a'.repeat(100001) },
+          'user-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.createBlogPost(
+          {
+            title: 'Too much html',
+            content: '<strong></strong>'.repeat(34000),
+          },
+          'user-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
     it('should generate unique slug and insert post with tags', async () => {
       mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
       mockRepository.getSlugs.mockResolvedValueOnce([]);
@@ -431,6 +460,38 @@ describe('BlogService', () => {
   });
 
   describe('updateBlogPost', () => {
+    it('enforces visible and raw HTML limits', async () => {
+      mockUserRolesRepo.getRole.mockResolvedValue('user');
+      mockRepository.getBlogPostById.mockResolvedValue({
+        author_id: 'user-1',
+        status: 'draft',
+        slug: 'draft',
+      });
+      mockRepository.updateBlogPost.mockResolvedValue(mockBlogPost);
+
+      await expect(
+        service.updateBlogPost(
+          'post-1',
+          { content: '&amp;'.repeat(99999) },
+          'user-1',
+        ),
+      ).resolves.toBeDefined();
+      await expect(
+        service.updateBlogPost(
+          'post-1',
+          { content: 'a'.repeat(100001) },
+          'user-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.updateBlogPost(
+          'post-1',
+          { content: '<strong></strong>'.repeat(34000) },
+          'user-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
     it('should throw NotFoundException if post not found', async () => {
       mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
       mockRepository.getBlogPostById.mockResolvedValueOnce(null);
@@ -441,7 +502,7 @@ describe('BlogService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('should throw UnauthorizedException if not owner or admin', async () => {
+    it('should throw ForbiddenException if not owner or admin', async () => {
       mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
       mockRepository.getBlogPostById.mockResolvedValueOnce({
         author_id: 'other-user',
@@ -452,7 +513,7 @@ describe('BlogService', () => {
       const dto: UpdateBlogPostDto = { title: 'Updated' };
       await expect(
         service.updateBlogPost('post-1', dto, 'user-1'),
-      ).rejects.toThrow(UnauthorizedException);
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should reject publication status changes by a non-admin author', async () => {
@@ -626,6 +687,33 @@ describe('BlogService', () => {
   });
 
   describe('createBlogSubmission', () => {
+    it('enforces visible and raw HTML limits', async () => {
+      mockRepository.checkBlogSubmissionLimit.mockResolvedValue(true);
+      mockRepository.insertBlogSubmission.mockResolvedValue({ id: 'sub-1' });
+
+      await expect(
+        service.createBlogSubmission(
+          { title: 'Formatted', content: '&amp;'.repeat(99999) },
+          'user-1',
+        ),
+      ).resolves.toEqual({ submissionId: 'sub-1' });
+      await expect(
+        service.createBlogSubmission(
+          { title: 'Too much text', content: 'a'.repeat(100001) },
+          'user-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.createBlogSubmission(
+          {
+            title: 'Too much html',
+            content: '<strong></strong>'.repeat(34000),
+          },
+          'user-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
     it('should throw BadRequestException if submission limit exceeded', async () => {
       mockRepository.checkBlogSubmissionLimit.mockResolvedValueOnce(false);
 
@@ -720,6 +808,38 @@ describe('BlogService', () => {
         'user',
         'user-1',
       );
+    });
+
+    it('enforces visible and raw HTML limits when updating a submission', async () => {
+      mockUserRolesRepo.getRole.mockResolvedValue('user');
+      mockRepository.getBlogSubmissionById.mockResolvedValue({
+        id: 'sub-1',
+        user_id: 'user-1',
+        status: 'pending_review',
+      });
+      mockRepository.updateBlogSubmission.mockResolvedValue({ id: 'sub-1' });
+
+      await expect(
+        service.updateUserBlogSubmission(
+          'sub-1',
+          { content: '&amp;'.repeat(99999) },
+          'user-1',
+        ),
+      ).resolves.toBeDefined();
+      await expect(
+        service.updateUserBlogSubmission(
+          'sub-1',
+          { content: 'a'.repeat(100001) },
+          'user-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.updateUserBlogSubmission(
+          'sub-1',
+          { content: '<strong></strong>'.repeat(34000) },
+          'user-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('hides foreign submissions and allows an owner to edit reviewable content', async () => {

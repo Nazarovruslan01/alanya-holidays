@@ -85,9 +85,6 @@ export class ForumEventService {
     if (ownership.host_id !== userId && ownership.created_by !== userId) {
       throw new ForbiddenException('Not authorized');
     }
-    if (ownership.is_published) {
-      throw new ForbiddenException('Only admins can modify a published event');
-    }
     return { access: 'owner', event: ownership };
   }
 
@@ -252,8 +249,13 @@ export class ForumEventService {
     userId: string,
   ): Promise<ForumEvent> {
     const { access } = await this.requireEventOwnerOrAdmin(id, userId);
-    if (access !== 'admin' && updates.is_published === true) {
-      throw new ForbiddenException('Only admins can publish an event');
+    if (
+      access !== 'admin' &&
+      (updates.host_id !== undefined || updates.is_published !== undefined)
+    ) {
+      throw new ForbiddenException(
+        'Only admins can modify event ownership or publication',
+      );
     }
     const safe: UpdateForumEventDbInput = {};
     if (updates.title !== undefined) safe.title = updates.title.trim();
@@ -266,7 +268,7 @@ export class ForumEventService {
       safe.host_id = updates.host_id || null;
     if (updates.category_id !== undefined)
       safe.category_id = updates.category_id || null;
-    if (updates.is_published !== undefined)
+    if (access === 'admin' && updates.is_published !== undefined)
       safe.is_published = updates.is_published;
 
     const updated = await this.executeMediaMutation(() =>
@@ -290,7 +292,10 @@ export class ForumEventService {
     id: string,
     userId: string,
   ): Promise<ForumActionResponse> {
-    const { access } = await this.requireEventOwnerOrAdmin(id, userId);
+    const { access, event } = await this.requireEventOwnerOrAdmin(id, userId);
+    if (access === 'owner' && event.is_published) {
+      throw new ForbiddenException('Only admins can delete a published event');
+    }
     const deleted = await this.executeMediaMutation(() =>
       this.forumRepository.deleteEventWithMedia(id, userId),
     );

@@ -646,7 +646,7 @@ export class DirectoryListingService {
     const listing = await this.directoryRepository.getDirectoryListingOwner(id);
 
     if (!listing || (listing.owner_user_id !== userId && role !== 'admin')) {
-      throw new UnauthorizedException('Not authorized');
+      throw new ForbiddenException('Not authorized');
     }
 
     if (locationIds?.length) validateUUIDs(locationIds);
@@ -703,7 +703,7 @@ export class DirectoryListingService {
     const listing = await this.directoryRepository.getDirectoryListingOwner(id);
 
     if (!listing || (listing.owner_user_id !== userId && role !== 'admin')) {
-      throw new UnauthorizedException('Not authorized');
+      throw new ForbiddenException('Not authorized');
     }
 
     await this.directoryRepository.deleteDirectoryListing(id);

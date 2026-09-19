@@ -2,6 +2,21 @@
 
 BEGIN;
 
+DO $$
+DECLARE
+  v_definition TEXT;
+BEGIN
+  SELECT pg_get_functiondef(oid) INTO v_definition
+  FROM pg_proc
+  WHERE oid = 'public.update_forum_event_with_media(UUID, UUID, JSONB, BOOLEAN, UUID, BOOLEAN, UUID)'::regprocedure;
+  IF v_definition IS NULL
+     OR v_definition NOT LIKE '%FALSE OR%'
+     OR v_definition NOT LIKE '%host_id%created_by%is_published%' THEN
+    RAISE EXCEPTION 'published event owner update guard is not installed';
+  END IF;
+END;
+$$;
+
 CREATE TABLE IF NOT EXISTS public.forum_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid()
 );
@@ -95,6 +110,88 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON storage.objects TO authenticated;
 -- Supabase bootstrap grants service_role access to application tables. The
 -- lightweight migration fixture creates forum_events before those defaults.
 GRANT SELECT ON public.forum_events TO service_role;
+
+INSERT INTO public.forum_events (
+  id, title, slug, event_date, host_id, created_by, is_published
+) VALUES (
+  '60000000-0000-4000-8000-000000000001',
+  'Published owner event', 'published-owner-event-test',
+  '2026-09-20T18:00:00Z',
+  '10000000-0000-4000-8000-000000000002',
+  '10000000-0000-4000-8000-000000000002', true
+);
+
+SELECT public.update_forum_event_with_media(
+  '10000000-0000-4000-8000-000000000002',
+  '60000000-0000-4000-8000-000000000001',
+  jsonb_build_object('title', 'Published owner event edited'),
+  false, NULL, false, NULL
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.forum_events
+    WHERE id = '60000000-0000-4000-8000-000000000001'
+      AND title = 'Published owner event edited'
+      AND host_id = '10000000-0000-4000-8000-000000000002'
+      AND is_published
+  ) THEN
+    RAISE EXCEPTION 'published owner normal-field edit failed';
+  END IF;
+
+  BEGIN
+    PERFORM public.update_forum_event_with_media(
+      '10000000-0000-4000-8000-000000000001',
+      '60000000-0000-4000-8000-000000000001',
+      jsonb_build_object('title', 'nonowner edit'), false, NULL, false, NULL
+    );
+    RAISE EXCEPTION 'nonowner published event edit succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+
+  BEGIN
+    PERFORM public.update_forum_event_with_media(
+      '10000000-0000-4000-8000-000000000002',
+      '60000000-0000-4000-8000-000000000001',
+      jsonb_build_object('host_id', '10000000-0000-4000-8000-000000000001'),
+      false, NULL, false, NULL
+    );
+    RAISE EXCEPTION 'owner host_id mutation succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+
+  BEGIN
+    PERFORM public.update_forum_event_with_media(
+      '10000000-0000-4000-8000-000000000002',
+      '60000000-0000-4000-8000-000000000001',
+      jsonb_build_object('is_published', true), false, NULL, false, NULL
+    );
+    RAISE EXCEPTION 'owner is_published=true mutation succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+
+  BEGIN
+    PERFORM public.update_forum_event_with_media(
+      '10000000-0000-4000-8000-000000000002',
+      '60000000-0000-4000-8000-000000000001',
+      jsonb_build_object('is_published', false), false, NULL, false, NULL
+    );
+    RAISE EXCEPTION 'owner is_published=false mutation succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.forum_events
+    WHERE id = '60000000-0000-4000-8000-000000000001'
+      AND title = 'Published owner event edited'
+      AND host_id = '10000000-0000-4000-8000-000000000002'
+      AND is_published
+  ) THEN
+    RAISE EXCEPTION 'protected event fields changed after rejected updates';
+  END IF;
+END;
+$$;
 
 DO $$
 BEGIN
