@@ -56,10 +56,9 @@ function validateRichTextLength(input: string): string {
         '-r',
         'ts-node/register',
         '-e',
-        "const { assertRichTextLength, getRichTextVisibleText } = require('./src/utils/rich-text-html'); try { assertRichTextLength(JSON.parse(process.argv[1])); process.stdout.write(getRichTextVisibleText(JSON.parse(process.argv[1]))); } catch (error) { process.stderr.write(error.message); process.exit(1); }",
-        JSON.stringify(input),
+        "const { assertRichTextLength, getRichTextVisibleText } = require('./src/utils/rich-text-html'); const value = JSON.parse(require('node:fs').readFileSync(0, 'utf8')); try { assertRichTextLength(value); process.stdout.write(getRichTextVisibleText(value)); } catch (error) { process.stderr.write(error.message); process.exit(1); }",
       ],
-      { cwd: process.cwd(), encoding: 'utf8' },
+      { cwd: process.cwd(), encoding: 'utf8', input: JSON.stringify(input) },
     );
   } catch (error) {
     return String((error as { stderr?: string }).stderr || error);
