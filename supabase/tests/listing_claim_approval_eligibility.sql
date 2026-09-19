@@ -86,7 +86,9 @@ INSERT INTO public.listing_claims (
   ('20000000-0000-4000-8000-000000000005', '10000000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-000000000011', 'winner@example.com', '+905550000005', 'owner', 'Winning claim', '+905550000005', 'pending', '2026-07-05T00:00:00Z', '2026-07-05T00:00:00Z'),
   ('20000000-0000-4000-8000-000000000006', '10000000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-000000000012', 'loser@example.com', '+905550000006', 'owner', 'Competing claim', '+905550000006', 'pending', '2026-07-06T00:00:00Z', '2026-07-06T00:00:00Z');
 
+\ir ../migrations/20260731112619_fix_service_role_rpc_auth.sql
 \ir ../migrations/20260831002000_harden_listing_claim_approval.sql
+\ir ../migrations/20260919160000_fix_reject_listing_claim_admin_check.sql
 
 DO $$
 DECLARE
@@ -173,6 +175,60 @@ BEGIN
   );
   IF result.success OR result.message <> 'Listing is already claimed' THEN
     RAISE EXCEPTION 'serialized competing approval was not rejected';
+  END IF;
+
+  SELECT * INTO result
+  FROM public.reject_listing_claim(
+    '20000000-0000-4000-8000-000000000006',
+    'Spam submission',
+    '00000000-0000-4000-8000-000000000002'
+  );
+  IF result.success OR result.message <> 'Only admins can reject claims' THEN
+    RAISE EXCEPTION 'non-admin rejection was not rejected: %', row_to_json(result);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.listing_claims
+    WHERE id = '20000000-0000-4000-8000-000000000006'
+      AND status = 'pending'
+  ) THEN
+    RAISE EXCEPTION 'non-admin rejection changed claim status';
+  END IF;
+
+  SELECT * INTO result
+  FROM public.reject_listing_claim(
+    '20000000-0000-4000-8000-000000000006',
+    'Spam submission',
+    '00000000-0000-4000-8000-000000000001'
+  );
+  IF NOT result.success OR result.message <> 'Claim rejected successfully' THEN
+    RAISE EXCEPTION 'admin rejection failed: %', row_to_json(result);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.listing_claims
+    WHERE id = '20000000-0000-4000-8000-000000000006'
+      AND status = 'rejected'
+      AND rejection_reason = 'Spam submission'
+  ) THEN
+    RAISE EXCEPTION 'claim was not marked rejected with reason';
+  END IF;
+
+  SELECT * INTO result
+  FROM public.reject_listing_claim(
+    '20000000-0000-4000-8000-000000000006',
+    'Duplicate rejection',
+    '00000000-0000-4000-8000-000000000001'
+  );
+  IF result.success OR result.message <> 'Claim not found or already processed' THEN
+    RAISE EXCEPTION 'already processed claim rejection succeeded: %', row_to_json(result);
+  END IF;
+
+  IF has_function_privilege('public', 'public.reject_listing_claim(uuid,text,uuid)', 'EXECUTE')
+     OR has_function_privilege('anon', 'public.reject_listing_claim(uuid,text,uuid)', 'EXECUTE')
+     OR has_function_privilege('authenticated', 'public.reject_listing_claim(uuid,text,uuid)', 'EXECUTE')
+     OR NOT has_function_privilege('service_role', 'public.reject_listing_claim(uuid,text,uuid)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'rejection RPC execution grants invalid';
   END IF;
 END;
 $$;
