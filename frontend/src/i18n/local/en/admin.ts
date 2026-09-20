@@ -1,4 +1,5 @@
 export default {
+  "admin.productOrders": "Product orders",
   "admin.currency": "Currency",
   "admin.active": "Active",
   "admin.inactive": "Inactive",

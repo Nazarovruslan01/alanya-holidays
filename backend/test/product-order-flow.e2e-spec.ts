@@ -9,6 +9,7 @@ process.env.STRIPE_WEBHOOK_SECRET = 'whsec_product_order_e2e';
 
 import { GlobalHttpExceptionFilter } from '../src/common/filters/http-exception.filter';
 import { ProductsController } from '../src/products/products.controller';
+import { ProductsAdminController } from '../src/products/products-admin.controller';
 import { ProductOrdersService } from '../src/products/product-orders.service';
 import { ProductsService } from '../src/products/products.service';
 import { ProductsRepository } from '../src/products/products.repository';
@@ -52,6 +53,7 @@ interface TestOrder {
 const BUYER_ID = '11111111-1111-4111-8111-111111111111';
 const OTHER_BUYER_ID = '22222222-2222-4222-8222-222222222222';
 const SELLER_ID = '33333333-3333-4333-8333-333333333333';
+const ADMIN_ID = '44444444-4444-4444-8444-444444444444';
 const GUEST_ACCESS_TOKEN = 'g'.repeat(43);
 const WRONG_GUEST_ACCESS_TOKEN = 'w'.repeat(43);
 const GUEST_ORDER_ID = 101;
@@ -100,6 +102,8 @@ describe('Product order HTTP flow (e2e)', () => {
   };
 
   const productsRepositoryFake = {
+    getAllOrders: jest.fn(() => Promise.resolve([...orders.values()])),
+    getMyCatalogItems: jest.fn(() => Promise.resolve([])),
     getOrderById: jest.fn((orderId: string | number) =>
       Promise.resolve(orders.get(Number(orderId)) ?? null),
     ),
@@ -217,7 +221,11 @@ describe('Product order HTTP flow (e2e)', () => {
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      controllers: [ProductsController, StripeWebhookController],
+      controllers: [
+        ProductsAdminController,
+        ProductsController,
+        StripeWebhookController,
+      ],
       providers: [
         ProductsService,
         ProductOrdersService,
@@ -293,6 +301,9 @@ describe('Product order HTTP flow (e2e)', () => {
     orders.clear();
     guestAccessHashes.clear();
     claimedEvents.clear();
+    userRolesRepositoryFake.getRole.mockImplementation((id: string) =>
+      Promise.resolve(id === ADMIN_ID ? 'admin' : 'user'),
+    );
     orders.set(GUEST_ORDER_ID, makeOrder(GUEST_ORDER_ID));
     orders.set(BUYER_ORDER_ID, makeOrder(BUYER_ORDER_ID, BUYER_ID));
     guestAccessHashes.set(
@@ -307,6 +318,7 @@ describe('Product order HTTP flow (e2e)', () => {
           email: 'other@example.com',
         },
         'seller-token': { id: SELLER_ID, email: 'seller@example.com' },
+        'admin-token': { id: ADMIN_ID, email: 'admin@example.com' },
       };
       return Promise.resolve({
         data: { user: users[token] ?? null },
@@ -318,6 +330,30 @@ describe('Product order HTTP flow (e2e)', () => {
 
   afterAll(async () => {
     await app.close();
+  });
+
+  it('separates admin order access from the seller dashboard over HTTP', async () => {
+    await request(httpApp).get('/api/products/admin/orders').expect(401);
+    await request(httpApp)
+      .get('/api/products/admin/orders')
+      .set('Authorization', 'Bearer seller-token')
+      .expect(401);
+    expect(productsRepositoryFake.getAllOrders).not.toHaveBeenCalled();
+
+    const admin = await request(httpApp)
+      .get('/api/products/admin/orders')
+      .set('Authorization', 'Bearer admin-token')
+      .expect(200);
+    expect(admin.body).toHaveLength(2);
+    const seller = await request(httpApp)
+      .get('/api/products/orders/seller')
+      .set('Authorization', 'Bearer admin-token')
+      .expect(200);
+    expect(seller.body).toEqual([]);
+    expect(productsRepositoryFake.getMyCatalogItems).toHaveBeenCalledWith(
+      ADMIN_ID,
+    );
+    expect(productsRepositoryFake.getAllOrders).toHaveBeenCalledTimes(1);
   });
 
   it('returns a retryable HTTP failure when a webhook delivery is busy', async () => {

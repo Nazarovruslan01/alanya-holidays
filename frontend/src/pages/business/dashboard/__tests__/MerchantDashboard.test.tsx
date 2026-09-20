@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import MerchantDashboardPage from "../page";
 import { MerchantHero } from "../components/MerchantHero";
@@ -14,11 +14,12 @@ import { businessApplicationsService } from "@/api-services/business-application
 import { blogService } from "@/api-services/blog.service";
 import { eventsService } from "@/api-services/events.service";
 import { productsService } from "@/api-services/products.service";
+import { ordersService, type SellerOrder } from "@/api-services/orders.service";
 import type { Business } from "@/mocks/businesses";
 import type { DirectoryClaim, OwnerAnalyticsSummary } from "@/api-services/directory.service";
 
 // Mock Auth Context
-const mockUser = { id: "user-merchant-1", email: "merchant@alanya.test" };
+let mockUser = { id: "user-merchant-1", email: "merchant@alanya.test" };
 const mockProfile = { id: "user-merchant-1", full_name: "Ali Merchant", role: "user" };
 
 vi.mock("@/context/AuthContext", () => ({
@@ -113,6 +114,7 @@ const sampleAnalytics: OwnerAnalyticsSummary = {
 describe("Merchant Dashboard Unit & Component Tests", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    mockUser = { id: "user-merchant-1", email: "merchant@alanya.test" };
     vi.spyOn(billingService, "getMySubscription").mockResolvedValue({
       plan: "monthly",
       status: "active",
@@ -483,6 +485,58 @@ describe("Merchant Dashboard Unit & Component Tests", () => {
           "draft-1"
         );
       });
+    });
+
+    it("clears products when switching accounts without leaving the dashboard", async () => {
+      vi.spyOn(directoryService, "getMyListings").mockResolvedValue([]);
+      vi.spyOn(directoryService, "getMyClaims").mockResolvedValue([]);
+      vi.spyOn(directoryService, "getOwnerAnalytics").mockResolvedValue(sampleAnalytics);
+      vi.spyOn(businessApplicationsService, "getMine").mockResolvedValue(null);
+      const load = vi.spyOn(productsService, "getMyProducts")
+        .mockResolvedValueOnce([{
+          id: 1, name: "First seller's product", price: 30, currency: "EUR",
+          stock: 1, status: "active", seller_id: mockUser.id,
+        }])
+        .mockResolvedValue([]);
+      const { rerender } = render(<MemoryRouter><MerchantDashboardPage /></MemoryRouter>);
+      fireEvent.click(await screen.findByRole("tab", { name: /My Products.*Active/i }));
+      expect(await screen.findByText("First seller's product")).toBeInTheDocument();
+      mockUser = { id: "user-merchant-2", email: "second@alanya.test" };
+      rerender(<MemoryRouter><MerchantDashboardPage /></MemoryRouter>);
+      expect(screen.queryByText("First seller's product")).not.toBeInTheDocument();
+      fireEvent.click(await screen.findByRole("tab", { name: /My Products.*Active/i }));
+      await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+      expect(screen.queryByText("First seller's product")).not.toBeInTheDocument();
+    });
+
+    it.each([false, true])("clears the previous account's orders, including late responses (%s)", async (late) => {
+      vi.spyOn(directoryService, "getMyListings").mockResolvedValue([]);
+      vi.spyOn(directoryService, "getMyClaims").mockResolvedValue([]);
+      vi.spyOn(directoryService, "getOwnerAnalytics").mockResolvedValue(sampleAnalytics);
+      vi.spyOn(businessApplicationsService, "getMine").mockResolvedValue(null);
+      let resolveFirst!: (orders: SellerOrder[]) => void;
+      const firstOrder: SellerOrder = {
+        id: 3, status: "cancelled", items: [{ product_name: "First seller's towel" }],
+      };
+      const load = vi.spyOn(ordersService, "getSellerOrders")
+        .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
+        .mockResolvedValue([]);
+      const view = <MemoryRouter><MerchantDashboardPage /></MemoryRouter>;
+      const { rerender } = render(view);
+      fireEvent.click(await screen.findByRole("tab", { name: /Incoming Orders/i }));
+      await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+      if (!late) {
+        await act(async () => resolveFirst([firstOrder]));
+        expect(screen.getByText("First seller's towel")).toBeInTheDocument();
+      }
+      mockUser = { id: "user-merchant-2", email: "second@alanya.test" };
+      rerender(<MemoryRouter><MerchantDashboardPage /></MemoryRouter>);
+      expect(screen.queryByText("First seller's towel")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("tab", { name: /Incoming Orders/i }));
+      expect(await screen.findByText(/No orders yet/i)).toBeInTheDocument();
+      if (late) await act(async () => resolveFirst([firstOrder]));
+      expect(screen.queryByText("First seller's towel")).not.toBeInTheDocument();
+      expect(load).toHaveBeenCalledTimes(2);
     });
 
     it("renders standalone top bar with return navigation, breadcrumbs, and live directory preview", async () => {

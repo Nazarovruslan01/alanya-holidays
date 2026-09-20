@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import React from "react";
 
-export type AdminTab = "publishing" | "listings" | "claims" | "business-applications" | "content" | "forum" | "bookings" | "reviews" | "users" | "audit" | "analytics" | "concierge";
+export type AdminTab = "publishing" | "listings" | "claims" | "business-applications" | "content" | "forum" | "bookings" | "orders" | "reviews" | "users" | "audit" | "analytics" | "concierge";
 
 interface AdminTabsNavProps {
   activeTab: AdminTab;
@@ -76,6 +76,11 @@ export default function AdminTabsNav({
       icon: "ri-calendar-check-line",
       badge: counts?.pendingBookings,
       badgeColor: "bg-sky-100 dark:bg-sky-950/80 text-sky-800 dark:text-sky-300 border-sky-200 dark:border-sky-800",
+    },
+    {
+      id: "orders",
+      label: t("admin.productOrders"),
+      icon: "ri-shopping-bag-line",
     },
     {
       id: "reviews",

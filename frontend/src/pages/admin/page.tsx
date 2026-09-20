@@ -17,13 +17,14 @@ import ReviewsModerationTab from "./components/ReviewsModerationTab";
 import UsersAdminTab from "./components/UsersAdminTab";
 import BusinessApplicationsTab from "./components/BusinessApplicationsTab";
 import AdminContentLibraryTab from "./components/AdminContentLibraryTab";
+import { SellerOrdersTab } from "../business/dashboard/components/SellerOrdersTab";
 import { adminService } from "@/api-services/admin.service";
 import { useToast } from "@/hooks/useToast";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 export default function AdminDashboardPage() {
   const { t } = useTranslation();
-  const { isAdmin, loading: authLoading } = useAuth();
+  const { user, isAdmin, loading: authLoading } = useAuth();
   const { showToast, ToastContainer } = useToast();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -35,6 +36,7 @@ export default function AdminDashboardPage() {
     rawTab === "content" ||
     rawTab === "forum" ||
     rawTab === "bookings" ||
+    rawTab === "orders" ||
     rawTab === "reviews" ||
     rawTab === "users" ||
     rawTab === "audit" ||
@@ -284,6 +286,12 @@ export default function AdminDashboardPage() {
             <ForumModerationTab
               onReportCountUpdate={handleReportCountUpdate}
             />
+          </div>
+        )}
+
+        {activeTab === "orders" && (
+          <div id="admin-tabpanel-orders" role="tabpanel" aria-labelledby="admin-tab-orders">
+            <SellerOrdersTab key={user?.id} scope="admin" />
           </div>
         )}
 
