@@ -72,6 +72,9 @@ jobs:
     - name: Backend Tests
       run: pnpm --filter @alanya-holidays/backend test
 
+    - name: Backend HTTP Integration Tests
+      run: pnpm --filter @alanya-holidays/backend test:e2e --runInBand
+
     - name: Monorepo Build
       run: pnpm build
 
@@ -86,6 +89,9 @@ jobs:
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
+
+    - name: Verify Production Deployment Contract
+      run: bash scripts/test-production-deployment-contract.sh
 
     - name: Lint Docker Compose Configurations
       run: |
@@ -185,6 +191,11 @@ jobs:
         PGPASSWORD: postgrespassword
       run: |
         psql -h localhost -U postgres -d alanya_holidays -v ON_ERROR_STOP=1 -f db_scripts/verify_rls_security.sql
+
+    - name: Verify Stripe Event Recovery
+      env:
+        PGPASSWORD: postgrespassword
+      run: psql -h localhost -U postgres -d alanya_holidays -v ON_ERROR_STOP=1 -f supabase/tests/stripe_event_delivery_leases.sql
 
     - name: Verify Event Media Isolation and Cleanup
       env:

@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { PropertiesService } from './properties.service';
 import { PropertiesController } from './properties.controller';
 import { PropertiesAdminController } from './properties-admin.controller';
-import { PropertiesRepository } from './properties.repository';
 import { SupabasePropertiesRepository } from './infrastructure/repositories/supabase-properties.repository';
 import { PROPERTIES_REPOSITORY } from './domain';
 import { AuthModule } from '../auth/auth.module';
@@ -15,7 +14,6 @@ import { EmailOutboxRepository } from '../bookings/email-outbox.repository';
     PropertiesService,
     EmailOutboxRepository,
     SupabasePropertiesRepository,
-    PropertiesRepository,
     {
       provide: PROPERTIES_REPOSITORY,
       useExisting: SupabasePropertiesRepository,
@@ -23,7 +21,6 @@ import { EmailOutboxRepository } from '../bookings/email-outbox.repository';
   ],
   exports: [
     PropertiesService,
-    PropertiesRepository,
     SupabasePropertiesRepository,
     PROPERTIES_REPOSITORY,
   ],

@@ -5,7 +5,6 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ServicesService } from './services.service';
-import { ServicesRepository } from './services.repository';
 import { SERVICES_REPOSITORY } from './domain';
 import { RedisService } from '../common/redis/redis.service';
 import { UserRolesRepository } from '../common/auth/user-roles.repository';
@@ -98,10 +97,6 @@ describe('ServicesService', () => {
         ServicesService,
         {
           provide: SERVICES_REPOSITORY,
-          useValue: mockRepository,
-        },
-        {
-          provide: ServicesRepository,
           useValue: mockRepository,
         },
         {

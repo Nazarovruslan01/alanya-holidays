@@ -31,6 +31,7 @@ import { BlogService } from '../src/blog/blog.service';
 import { MediaController } from '../src/media/media.controller';
 import { MediaProcessingService } from '../src/media/media-processing.service';
 import { EventMediaService } from '../src/media/event-media.service';
+import { InlineMediaService } from '../src/media/inline-media.service';
 import { AuthGuard } from '../src/auth/auth.guard';
 import { OptionalAuthGuard } from '../src/auth/optional-auth.guard';
 import { RolesGuard } from '../src/auth/roles.guard';
@@ -445,6 +446,10 @@ describe('Platform Milestones Comprehensive E2E & Multi-Tier Test Suite (Tiers 1
         },
         {
           provide: EventMediaService,
+          useValue: {},
+        },
+        {
+          provide: InlineMediaService,
           useValue: {},
         },
         {

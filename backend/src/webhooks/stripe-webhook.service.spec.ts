@@ -19,6 +19,7 @@ describe('StripeWebhookService', () => {
   let productOrderHandler: jest.Mocked<Partial<ProductOrderWebhookHandler>>;
   let processedEvents: {
     tryClaimEvent: jest.Mock;
+    completeEvent: jest.Mock;
     releaseEvent: jest.Mock;
   };
 
@@ -48,6 +49,7 @@ describe('StripeWebhookService', () => {
 
     const processedEventsMock = {
       tryClaimEvent: jest.fn().mockResolvedValue(true),
+      completeEvent: jest.fn().mockResolvedValue(undefined),
       releaseEvent: jest.fn().mockResolvedValue(undefined),
     };
     processedEvents = processedEventsMock;
@@ -417,6 +419,7 @@ describe('StripeWebhookService', () => {
 
       expect(processedEvents.releaseEvent).toHaveBeenCalledWith(
         'evt_handler_fail',
+        expect.any(String),
       );
 
       // Retry delivery after the claim was released is processed again.

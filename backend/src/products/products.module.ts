@@ -1,3 +1,4 @@
+import { ProductOrdersService } from './product-orders.service';
 import { Module } from '@nestjs/common';
 import { ProductsController } from './products.controller';
 import { ProductsAdminController } from './products-admin.controller';
@@ -13,7 +14,12 @@ import { BillingModule } from '../billing/billing.module';
   // route, and ProductsController declares a @Get(':id') catch-all that
   // would otherwise swallow GET /products/admin.
   controllers: [ProductsAdminController, ProductsController],
-  providers: [ProductsService, ProductDraftsService, ProductsRepository],
+  providers: [
+    ProductsService,
+    ProductOrdersService,
+    ProductDraftsService,
+    ProductsRepository,
+  ],
   exports: [ProductsService, ProductsRepository],
 })
 export class ProductsModule {}

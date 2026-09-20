@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
-import { ProductsService } from './products.service';
+import { ProductOrdersService } from './product-orders.service';
 import { ProductsRepository } from './products.repository';
 import { UserRolesRepository } from '../common/auth/user-roles.repository';
 import { BillingService } from '../billing/billing.service';
@@ -11,8 +11,8 @@ import { CreateProductOrderDto } from './dto/create-product-order.dto';
  * server must resolve prices from the database, never trust client-supplied
  * unitPrice/finalPrice/subtotal values.
  */
-describe('ProductsService - server-side order pricing', () => {
-  let service: ProductsService;
+describe('ProductOrdersService - server-side order pricing', () => {
+  let service: ProductOrdersService;
   let mockRepository: {
     getOrderableProductsByIds: jest.Mock;
     createProductOrder: jest.Mock;
@@ -39,7 +39,7 @@ describe('ProductsService - server-side order pricing', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        ProductsService,
+        ProductOrdersService,
         { provide: ProductsRepository, useValue: mockRepository },
         {
           provide: UserRolesRepository,
@@ -54,7 +54,7 @@ describe('ProductsService - server-side order pricing', () => {
       ],
     }).compile();
 
-    service = module.get<ProductsService>(ProductsService);
+    service = module.get<ProductOrdersService>(ProductOrdersService);
   });
 
   const baseDto = (items: unknown[], subtotal?: number) =>
