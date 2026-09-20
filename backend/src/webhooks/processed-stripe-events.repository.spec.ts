@@ -29,21 +29,34 @@ describe('ProcessedStripeEventsRepository', () => {
     );
   });
 
-  it('should claim an unseen event via the claim_stripe_event RPC and return true', async () => {
-    mockSupabaseClient.rpc.mockResolvedValueOnce({ data: true, error: null });
-
-    const isFirstTime = await repository.tryClaimEvent('evt_123');
-
-    expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('claim_stripe_event', {
-      p_event_id: 'evt_123',
+  it('should claim an unseen event via the claim_stripe_event_delivery RPC and return true', async () => {
+    mockSupabaseClient.rpc.mockResolvedValueOnce({
+      data: 'claimed',
+      error: null,
     });
+
+    const isFirstTime = await repository.tryClaimEvent('evt_123', 'token');
+
+    expect(mockSupabaseClient.rpc).toHaveBeenCalledWith(
+      'claim_stripe_event_delivery',
+      {
+        p_event_id: 'evt_123',
+        p_token: 'token',
+      },
+    );
     expect(isFirstTime).toBe(true);
   });
 
   it('should return false for an already-claimed (duplicate) event', async () => {
-    mockSupabaseClient.rpc.mockResolvedValueOnce({ data: false, error: null });
+    mockSupabaseClient.rpc.mockResolvedValueOnce({
+      data: 'completed',
+      error: null,
+    });
 
-    const isFirstTime = await repository.tryClaimEvent('evt_duplicate');
+    const isFirstTime = await repository.tryClaimEvent(
+      'evt_duplicate',
+      'token',
+    );
 
     expect(isFirstTime).toBe(false);
   });
@@ -54,8 +67,52 @@ describe('ProcessedStripeEventsRepository', () => {
       error: { message: 'connection refused' },
     });
 
-    await expect(repository.tryClaimEvent('evt_err')).rejects.toThrow(
+    await expect(repository.tryClaimEvent('evt_err', 'token')).rejects.toThrow(
       'connection refused',
+    );
+  });
+
+  it.each(['busy', null, 'unexpected'])(
+    'fails closed for claim result %s',
+    async (data) => {
+      mockSupabaseClient.rpc.mockResolvedValueOnce({ data, error: null });
+      await expect(
+        repository.tryClaimEvent('evt_busy', 'token'),
+      ).rejects.toThrow();
+    },
+  );
+
+  it('completes only the owned delivery', async () => {
+    mockSupabaseClient.rpc.mockResolvedValueOnce({ data: true, error: null });
+    await repository.completeEvent('evt_done', 'token');
+    expect(mockSupabaseClient.rpc).toHaveBeenCalledWith(
+      'complete_stripe_event_delivery',
+      {
+        p_event_id: 'evt_done',
+        p_token: 'token',
+      },
+    );
+  });
+
+  it.each([false, null])(
+    'rejects completion without ownership (%s)',
+    async (data) => {
+      mockSupabaseClient.rpc.mockResolvedValueOnce({ data, error: null });
+      await expect(
+        repository.completeEvent('evt_lost', 'token'),
+      ).rejects.toThrow('lease was lost');
+    },
+  );
+
+  it('releases through the token-guarded RPC', async () => {
+    mockSupabaseClient.rpc.mockResolvedValueOnce({ error: null });
+    await repository.releaseEvent('evt_retry', 'token');
+    expect(mockSupabaseClient.rpc).toHaveBeenCalledWith(
+      'release_stripe_event_delivery',
+      {
+        p_event_id: 'evt_retry',
+        p_token: 'token',
+      },
     );
   });
 });

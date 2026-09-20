@@ -380,6 +380,7 @@ describe('Adversarial Challenger: Sprint 2 Stress, Edge-Case & Concurrency Harne
     let processedEventsStore: Map<string, boolean>;
     let mockProcessedRepo: {
       tryClaimEvent: jest.Mock;
+      completeEvent: jest.Mock;
       releaseEvent: jest.Mock;
     };
 
@@ -405,11 +406,18 @@ describe('Adversarial Challenger: Sprint 2 Stress, Edge-Case & Concurrency Harne
 
       mockProcessedRepo = {
         tryClaimEvent: jest.fn().mockImplementation((eventId: string) => {
+          if (processedEventsStore.get(eventId) === true) {
+            return Promise.reject(new Error('Event busy'));
+          }
           if (processedEventsStore.has(eventId)) {
             return Promise.resolve(false);
           }
           processedEventsStore.set(eventId, true);
           return Promise.resolve(true);
+        }),
+        completeEvent: jest.fn().mockImplementation((eventId: string) => {
+          processedEventsStore.set(eventId, false);
+          return Promise.resolve();
         }),
         releaseEvent: jest.fn().mockImplementation((eventId: string) => {
           processedEventsStore.delete(eventId);
@@ -464,10 +472,15 @@ describe('Adversarial Challenger: Sprint 2 Stress, Edge-Case & Concurrency Harne
         ),
       );
 
-      const results = await Promise.all(calls);
+      const results = await Promise.allSettled(calls);
 
       expect(results).toHaveLength(100);
-      results.forEach((res) => expect(res).toEqual({ received: true }));
+      expect(
+        results.filter((result) => result.status === 'fulfilled'),
+      ).toHaveLength(1);
+      expect(
+        results.filter((result) => result.status === 'rejected'),
+      ).toHaveLength(99);
       expect(bookingHandler.handleCheckoutSession).toHaveBeenCalledTimes(1);
       expect(mockProcessedRepo.tryClaimEvent).toHaveBeenCalledTimes(100);
     });
@@ -528,7 +541,10 @@ describe('Adversarial Challenger: Sprint 2 Stress, Edge-Case & Concurrency Harne
       ).rejects.toThrow('Primary handler business logic error');
 
       expect(bookingHandler.handleCheckoutSession).toHaveBeenCalledTimes(1);
-      expect(mockProcessedRepo.releaseEvent).toHaveBeenCalledWith(eventId);
+      expect(mockProcessedRepo.releaseEvent).toHaveBeenCalledWith(
+        eventId,
+        expect.any(String),
+      );
     });
   });
 });

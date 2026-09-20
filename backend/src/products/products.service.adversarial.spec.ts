@@ -1,14 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
-import { ProductsService } from './products.service';
+import { ProductOrdersService } from './product-orders.service';
 import { ProductsRepository } from './products.repository';
 import { UserRolesRepository } from '../common/auth/user-roles.repository';
 import { SupabaseService } from '../supabase/supabase.service';
 import { BillingService } from '../billing/billing.service';
 
-describe('ProductsService & ProductsRepository - Adversarial Orders Tests', () => {
-  describe('ProductsService Order Retrieval & Authorization Boundary Challenges', () => {
-    let service: ProductsService;
+describe('ProductOrdersService & ProductsRepository - Adversarial Orders Tests', () => {
+  describe('ProductOrdersService Order Retrieval & Authorization Boundary Challenges', () => {
+    let service: ProductOrdersService;
     let mockUserRolesRepo: {
       getRole: jest.Mock;
     };
@@ -28,7 +28,7 @@ describe('ProductsService & ProductsRepository - Adversarial Orders Tests', () =
 
       const module: TestingModule = await Test.createTestingModule({
         providers: [
-          ProductsService,
+          ProductOrdersService,
           {
             provide: ProductsRepository,
             useValue: mockRepository,
@@ -46,7 +46,7 @@ describe('ProductsService & ProductsRepository - Adversarial Orders Tests', () =
         ],
       }).compile();
 
-      service = module.get<ProductsService>(ProductsService);
+      service = module.get<ProductOrdersService>(ProductOrdersService);
     });
 
     describe('getMyOrders', () => {

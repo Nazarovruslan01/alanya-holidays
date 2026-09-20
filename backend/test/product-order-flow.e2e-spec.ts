@@ -9,6 +9,7 @@ process.env.STRIPE_WEBHOOK_SECRET = 'whsec_product_order_e2e';
 
 import { GlobalHttpExceptionFilter } from '../src/common/filters/http-exception.filter';
 import { ProductsController } from '../src/products/products.controller';
+import { ProductOrdersService } from '../src/products/product-orders.service';
 import { ProductsService } from '../src/products/products.service';
 import { ProductsRepository } from '../src/products/products.repository';
 import { ProductDraftsService } from '../src/products/product-drafts.service';
@@ -91,6 +92,7 @@ describe('Product order HTTP flow (e2e)', () => {
       claimedEvents.add(eventId);
       return Promise.resolve(true);
     }),
+    completeEvent: jest.fn().mockResolvedValue(undefined),
     releaseEvent: jest.fn((eventId: string) => {
       claimedEvents.delete(eventId);
       return Promise.resolve();
@@ -218,6 +220,7 @@ describe('Product order HTTP flow (e2e)', () => {
       controllers: [ProductsController, StripeWebhookController],
       providers: [
         ProductsService,
+        ProductOrdersService,
         AuthGuard,
         OptionalAuthGuard,
         AuthTokenService,
@@ -315,6 +318,20 @@ describe('Product order HTTP flow (e2e)', () => {
 
   afterAll(async () => {
     await app.close();
+  });
+
+  it('returns a retryable HTTP failure when a webhook delivery is busy', async () => {
+    processedEventsFake.tryClaimEvent.mockRejectedValueOnce(
+      new Error('Event busy'),
+    );
+    const response = await sendSignedProductWebhook(
+      orders.get(GUEST_ORDER_ID) as TestOrder,
+    );
+    expect(response.status).toBe(500);
+    expect(
+      productOrderPaymentsFake.confirmStripePayment,
+    ).not.toHaveBeenCalled();
+    expect(processedEventsFake.completeEvent).not.toHaveBeenCalled();
   });
 
   it('allows only the matching guest capability to read a guest order', async () => {

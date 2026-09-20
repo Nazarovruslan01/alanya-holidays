@@ -1,3 +1,4 @@
+import { ProductOrdersService } from './product-orders.service';
 import {
   Controller,
   Get,
@@ -45,6 +46,7 @@ import {
 export class ProductsController {
   constructor(
     private readonly productsService: ProductsService,
+    private readonly productOrdersService: ProductOrdersService,
     private readonly productDraftsService: ProductDraftsService,
   ) {}
 
@@ -105,7 +107,7 @@ export class ProductsController {
   @Get('orders/seller')
   @UseGuards(AuthGuard)
   async getSellerOrders(@CurrentUser() user: AuthUser) {
-    return this.productsService.getSellerOrders(user.id);
+    return this.productOrdersService.getSellerOrders(user.id);
   }
 
   @Patch('orders/:id/status')
@@ -115,7 +117,7 @@ export class ProductsController {
     @Body() dto: UpdateOrderStatusDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.productsService.updateOrderStatus(id, dto.status, user.id);
+    return this.productOrdersService.updateOrderStatus(id, dto.status, user.id);
   }
 
   @Post('orders')
@@ -124,13 +126,13 @@ export class ProductsController {
     @Body() dto: CreateProductOrderDto,
     @CurrentUser() user?: AuthUser,
   ) {
-    return this.productsService.createProductOrder(dto, user?.id);
+    return this.productOrdersService.createProductOrder(dto, user?.id);
   }
 
   @Get('orders/my-orders')
   @UseGuards(AuthGuard)
   async getMyOrders(@CurrentUser() user: AuthUser) {
-    return this.productsService.getMyOrders(user.id);
+    return this.productOrdersService.getMyOrders(user.id);
   }
 
   @Get('orders/:id')
@@ -140,7 +142,11 @@ export class ProductsController {
     @CurrentUser() user?: AuthUser,
     @Headers('x-order-access-token') guestAccessToken?: string,
   ) {
-    return this.productsService.getOrderById(id, user?.id, guestAccessToken);
+    return this.productOrdersService.getOrderById(
+      id,
+      user?.id,
+      guestAccessToken,
+    );
   }
 
   @Post('orders/:id/delivery-quote')
@@ -150,7 +156,7 @@ export class ProductsController {
     @Body() dto: ConfirmDeliveryQuoteDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.productsService.confirmDeliveryQuote(id, dto, user.id);
+    return this.productOrdersService.confirmDeliveryQuote(id, dto, user.id);
   }
 
   @Post('orders/:id/payment/manual')
@@ -160,7 +166,7 @@ export class ProductsController {
     @CurrentUser() user?: AuthUser,
     @Headers('x-order-access-token') guestAccessToken?: string,
   ) {
-    return this.productsService.selectManualPayment(
+    return this.productOrdersService.selectManualPayment(
       id,
       user?.id,
       guestAccessToken,
@@ -174,7 +180,7 @@ export class ProductsController {
     @CurrentUser() user?: AuthUser,
     @Headers('x-order-access-token') guestAccessToken?: string,
   ) {
-    return this.productsService.createOnlinePayment(
+    return this.productOrdersService.createOnlinePayment(
       id,
       user?.id,
       guestAccessToken,

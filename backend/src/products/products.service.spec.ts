@@ -1,3 +1,4 @@
+import { ProductOrdersService } from './product-orders.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   NotFoundException,
@@ -13,8 +14,9 @@ import { BillingService } from '../billing/billing.service';
 import { CreateProductOrderDto } from './dto/create-product-order.dto';
 import { CreateProductDto, UpdateProductDto } from './dto/product-write.dto';
 
-describe('ProductsService', () => {
+describe('ProductsService and ProductOrdersService', () => {
   let service: ProductsService;
+  let orderService: ProductOrdersService;
   let mockUserRolesRepo: {
     getRole: jest.Mock;
   };
@@ -140,6 +142,7 @@ describe('ProductsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProductsService,
+        ProductOrdersService,
         {
           provide: ProductsRepository,
           useValue: mockRepository,
@@ -156,6 +159,7 @@ describe('ProductsService', () => {
     }).compile();
 
     service = module.get<ProductsService>(ProductsService);
+    orderService = module.get<ProductOrdersService>(ProductOrdersService);
   });
 
   describe('createProduct', () => {
@@ -437,7 +441,7 @@ describe('ProductsService', () => {
           },
         ],
       };
-      const res = await service.createProductOrder(dto, 'user-xyz');
+      const res = await orderService.createProductOrder(dto, 'user-xyz');
       expect(mockRepository.getOrderableProductsByIds).toHaveBeenCalledWith(
         [1],
         [],
@@ -496,10 +500,12 @@ describe('ProductsService', () => {
         message: 'Order placed successfully',
       });
 
-      await expect(service.createProductOrder(dto)).resolves.toMatchObject({
-        orderId: 77,
-        status: 'pending_payment',
-      });
+      await expect(orderService.createProductOrder(dto)).resolves.toMatchObject(
+        {
+          orderId: 77,
+          status: 'pending_payment',
+        },
+      );
       expect(mockRepository.getProductOrderReplay).toHaveBeenCalledWith(
         dto.requestId,
         expect.objectContaining({
@@ -547,7 +553,7 @@ describe('ProductsService', () => {
         },
       ]);
 
-      await expect(service.createProductOrder(dto)).rejects.toThrow(
+      await expect(orderService.createProductOrder(dto)).rejects.toThrow(
         'Gift card sales are temporarily unavailable',
       );
       expect(mockRepository.createProductOrder).not.toHaveBeenCalled();
@@ -581,7 +587,7 @@ describe('ProductsService', () => {
       );
 
       await expect(
-        service.createProductOrder(dto, 'different-owner'),
+        orderService.createProductOrder(dto, 'different-owner'),
       ).rejects.toThrow(ConflictException);
       expect(mockRepository.getOrderableProductsByIds).not.toHaveBeenCalled();
     });
@@ -621,9 +627,11 @@ describe('ProductsService', () => {
         },
       ]);
 
-      await expect(service.createProductOrder(dto)).resolves.toMatchObject({
-        orderId: 77,
-      });
+      await expect(orderService.createProductOrder(dto)).resolves.toMatchObject(
+        {
+          orderId: 77,
+        },
+      );
       expect(mockRepository.createProductOrder).toHaveBeenCalledWith(
         expect.objectContaining({ requestId: dto.requestId }),
         undefined,
@@ -647,7 +655,7 @@ describe('ProductsService', () => {
         },
         items: [],
       };
-      await expect(service.createProductOrder(dto)).rejects.toThrow(
+      await expect(orderService.createProductOrder(dto)).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -673,7 +681,7 @@ describe('ProductsService', () => {
           },
         ],
       };
-      await expect(service.createProductOrder(dto)).rejects.toThrow(
+      await expect(orderService.createProductOrder(dto)).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -699,7 +707,7 @@ describe('ProductsService', () => {
           },
         ],
       };
-      await expect(service.createProductOrder(dto)).rejects.toThrow(
+      await expect(orderService.createProductOrder(dto)).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -729,7 +737,7 @@ describe('ProductsService', () => {
     });
 
     it('getMyOrders should query repository for customer orders', async () => {
-      const res = await service.getMyOrders('user-xyz');
+      const res = await orderService.getMyOrders('user-xyz');
       expect(mockRepository.getMyOrders).toHaveBeenCalledWith('user-xyz');
       expect(res).toEqual([
         {
@@ -747,7 +755,7 @@ describe('ProductsService', () => {
         customer_id: 'user-xyz',
       });
 
-      const res = await service.getOrderById('77', 'user-xyz');
+      const res = await orderService.getOrderById('77', 'user-xyz');
       expect(res).toEqual({ id: 77 });
     });
 
@@ -758,7 +766,7 @@ describe('ProductsService', () => {
         customer_id: 'different-user',
       });
 
-      const res = await service.getOrderById('77', 'admin-user');
+      const res = await orderService.getOrderById('77', 'admin-user');
       expect(res).toEqual({ id: 77, customer_id: 'different-user' });
     });
 
@@ -766,9 +774,9 @@ describe('ProductsService', () => {
       mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
       mockRepository.getOrderById.mockResolvedValueOnce(null);
 
-      await expect(service.getOrderById('999', 'user-xyz')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        orderService.getOrderById('999', 'user-xyz'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('getOrderById should conceal an order belonging to another user', async () => {
@@ -778,7 +786,7 @@ describe('ProductsService', () => {
         customer_id: 'other-user',
       });
 
-      await expect(service.getOrderById('77', 'user-xyz')).rejects.toThrow(
+      await expect(orderService.getOrderById('77', 'user-xyz')).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -870,7 +878,9 @@ describe('ProductsService', () => {
     it('getSellerOrders should return [] when seller has no catalog items', async () => {
       mockRepository.getMyCatalogItems.mockResolvedValueOnce([]);
 
-      await expect(service.getSellerOrders('seller-1')).resolves.toEqual([]);
+      await expect(orderService.getSellerOrders('seller-1')).resolves.toEqual(
+        [],
+      );
       expect(
         mockRepository.getOrdersContainingCatalogItems,
       ).not.toHaveBeenCalled();
@@ -923,7 +933,7 @@ describe('ProductsService', () => {
         },
       ]);
 
-      await expect(service.getSellerOrders('seller-1')).resolves.toEqual([
+      await expect(orderService.getSellerOrders('seller-1')).resolves.toEqual([
         {
           id: 77,
           currency: 'EUR',
@@ -998,7 +1008,7 @@ describe('ProductsService', () => {
         },
       ]);
 
-      const [order] = await service.getSellerOrders('seller-1');
+      const [order] = await orderService.getSellerOrders('seller-1');
 
       expect(order).toMatchObject({
         id: 78,
@@ -1033,14 +1043,18 @@ describe('ProductsService', () => {
         },
       ]);
 
-      await expect(service.getSellerOrders('seller-1')).resolves.toEqual([]);
+      await expect(orderService.getSellerOrders('seller-1')).resolves.toEqual(
+        [],
+      );
     });
 
     it('getSellerOrders should return all orders for admin', async () => {
       mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');
       mockRepository.getAllOrders.mockResolvedValueOnce([{ id: 1 }, { id: 2 }]);
 
-      await expect(service.getSellerOrders('admin-1')).resolves.toHaveLength(2);
+      await expect(
+        orderService.getSellerOrders('admin-1'),
+      ).resolves.toHaveLength(2);
       expect(mockRepository.getMyCatalogItems).not.toHaveBeenCalled();
     });
 
@@ -1058,7 +1072,7 @@ describe('ProductsService', () => {
       });
 
       await expect(
-        service.updateOrderStatus('77', 'shipped', 'seller-1'),
+        orderService.updateOrderStatus('77', 'shipped', 'seller-1'),
       ).resolves.toEqual({ id: 77, status: 'shipped' });
       expect(mockRepository.updateOrderStatus).toHaveBeenCalledWith(
         77,
@@ -1079,7 +1093,7 @@ describe('ProductsService', () => {
       mockRepository.updateOrderStatus.mockResolvedValueOnce(null);
 
       await expect(
-        service.updateOrderStatus('77', 'shipped', 'seller-1'),
+        orderService.updateOrderStatus('77', 'shipped', 'seller-1'),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -1092,7 +1106,7 @@ describe('ProductsService', () => {
       mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
 
       await expect(
-        service.updateOrderStatus('77', 'shipped', 'seller-1'),
+        orderService.updateOrderStatus('77', 'shipped', 'seller-1'),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -1105,7 +1119,7 @@ describe('ProductsService', () => {
       mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
 
       await expect(
-        service.updateOrderStatus('77', 'shipped', 'intruder-1'),
+        orderService.updateOrderStatus('77', 'shipped', 'intruder-1'),
       ).rejects.toThrow(UnauthorizedException);
       expect(mockRepository.updateOrderStatus).not.toHaveBeenCalled();
     });
@@ -1123,7 +1137,7 @@ describe('ProductsService', () => {
       mockRepository.sellerOwnsAllCatalogItems.mockResolvedValueOnce(false);
 
       await expect(
-        service.updateOrderStatus('77', 'shipped', 'seller-1'),
+        orderService.updateOrderStatus('77', 'shipped', 'seller-1'),
       ).rejects.toThrow(UnauthorizedException);
       expect(mockRepository.updateOrderStatus).not.toHaveBeenCalled();
     });
@@ -1144,7 +1158,7 @@ describe('ProductsService', () => {
         status: 'shipped',
       });
 
-      await service.updateOrderStatus('77', 'shipped', 'seller-1');
+      await orderService.updateOrderStatus('77', 'shipped', 'seller-1');
 
       expect(mockRepository.sellerOwnsAllCatalogItems).toHaveBeenCalledWith(
         ['3', '5'],
@@ -1161,7 +1175,7 @@ describe('ProductsService', () => {
       mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
 
       await expect(
-        service.updateOrderStatus('77', 'shipped', 'seller-1'),
+        orderService.updateOrderStatus('77', 'shipped', 'seller-1'),
       ).rejects.toThrow(UnauthorizedException);
       expect(mockRepository.sellerOwnsAllCatalogItems).not.toHaveBeenCalled();
       expect(mockRepository.updateOrderStatus).not.toHaveBeenCalled();
@@ -1180,7 +1194,7 @@ describe('ProductsService', () => {
       });
 
       await expect(
-        service.updateOrderStatus('88', 'cancelled', 'admin-1'),
+        orderService.updateOrderStatus('88', 'cancelled', 'admin-1'),
       ).resolves.toEqual({ id: 88, status: 'cancelled' });
       expect(mockRepository.sellerOwnsAllCatalogItems).not.toHaveBeenCalled();
     });
@@ -1212,7 +1226,7 @@ describe('ProductsService', () => {
         }
 
         const call = () =>
-          service.updateOrderStatus('50', toStatus as never, 'admin-1');
+          orderService.updateOrderStatus('50', toStatus as never, 'admin-1');
 
         if (allowed) {
           await expect(call()).resolves.toEqual({ id: 50, status: toStatus });
@@ -1227,7 +1241,7 @@ describe('ProductsService', () => {
       mockRepository.getOrderById.mockResolvedValueOnce(null);
 
       await expect(
-        service.updateOrderStatus('999', 'paid', 'seller-1'),
+        orderService.updateOrderStatus('999', 'paid', 'seller-1'),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -1257,7 +1271,7 @@ describe('ProductsService', () => {
         ],
       };
 
-      await expect(service.createProductOrder(dto)).rejects.toThrow(
+      await expect(orderService.createProductOrder(dto)).rejects.toThrow(
         'A secure guest access token is required',
       );
       expect(mockRepository.getProductOrderReplay).not.toHaveBeenCalled();
@@ -1271,7 +1285,7 @@ describe('ProductsService', () => {
       mockRepository.getOrderByGuestAccess.mockResolvedValueOnce(null);
 
       await expect(
-        service.getOrderById('77', undefined, 'x'.repeat(43)),
+        orderService.getOrderById('77', undefined, 'x'.repeat(43)),
       ).rejects.toThrow(NotFoundException);
       expect(mockRepository.getOrderByGuestAccess).toHaveBeenCalledWith(
         '77',
@@ -1292,7 +1306,7 @@ describe('ProductsService', () => {
       });
 
       await expect(
-        service.confirmDeliveryQuote(
+        orderService.confirmDeliveryQuote(
           '77',
           { deliveryFee: 8.5, deliveryEta: 'Tomorrow 10:00–12:00' },
           'seller-1',
@@ -1325,7 +1339,7 @@ describe('ProductsService', () => {
       });
 
       await expect(
-        service.createOnlinePayment('77', 'buyer-1'),
+        orderService.createOnlinePayment('77', 'buyer-1'),
       ).resolves.toEqual({ url: 'https://checkout.stripe.test/cs_77' });
       expect(
         mockBillingService.createProductOrderCheckout,

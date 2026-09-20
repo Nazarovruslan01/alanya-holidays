@@ -16,8 +16,12 @@ import Stripe from 'stripe';
 describe('StripeWebhookService - persistent event idempotency', () => {
   let service: StripeWebhookService;
   let paymentFake: InMemoryPaymentFake;
-  let processedEvents: { tryClaimEvent: jest.Mock };
-  let bookingHandler: jest.Mocked<Partial<BookingWebhookHandler>>;
+  let processedEvents: {
+    tryClaimEvent: jest.Mock;
+    completeEvent: jest.Mock;
+    releaseEvent: jest.Mock;
+  };
+  let bookingHandler: { handleCheckoutSession: jest.Mock };
 
   const bookingEvent = (id: string) =>
     ({
@@ -33,7 +37,11 @@ describe('StripeWebhookService - persistent event idempotency', () => {
 
   beforeEach(async () => {
     paymentFake = new InMemoryPaymentFake();
-    processedEvents = { tryClaimEvent: jest.fn() };
+    processedEvents = {
+      tryClaimEvent: jest.fn(),
+      completeEvent: jest.fn().mockResolvedValue(undefined),
+      releaseEvent: jest.fn().mockResolvedValue(undefined),
+    };
     bookingHandler = {
       handleCheckoutSession: jest.fn().mockResolvedValue(undefined),
     };
@@ -77,8 +85,14 @@ describe('StripeWebhookService - persistent event idempotency', () => {
       'sig_first',
     );
 
-    expect(processedEvents.tryClaimEvent).toHaveBeenCalledWith('evt_first');
+    expect(processedEvents.tryClaimEvent).toHaveBeenCalledWith(
+      'evt_first',
+      expect.any(String),
+    );
     expect(bookingHandler.handleCheckoutSession).toHaveBeenCalledTimes(1);
+    expect(processedEvents.completeEvent).toHaveBeenCalledWith(
+      ...processedEvents.tryClaimEvent.mock.calls[0],
+    );
     expect(result).toEqual({ received: true });
   });
 
@@ -108,5 +122,37 @@ describe('StripeWebhookService - persistent event idempotency', () => {
     ).rejects.toThrow('connection refused');
 
     expect(bookingHandler.handleCheckoutSession).not.toHaveBeenCalled();
+  });
+
+  it('does not acknowledge when completion cannot be persisted', async () => {
+    processedEvents.tryClaimEvent.mockResolvedValue(true);
+    processedEvents.completeEvent.mockRejectedValue(
+      new Error('DB unavailable'),
+    );
+    paymentFake.registerEvent('sig_complete', bookingEvent('evt_complete'));
+
+    await expect(
+      service.processWebhookEvent(Buffer.from('payload'), 'sig_complete'),
+    ).rejects.toThrow('DB unavailable');
+    expect(processedEvents.releaseEvent).toHaveBeenCalledWith(
+      ...processedEvents.tryClaimEvent.mock.calls[0],
+    );
+  });
+
+  it('records completion only after the handler succeeds', async () => {
+    processedEvents.tryClaimEvent.mockResolvedValue(true);
+    bookingHandler.handleCheckoutSession.mockImplementation(() => {
+      expect(processedEvents.completeEvent).not.toHaveBeenCalled();
+      return Promise.reject(new Error('handler failed'));
+    });
+    paymentFake.registerEvent('sig_handler', bookingEvent('evt_handler'));
+
+    await expect(
+      service.processWebhookEvent(Buffer.from('payload'), 'sig_handler'),
+    ).rejects.toThrow('handler failed');
+    expect(processedEvents.completeEvent).not.toHaveBeenCalled();
+    expect(processedEvents.releaseEvent).toHaveBeenCalledWith(
+      ...processedEvents.tryClaimEvent.mock.calls[0],
+    );
   });
 });

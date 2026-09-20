@@ -170,14 +170,14 @@ jobs:
                 docker compose -f docker-compose.prod.yml logs --tail=100 backend || true
                 docker compose -f docker-compose.prod.yml logs --tail=50 nginx || true
                 docker compose -f docker-compose.prod.yml logs --tail=50 frontend || true
-                exit 1
+                return 1
               fi
               # git reset may replace the bind-mounted config inode. Recreate
               # Nginx so Docker binds the file from the deployed commit.
               if ! docker compose --env-file .env.production -f docker-compose.prod.yml up -d --force-recreate --no-deps nginx; then
                 echo "❌ Nginx recreation failed after the stack update."
                 docker compose -f docker-compose.prod.yml logs --tail=50 nginx || true
-                exit 1
+                return 1
               fi
             }
 
@@ -211,7 +211,25 @@ jobs:
               verify_csp || return 1
             }
 
-            deploy_stack
+            rollback() {
+              if [ -n "$PREVIOUS_COMMIT" ] && [ "$PREVIOUS_COMMIT" != "$TARGET_COMMIT" ]; then
+                echo "Rolling back to previous commit $PREVIOUS_COMMIT..."
+                git reset --hard "$PREVIOUS_COMMIT" || return 1
+                deploy_stack || return 1
+                docker compose -f docker-compose.prod.yml exec -T nginx nginx -t && \
+                  docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload || return 1
+                if verify_health; then
+                  echo "✓ Rollback successful. System restored to $PREVIOUS_COMMIT."
+                  return 0
+                fi
+              fi
+              return 1
+            }
+
+            if ! deploy_stack; then
+              rollback || echo "CRITICAL: Rollback failed or no previous release is available."
+              exit 1
+            fi
 
             # Obtain real Let's Encrypt certificate if not currently valid Let's Encrypt cert
             if [ "$IS_LETS_ENCRYPT" -eq 0 ]; then
@@ -251,18 +269,7 @@ jobs:
 
             if ! verify_post_deploy; then
               echo "Post-deployment verification failed. Initiating automated rollback..."
-              if [ -n "$PREVIOUS_COMMIT" ] && [ "$PREVIOUS_COMMIT" != "$TARGET_COMMIT" ]; then
-                echo "Rolling back to previous commit $PREVIOUS_COMMIT..."
-                git reset --hard "$PREVIOUS_COMMIT"
-                deploy_stack
-                docker compose -f docker-compose.prod.yml exec -T nginx nginx -t && \
-                  docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload || true
-                if verify_health; then
-                  echo "✓ Rollback successful. System restored to $PREVIOUS_COMMIT."
-                else
-                  echo "CRITICAL: Rollback failed to achieve healthy status!"
-                fi
-              fi
+              rollback || echo "CRITICAL: Rollback failed or no previous release is available."
               exit 1
             fi
 
