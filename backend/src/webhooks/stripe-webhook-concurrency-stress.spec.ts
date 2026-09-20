@@ -41,11 +41,18 @@ describe('Task 6.1: Stripe Webhook Idempotency & Concurrency Stress Suite', () =
     const mockProcessedRepo = {
       tryClaimEvent: jest.fn().mockImplementation((eventId: string) => {
         // Atomic compare-and-swap simulation
+        if (processedEventsStore.get(eventId) === true) {
+          return Promise.reject(new Error('Event busy'));
+        }
         if (processedEventsStore.has(eventId)) {
           return Promise.resolve(false);
         }
         processedEventsStore.set(eventId, true);
         return Promise.resolve(true);
+      }),
+      completeEvent: jest.fn().mockImplementation((eventId: string) => {
+        processedEventsStore.set(eventId, false);
+        return Promise.resolve();
       }),
       releaseEvent: jest.fn().mockImplementation((eventId: string) => {
         processedEventsStore.delete(eventId);
@@ -74,7 +81,7 @@ describe('Task 6.1: Stripe Webhook Idempotency & Concurrency Stress Suite', () =
     service = module.get<StripeWebhookService>(StripeWebhookService);
   });
 
-  it('guarantees exact-once processing under 50 concurrent identical webhook deliveries', async () => {
+  it('runs one handler and rejects active duplicates for retry', async () => {
     const eventId = 'evt_race_50_workers';
     const event = {
       id: eventId,
@@ -94,11 +101,14 @@ describe('Task 6.1: Stripe Webhook Idempotency & Concurrency Stress Suite', () =
       service.processWebhookEvent(Buffer.from('payload'), 'sig_race_50'),
     );
 
-    const results = await Promise.all(parallelCalls);
+    const results = await Promise.allSettled(parallelCalls);
 
-    // All 50 requests receive { received: true }
-    expect(results).toHaveLength(50);
-    results.forEach((res) => expect(res).toEqual({ received: true }));
+    expect(
+      results.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1);
+    expect(
+      results.filter((result) => result.status === 'rejected'),
+    ).toHaveLength(49);
 
     // Handler must be called EXACTLY ONCE
     expect(bookingHandler.handleCheckoutSession).toHaveBeenCalledTimes(1);
@@ -143,7 +153,7 @@ describe('Task 6.1: Stripe Webhook Idempotency & Concurrency Stress Suite', () =
 
     expect(retryResult).toEqual({ received: true });
     expect(bookingHandler.handleCheckoutSession).toHaveBeenCalledTimes(2);
-    expect(processedEventsStore.get(eventId)).toBe(true);
+    expect(processedEventsStore.get(eventId)).toBe(false);
   });
 
   it('maintains idempotency isolation across heterogeneous event types arriving simultaneously', async () => {

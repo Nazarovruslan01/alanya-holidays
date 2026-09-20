@@ -10,6 +10,7 @@ FRONTEND_INDEX_PATH="${PROJECT_ROOT}/frontend/index.html"
 
 ruby - "${WORKFLOW_PATH}" "${NGINX_PATH}" "${FRONTEND_INDEX_PATH}" <<'RUBY'
 require "yaml"
+require "open3"
 
 workflow_path = ARGV.fetch(0)
 nginx_path = ARGV.fetch(1)
@@ -185,14 +186,14 @@ check(
 )
 
 schema_preflight = script.index("if ! verify_schema_readiness; then")
-first_deploy = script.index(/^deploy_stack$/)
+first_deploy = script.index(/^if ! deploy_stack; then$/)
 check(
   failures,
   !schema_preflight.nil? && !first_deploy.nil? && schema_preflight < first_deploy,
   "schema readiness is a fail-closed preflight before the first stack mutation",
 )
 preflight_block = if schema_preflight && first_deploy
-  script[schema_preflight...first_deploy]
+  script[schema_preflight...script.index('PREVIOUS_COMMIT=')]
 else
   ""
 end
@@ -208,8 +209,53 @@ check(
 )
 check(failures, script.include?("if ! verify_post_deploy; then"), "post-deploy verification failure enters the rollback path")
 check(failures, script.include?('git reset --hard "$PREVIOUS_COMMIT"'), "rollback still restores the previous commit")
-check(failures, script.scan(/^\s*deploy_stack\s*$/).length >= 2, "rollback still redeploys the restored stack")
+rollback_body = function_body(script, "rollback", failures)
+check(failures, rollback_body.include?("deploy_stack || return 1"), "rollback still redeploys the restored stack")
 check(failures, script.include?("if verify_health; then"), "rollback still verifies restored service health")
+
+# Execute the actual deployment entry and functions with fake external commands.
+# A failed container update must reach rollback, including with shell errexit on.
+entry = script[/^verify_post_deploy\(\) \{.*?^\}\n(?<entry>.*?)^# Obtain real/m, :entry]
+check(failures, !entry.nil?, "deployment entry can be exercised without certificate operations")
+if entry
+  functions = script.scan(/^\w+\(\) \{\n.*?^\}/m).join("\n")
+  %w[build nginx rollback none].each do |failure|
+    harness = <<~SH
+      set -e
+      #{functions}
+      PREVIOUS_COMMIT=previous
+      TARGET_COMMIT=target
+      updates=0
+      recreates=0
+      docker() {
+        case "$*" in
+          *"up -d --build"*)
+            updates=$((updates + 1))
+            echo "UPDATE:$updates"
+            if [ "#{failure}" = rollback ] || { [ "#{failure}" = build ] && [ "$updates" -eq 1 ]; }; then return 1; fi
+            ;;
+          *"--force-recreate"*)
+            recreates=$((recreates + 1))
+            if [ "#{failure}" = nginx ] && [ "$recreates" -eq 1 ]; then return 1; fi
+            ;;
+        esac
+        return 0
+      }
+      git() { echo "GIT:$*"; }
+      verify_health() { echo HEALTH; return 0; }
+      #{entry}
+    SH
+    output, status = Open3.capture2e("bash", "-c", harness)
+    if failure == "none"
+      check(failures, status.success? && output.include?("UPDATE:1") && !output.include?("GIT:"),
+        "successful deployment does not roll back")
+    else
+      check(failures, !status.success? && output.include?("GIT:reset --hard previous") &&
+        output.include?("UPDATE:2"), "#{failure} failure attempts rollback and reports a failed release")
+    end
+    check(failures, !output.include?("Rollback successful"), "failed rollback is never reported as successful") if failure == "rollback"
+  end
+end
 
 if failures.any?
   warn "#{failures.length} production deployment contract assertion(s) failed"

@@ -1,5 +1,6 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import Stripe from 'stripe';
+import { randomUUID } from 'node:crypto';
 import {
   PAYMENT_GATEWAY,
   PaymentGateway,
@@ -32,7 +33,11 @@ export class StripeWebhookService {
 
     // Persistent idempotency (audit 2.3): claim the event atomically in the DB.
     // Fail-closed on DB errors so unverified deliveries are never processed.
-    const isFirstDelivery = await this.processedEvents.tryClaimEvent(event.id);
+    const token = randomUUID();
+    const isFirstDelivery = await this.processedEvents.tryClaimEvent(
+      event.id,
+      token,
+    );
     if (!isFirstDelivery) {
       this.logger.warn(
         `Skipping duplicate Stripe event type: ${event.type} [${event.id}]`,
@@ -44,11 +49,12 @@ export class StripeWebhookService {
 
     try {
       await this.dispatch(event);
+      await this.processedEvents.completeEvent(event.id, token);
     } catch (err) {
       // Release the claim so Stripe's retry is processed instead of being
       // skipped as a duplicate (the event was not actually handled).
       try {
-        await this.processedEvents.releaseEvent(event.id);
+        await this.processedEvents.releaseEvent(event.id, token);
       } catch (releaseErr) {
         this.logger.error(
           `Failed to release Stripe event ${event.id}: ${(releaseErr as Error).message}`,

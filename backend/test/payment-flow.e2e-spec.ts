@@ -134,6 +134,7 @@ describe('Payment flow e2e: booking -> checkout webhook -> confirmation', () => 
       claimedEvents.add(eventId);
       return Promise.resolve(true);
     }),
+    completeEvent: jest.fn().mockResolvedValue(undefined),
     releaseEvent: jest.fn<Promise<void>, [string]>((eventId) => {
       claimedEvents.delete(eventId);
       return Promise.resolve();
@@ -497,6 +498,7 @@ describe('Payment flow e2e: booking -> checkout webhook -> confirmation', () => 
     expect(failed.status).toBe(500);
     expect(processedEventsFake.releaseEvent).toHaveBeenCalledWith(
       'evt_retry_flow',
+      expect.any(String),
     );
     expect(bookingsTable.get(bookingId)?.payment_status).toBe('unpaid');
 

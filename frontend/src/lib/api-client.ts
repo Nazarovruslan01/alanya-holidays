@@ -176,6 +176,13 @@ export class ApiClient {
           errorMessage = payload.message;
         } else if (typeof payload.error === "string") {
           errorMessage = payload.error;
+        } else if (payload.error && typeof payload.error === "object") {
+          const message = (payload.error as Record<string, unknown>).message;
+          if (typeof message === "string") {
+            errorMessage = message;
+          } else if (Array.isArray(message) && message.length > 0 && message.every((item) => typeof item === "string")) {
+            errorMessage = message.join("; ");
+          }
         }
       } else if (typeof responseData === "string" && responseData.length > 0) {
         errorMessage = responseData;

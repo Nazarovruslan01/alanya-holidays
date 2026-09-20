@@ -1,3 +1,4 @@
+import { ProductOrdersService } from './product-orders.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ProductsController } from './products.controller';
 import { ProductDraftsService } from './product-drafts.service';
@@ -25,7 +26,8 @@ describe('ProductsController', () => {
     getShopCatalog: jest.Mock;
     getFeaturedProducts: jest.Mock;
     getShopProductDetails: jest.Mock;
-    getOrderableProductsByIds: jest.Mock;
+  };
+  let mockOrderService: {
     createProductOrder: jest.Mock;
     getMyOrders: jest.Mock;
     getOrderById: jest.Mock;
@@ -55,7 +57,8 @@ describe('ProductsController', () => {
       getShopProductDetails: jest
         .fn()
         .mockResolvedValue({ product: { id: 1 }, variants: [], skus: [] }),
-      getOrderableProductsByIds: jest.fn().mockResolvedValue([]),
+    };
+    mockOrderService = {
       createProductOrder: jest.fn().mockResolvedValue({
         success: true,
         orderId: 101,
@@ -84,6 +87,7 @@ describe('ProductsController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ProductsController],
       providers: [
+        { provide: ProductOrdersService, useValue: mockOrderService },
         {
           provide: ProductsService,
           useValue: mockService,
@@ -186,7 +190,7 @@ describe('ProductsController', () => {
         ],
       };
       const res = await controller.createProductOrder(dto, mockCustomer);
-      expect(mockService.createProductOrder).toHaveBeenCalledWith(
+      expect(mockOrderService.createProductOrder).toHaveBeenCalledWith(
         dto,
         'user-123',
       );
@@ -227,7 +231,7 @@ describe('ProductsController', () => {
 
       await controller.createProductOrder(dto, undefined);
 
-      expect(mockService.createProductOrder).toHaveBeenCalledWith(
+      expect(mockOrderService.createProductOrder).toHaveBeenCalledWith(
         dto,
         undefined,
       );
@@ -241,7 +245,7 @@ describe('ProductsController', () => {
 
     it('GET /products/orders/my-orders should return current user orders', async () => {
       const res = await controller.getMyOrders(mockCustomer);
-      expect(mockService.getMyOrders).toHaveBeenCalledWith('user-123');
+      expect(mockOrderService.getMyOrders).toHaveBeenCalledWith('user-123');
       expect(res).toEqual([
         {
           id: 101,
@@ -256,7 +260,7 @@ describe('ProductsController', () => {
 
     it('GET /products/orders/:id should return single order for user', async () => {
       const res = await controller.getOrderById('101', mockCustomer);
-      expect(mockService.getOrderById).toHaveBeenCalledWith(
+      expect(mockOrderService.getOrderById).toHaveBeenCalledWith(
         '101',
         'user-123',
         undefined,
