@@ -886,8 +886,8 @@ describe('ProductsService and ProductOrdersService', () => {
       ).not.toHaveBeenCalled();
     });
 
-    it('getSellerOrders should expose only seller lines and fulfillment recipient fields', async () => {
-      mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
+    it.each(['user', 'admin'])('scopes %s order lines', async (role) => {
+      mockUserRolesRepo.getRole.mockResolvedValueOnce(role);
       mockRepository.getMyCatalogItems.mockResolvedValueOnce([
         { id: 3, name: 'Mug' },
         { id: 5, name: 'Plate' },
@@ -1025,9 +1025,7 @@ describe('ProductsService and ProductOrdersService', () => {
       });
       expect(order).not.toHaveProperty('customer_id');
       expect(order).not.toHaveProperty('customer_notes');
-      expect((order as Record<string, unknown>).recipient).not.toHaveProperty(
-        'private_field',
-      );
+      expect(order.recipient).not.toHaveProperty('private_field');
     });
 
     it('getSellerOrders should discard rows without an owned catalog line', async () => {
@@ -1048,15 +1046,36 @@ describe('ProductsService and ProductOrdersService', () => {
       );
     });
 
-    it('getSellerOrders should return all orders for admin', async () => {
+    it('getSellerOrders should scope admins to their own catalog too', async () => {
       mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');
       mockRepository.getAllOrders.mockResolvedValueOnce([{ id: 1 }, { id: 2 }]);
 
-      await expect(
-        orderService.getSellerOrders('admin-1'),
-      ).resolves.toHaveLength(2);
-      expect(mockRepository.getMyCatalogItems).not.toHaveBeenCalled();
+      await expect(orderService.getSellerOrders('admin-1')).resolves.toEqual(
+        [],
+      );
+      expect(mockRepository.getMyCatalogItems).toHaveBeenCalledWith('admin-1');
+      expect(mockRepository.getAllOrders).not.toHaveBeenCalled();
     });
+
+    it('getAdminOrders returns the full order list for admins', async () => {
+      mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');
+      mockRepository.getAllOrders.mockResolvedValueOnce([{ id: 1 }, { id: 2 }]);
+      await expect(orderService.getAdminOrders('admin-1')).resolves.toEqual([
+        { id: 1, can_manage_order: true },
+        { id: 2, can_manage_order: true },
+      ]);
+    });
+
+    it.each(['user', undefined])(
+      'getAdminOrders denies role %s before querying orders',
+      async (role) => {
+        mockUserRolesRepo.getRole.mockResolvedValueOnce(role);
+        await expect(orderService.getAdminOrders('seller-1')).rejects.toThrow(
+          UnauthorizedException,
+        );
+        expect(mockRepository.getAllOrders).not.toHaveBeenCalled();
+      },
+    );
 
     it('updateOrderStatus should apply a valid transition and persist it', async () => {
       mockRepository.getOrderById.mockResolvedValueOnce({

@@ -336,16 +336,18 @@ export class ProductOrdersService {
     }
   }
 
-  async getSellerOrders(sellerId: string) {
-    const role = await this.userRolesRepo.getRole(sellerId);
-    if (role === 'admin') {
-      const orders = await this.productsRepository.getAllOrders();
-      return orders.map((order: Record<string, unknown>) => ({
-        ...order,
-        can_manage_order: true,
-      }));
+  async getAdminOrders(userId: string) {
+    if ((await this.userRolesRepo.getRole(userId)) !== 'admin') {
+      throw new UnauthorizedException('Not authorized');
     }
+    const orders = await this.productsRepository.getAllOrders();
+    return orders.map((order: Record<string, unknown>) => ({
+      ...order,
+      can_manage_order: true,
+    }));
+  }
 
+  async getSellerOrders(sellerId: string) {
     const items = await this.productsRepository.getMyCatalogItems(sellerId);
     if (items.length === 0) return [];
 

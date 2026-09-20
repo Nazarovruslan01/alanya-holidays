@@ -1,4 +1,5 @@
 export default {
+  "admin.productOrders": "Ürün siparişleri",
   "admin.currency": "Para birimi",
   "admin.active": "Aktif",
   "admin.inactive": "Pasif",

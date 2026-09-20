@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ProductsAdminController } from './products-admin.controller';
 import { ProductsService } from './products.service';
+import { ProductOrdersService } from './product-orders.service';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { AuthUser } from '../auth/types/auth-user.interface';
@@ -35,6 +36,10 @@ describe('ProductsAdminController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ProductsAdminController],
       providers: [
+        {
+          provide: ProductOrdersService,
+          useValue: { getAdminOrders: jest.fn() },
+        },
         {
           provide: ProductsService,
           useValue: mockService,
