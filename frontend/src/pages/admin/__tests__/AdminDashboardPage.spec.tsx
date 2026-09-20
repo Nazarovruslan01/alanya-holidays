@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import AdminDashboardPage from "../page";
 import { adminService } from "@/api-services/admin.service";
 import { businessApplicationsService } from "@/api-services/business-applications.service";
+import { ordersService } from "@/api-services/orders.service";
 
 vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({
@@ -39,6 +40,17 @@ vi.mock("recharts", async () => {
 });
 
 describe("AdminDashboardPage (4-Tab Control Center)", () => {
+  it("loads the admin order list from the product orders tab", async () => {
+    const adminLoad = vi.spyOn(ordersService, "getAdminOrders").mockResolvedValue([
+      { id: 3, status: "cancelled", items: [{ product_name: "Seller's towel" }] },
+    ]);
+    const sellerLoad = vi.spyOn(ordersService, "getSellerOrders");
+    render(<MemoryRouter><AdminDashboardPage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("tab", { name: /Product orders/i }));
+    expect(await screen.findByText("Seller's towel")).toBeInTheDocument();
+    expect(adminLoad).toHaveBeenCalledTimes(1);
+    expect(sellerLoad).not.toHaveBeenCalled();
+  });
   const mockListings = [
     {
       id: "l-101",

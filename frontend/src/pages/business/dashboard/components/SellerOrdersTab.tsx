@@ -85,7 +85,7 @@ const NEXT_ACTIONS: Record<string, Array<{ status: SellerOrderStatus; label: str
   ],
 };
 
-export const SellerOrdersTab: React.FC = () => {
+export const SellerOrdersTab: React.FC<{ scope?: "seller" | "admin" }> = ({ scope = "seller" }) => {
   const { t } = useTranslation();
   const [orders, setOrders] = useState<SellerOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,14 +97,14 @@ export const SellerOrdersTab: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      setOrders(await ordersService.getSellerOrders());
+      setOrders(await (scope === "admin" ? ordersService.getAdminOrders() : ordersService.getSellerOrders()));
     } catch (err) {
       logger.error("Failed to load seller orders:", err);
       setError(i18n.t("merchant.ordersLoadFailed"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     void loadOrders();

@@ -257,6 +257,13 @@ describe("orders.service (Clean Architecture)", () => {
   });
 
   describe("getSellerOrders", () => {
+    it("requests the separate protected admin order list", async () => {
+      const orders = [{ id: 3, items: [] }];
+      const getSpy = vi.spyOn(apiClient, "get").mockResolvedValueOnce(orders);
+      expect(await ordersService.getAdminOrders()).toEqual(orders);
+      expect(getSpy).toHaveBeenCalledWith("/products/admin/orders");
+    });
+
     it("should call GET /products/orders/seller and return orders array", async () => {
       const mockOrders = [{ id: 1, status: "paid", items: [] }];
       const getSpy = vi.spyOn(apiClient, "get").mockResolvedValueOnce(mockOrders);
