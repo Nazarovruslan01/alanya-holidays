@@ -24,6 +24,7 @@ export interface ForumPostAuthor {
 }
 
 export interface ForumPost {
+  moderation_status?: string;
   id: string;
   title: string;
   slug: string;
@@ -51,6 +52,7 @@ export interface ForumPost {
 }
 
 export interface ForumComment {
+  moderation_status?: string;
   id: string;
   post_id: string;
   parent_id?: string | null;
@@ -72,6 +74,7 @@ export interface ForumComment {
 }
 
 export interface ForumEvent {
+  moderation_status?: string;
   id: string;
   title: string;
   slug: string;

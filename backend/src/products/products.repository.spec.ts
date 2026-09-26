@@ -244,6 +244,7 @@ describe('ProductsRepository pagination', () => {
     };
     query.select.mockReturnValue(query);
     query.in.mockReturnValue(query);
+    query.eq.mockReturnValueOnce(query);
     const client = { from: jest.fn().mockReturnValue(query) };
     const repository = new ProductsRepository({
       getClient: () => client,

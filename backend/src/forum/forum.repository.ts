@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { SupabaseClient } from '@supabase/supabase-js';
 import {
   ForumCategory,
   ForumComment,
@@ -316,7 +317,9 @@ export class ForumRepository {
     const { data, error } = await this.client
       .from('forum_posts')
       .select('category_id')
-      .eq('is_removed', false);
+      .eq('moderation_status', 'approved')
+      .eq('is_removed', false)
+      .eq('moderation_status', 'approved');
     if (error) throw new Error(error.message);
     return data || [];
   }
@@ -335,7 +338,9 @@ export class ForumRepository {
       .select(postSelect, { count: 'exact' });
 
     if (!filters.includeRemoved) {
-      q = q.eq('is_removed', filters.removedOnly || false);
+      q = q
+        .eq('is_removed', filters.removedOnly || false)
+        .eq('moderation_status', 'approved');
     }
     if (filters.categoryIds && filters.categoryIds.length > 0) {
       q = q.in('category_id', filters.categoryIds);
@@ -383,6 +388,7 @@ export class ForumRepository {
       .from('forum_posts')
       .select(postSelect)
       .eq('is_removed', false)
+      .eq('moderation_status', 'approved')
       .order('view_count', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(limit);
@@ -578,11 +584,24 @@ export class ForumRepository {
       .order('id', { ascending: true });
 
     if (!includeRemoved) {
-      q = q.eq('is_removed', false);
+      q = q.eq('is_removed', false).eq('moderation_status', 'approved');
     }
     const { data, error } = await q.range(offset, offset + limit - 1);
     if (error) throw new Error(error.message);
-    return (data as unknown as ForumComment[]) || [];
+    const comments = (data as unknown as ForumComment[]) || [];
+    if (includeRemoved || !comments.length) return comments;
+    const visibility = await (this.client as SupabaseClient).rpc(
+      'review_visible_comment_ids',
+      {
+        p_table: 'forum_comments',
+        p_ids: comments.map((row) => row.id),
+      },
+    );
+    if (visibility.error) throw new Error(visibility.error.message);
+    const visibleIds: unknown = visibility.data;
+    return comments.filter((row) =>
+      (visibleIds as string[] | null)?.includes(row.id),
+    );
   }
 
   async insertComment(data: InsertForumCommentDbInput): Promise<ForumComment> {
@@ -749,7 +768,8 @@ export class ForumRepository {
   ): Promise<ForumEvent[]> {
     let q = this.client.from('forum_events').select(eventSelect);
 
-    if (!filters.includeUnpublished) q = q.eq('is_published', true);
+    if (!filters.includeUnpublished)
+      q = q.eq('is_published', true).eq('moderation_status', 'approved');
     if (filters.upcomingOnly) q = q.gte('event_date', new Date().toISOString());
     if (filters.search && filters.search.trim()) {
       const pattern = filters.search
@@ -1181,7 +1201,8 @@ export class ForumRepository {
       .from('forum_posts')
       .select(POST_SELECT)
       .in('id', postIds)
-      .eq('is_removed', false);
+      .eq('is_removed', false)
+      .eq('moderation_status', 'approved');
 
     if (pErr) throw new Error(pErr.message);
     if (!posts) return [];
@@ -1202,11 +1223,13 @@ export class ForumRepository {
       this.client
         .from('forum_posts')
         .select('*', { count: 'exact', head: true })
-        .eq('is_removed', false),
+        .eq('is_removed', false)
+        .eq('moderation_status', 'approved'),
       this.client
         .from('forum_comments')
         .select('*', { count: 'exact', head: true })
-        .eq('is_removed', false),
+        .eq('is_removed', false)
+        .eq('moderation_status', 'approved'),
     ]);
 
     if (topicsRes.error)

@@ -3,6 +3,7 @@ import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ProductDraftsService } from './product-drafts.service';
 import { ProductsRepository } from './products.repository';
 import { UserRolesRepository } from '../common/auth/user-roles.repository';
+import { BillingService } from '../billing/billing.service';
 import {
   PublishProductDraftDto,
   SaveProductDraftDto,
@@ -46,6 +47,12 @@ describe('ProductDraftsService', () => {
         ProductDraftsService,
         { provide: ProductsRepository, useValue: mockRepository },
         { provide: UserRolesRepository, useValue: mockUserRolesRepo },
+        {
+          provide: BillingService,
+          useValue: {
+            hasActivePremiumAccess: jest.fn().mockResolvedValue(true),
+          },
+        },
       ],
     }).compile();
 

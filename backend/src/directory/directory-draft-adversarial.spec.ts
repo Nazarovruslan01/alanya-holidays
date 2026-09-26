@@ -259,7 +259,6 @@ describe('Empirical Adversarial Verification: Directory Listing Drafts System', 
         expect.objectContaining({
           name: 'Progressively Updated Name',
           short_description: 'Added short desc',
-          tier: 'voyager',
           status: 'draft',
         }),
       );
@@ -269,6 +268,10 @@ describe('Empirical Adversarial Verification: Directory Listing Drafts System', 
     });
 
     it('2.2 should reject photos exceeding tier limit during draft update', async () => {
+      mockRepository.getDirectoryListingOwner.mockResolvedValueOnce({
+        owner_user_id: userA,
+        tier: 'explorer',
+      });
       const photos = Array(6).fill('https://example.com/photo.jpg');
       await expect(
         service.saveDraft(
@@ -284,6 +287,7 @@ describe('Empirical Adversarial Verification: Directory Listing Drafts System', 
       const photos = Array(50).fill('https://example.com/photo.jpg');
       mockRepository.getDirectoryListingOwner.mockResolvedValueOnce({
         owner_user_id: userA,
+        tier: 'voyager',
       });
       mockRepository.updateDirectoryListing.mockResolvedValueOnce({
         id: draftId1,

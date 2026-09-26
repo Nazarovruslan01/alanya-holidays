@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, waitFor } from '@testing-library/react';
 import { AuthProvider, useAuth, type UserProfile } from './AuthContext';
 import { supabase } from '../lib/supabase';
+import { apiClient } from '../lib/api-client';
+vi.mock('../lib/api-client', () => ({ apiClient: { put: vi.fn().mockResolvedValue({ success: true }) } }));
 import { AuthError, type User, type Session } from '@supabase/supabase-js';
 
 vi.mock('../lib/supabase', () => {
@@ -215,10 +217,11 @@ describe('Empirical Challenge: AuthContext State Reactivity & Resilience', () =>
       // Verify updateProfile resolution payload
       expect(callbackResult).toBeDefined();
       expect(callbackResult?.error).toBeNull();
-      expect(callbackResult?.profile?.bio).toBe('Updated bio in Alanya');
+      expect(apiClient.put).toHaveBeenCalledWith(expect.stringContaining('/users/'), expect.objectContaining({ bio: 'Updated bio in Alanya' }));
+      expect(callbackResult?.profile?.bio).toBe('Original bio');
 
       // Verify instantaneous reactive update in both subscriber components without reload
-      expect(screen.getByTestId('editor-bio')).toHaveTextContent('Updated bio in Alanya');
+      expect(screen.getByTestId('editor-bio')).toHaveTextContent('Original bio');
       expect(screen.getByTestId('editor-name')).toHaveTextContent('Original Name');
       expect(screen.getByTestId('observer-name')).toHaveTextContent('Original Name');
       expect(screen.getByTestId('observer-auth-status')).toHaveTextContent('logged-in');
@@ -253,6 +256,7 @@ describe('Empirical Challenge: AuthContext State Reactivity & Resilience', () =>
     });
 
     it('preserves existing in-memory profile state when Supabase database returns an error', async () => {
+      vi.mocked(apiClient.put).mockRejectedValueOnce(new Error('Row level security violation: update disallowed'));
       const getSessionMock = vi.mocked(supabase.auth.getSession);
       getSessionMock.mockResolvedValue({
         data: { session: mockBaseSession },
@@ -307,6 +311,7 @@ describe('Empirical Challenge: AuthContext State Reactivity & Resilience', () =>
     });
 
     it('catches and wraps unexpected runtime exceptions thrown by Supabase client', async () => {
+      vi.mocked(apiClient.put).mockRejectedValueOnce(new Error('Fatal socket network timeout'));
       const getSessionMock = vi.mocked(supabase.auth.getSession);
       getSessionMock.mockResolvedValue({
         data: { session: mockBaseSession },

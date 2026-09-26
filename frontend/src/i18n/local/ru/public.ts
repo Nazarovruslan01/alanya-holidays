@@ -1,4 +1,8 @@
 export default {
+  "public.planPendingReview": "План отправлен на проверку. Он появится в сообществе после одобрения.",
+  "public.threadPendingReview": "Обсуждение отправлено на проверку в разделе",
+  "public.threadPendingVisibility": "Оно станет публичным после одобрения.",
+  "public.previewYourThread": "Предпросмотр обсуждения",
   "listing.priceBudget": "$ (Бюджетно)",
   "listing.priceModerate": "$$ (Средний уровень)",
   "listing.pricePremium": "$$$ (Премиум / Люкс)",
@@ -1549,4 +1553,11 @@ export default {
   "public.search.failed": "Не удалось загрузить этот раздел. Попробуйте ещё раз.",
   "public.search.retry": "Повторить",
   "public.search.more": "Показать ещё",
+  "guides.tag.first-timer": "Первая поездка",
+  "guides.tag.food-and-dining": "Еда и рестораны",
+  "guides.tag.day-trips": "Поездки на день",
+  "guides.tag.expat-living": "Жизнь в Аланье",
+  "guides.tag.beaches": "Пляжи",
+  "guides.tag.nightlife": "Ночная жизнь",
+  "guides.tag.general": "Общее",
 };

@@ -1,8 +1,15 @@
-import { IsString, IsOptional, IsObject } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsObject,
+  IsIn,
+  MinLength,
+} from 'class-validator';
 
 export class UpdateUserProfileDto {
   @IsOptional()
   @IsString()
+  @MinLength(3)
   full_name?: string;
 
   @IsOptional()
@@ -27,5 +34,6 @@ export class UpdateUserProfileDto {
 
   @IsOptional()
   @IsString()
+  @IsIn(['guest', 'user', 'host', 'artisan', 'admin'])
   role?: string;
 }

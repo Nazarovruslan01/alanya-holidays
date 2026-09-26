@@ -1,3 +1,4 @@
+import { mockAdminQueuePages } from '@/pages/admin/__tests__/queue-page-fixture';
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import ListingsModerationTab from "../components/ListingsModerationTab";
@@ -60,6 +61,7 @@ describe("Challenger M2.2: Adversarial Stress Test for Directory Curation Contro
   beforeEach(() => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
+    mockAdminQueuePages();
     vi.spyOn(adminService, "getModerationListings").mockResolvedValue(
       JSON.parse(JSON.stringify(mockListings))
     );

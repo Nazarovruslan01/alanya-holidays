@@ -203,7 +203,7 @@ Deno.serve(async (req: Request) => {
     // Directory listing detail pages
     const { data: listings, error: listingsError } = await supabase
       .from('directory_listings')
-      .select('slug, category_id, updated_at')
+      .select('slug, category_id, updated_at').eq('status', 'approved').eq('moderation_status', 'approved')
       .not('slug', 'is', null)
       .order('updated_at', { ascending: false })
 

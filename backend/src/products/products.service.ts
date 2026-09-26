@@ -233,6 +233,8 @@ export class ProductsService {
 
   // Variants
   async getProductVariants(productId: string, page = 1, limit = 20) {
+    if (!(await this.productsRepository.getProductById(productId)))
+      throw new NotFoundException('Product not found');
     const data = await this.productsRepository.getProductVariants(
       productId,
       page,
@@ -373,6 +375,8 @@ export class ProductsService {
     ] as const) {
       if (dto[key] !== undefined) updates[key] = dto[key];
     }
+
+    if (updates.status === 'active') updates.status = 'draft';
 
     const updated = await this.productsRepository.updateCatalogItem(
       itemId,

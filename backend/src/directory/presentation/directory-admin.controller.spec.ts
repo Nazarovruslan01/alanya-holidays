@@ -294,17 +294,10 @@ describe('DirectoryAdminController Curation Controls (Task 2.2)', () => {
         status: 'approved',
       });
 
-      const res = await controller.approveDirectoryListing(
-        listingId,
-        adminUser,
-      );
-      expect(res).toBeDefined();
-      expect(mockAuditService.logAction).toHaveBeenCalledWith({
-        entity_type: 'listing',
-        entity_id: listingId,
-        action: 'approve',
-        admin_id: adminUser.id,
-      });
+      await expect(
+        controller.approveDirectoryListing(listingId, adminUser),
+      ).rejects.toThrow('reviewed revision');
+      expect(mockAuditService.logAction).not.toHaveBeenCalled();
     });
 
     it('should log audit record with reason when rejecting directory listing', async () => {
@@ -314,19 +307,14 @@ describe('DirectoryAdminController Curation Controls (Task 2.2)', () => {
         status: 'rejected',
       });
 
-      const res = await controller.rejectDirectoryListing(
-        listingId,
-        'Invalid business docs',
-        adminUser,
-      );
-      expect(res).toBeDefined();
-      expect(mockAuditService.logAction).toHaveBeenCalledWith({
-        entity_type: 'listing',
-        entity_id: listingId,
-        action: 'reject',
-        admin_id: adminUser.id,
-        reason: 'Invalid business docs',
-      });
+      await expect(
+        controller.rejectDirectoryListing(
+          listingId,
+          'Invalid business docs',
+          adminUser,
+        ),
+      ).rejects.toThrow('reviewed revision');
+      expect(mockAuditService.logAction).not.toHaveBeenCalled();
     });
 
     it('should log audit record when approving listing claim', async () => {

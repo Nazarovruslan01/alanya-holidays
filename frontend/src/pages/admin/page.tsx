@@ -17,8 +17,9 @@ import ReviewsModerationTab from "./components/ReviewsModerationTab";
 import UsersAdminTab from "./components/UsersAdminTab";
 import BusinessApplicationsTab from "./components/BusinessApplicationsTab";
 import AdminContentLibraryTab from "./components/AdminContentLibraryTab";
+import PublicContentReviewTab from "./components/PublicContentReviewTab";
 import { SellerOrdersTab } from "../business/dashboard/components/SellerOrdersTab";
-import { adminService } from "@/api-services/admin.service";
+import { apiClient } from "@/lib/api-client";
 import { useToast } from "@/hooks/useToast";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
@@ -30,7 +31,7 @@ export default function AdminDashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get("tab");
   const activeTab: AdminTab =
-    rawTab === "publishing" ||
+    rawTab === "public-review" || rawTab === "publishing" ||
     rawTab === "claims" ||
     rawTab === "business-applications" ||
     rawTab === "content" ||
@@ -67,25 +68,7 @@ export default function AdminDashboardPage() {
   const fetchGlobalBadgeCounts = useCallback(async (manual: boolean = false) => {
     if (manual) setIsRefreshing(true);
     try {
-      const [listings, claims, contentSubmissions, reports, enquiries, bookings, reviews] = await Promise.all([
-        adminService.getModerationListings({ status: "pending", throwOnError: true }),
-        adminService.getClaimsQueue("pending", { throwOnError: true }),
-        adminService.getContentSubmissions({ status: "pending_review", throwOnError: true }),
-        adminService.getForumReports({ includeResolved: false, throwOnError: true }),
-        adminService.getEnquiries({ throwOnError: true }),
-        adminService.getAdminBookings("pending", { throwOnError: true }),
-        adminService.getModerationReviews("pending", 1, 1, { throwOnError: true }),
-      ]);
-
-      setCounts({
-        pendingListings: (listings || []).length,
-        pendingClaims: (claims || []).length,
-        pendingContent: (contentSubmissions || []).length,
-        pendingReports: (reports || []).filter((r) => !r.resolved).length,
-        newEnquiries: (enquiries || []).filter((e) => e.status === "new").length,
-        pendingBookings: bookings.length,
-        pendingReviews: reviews.total,
-      });
+      setCounts(await apiClient.get<typeof counts>('/admin/queue-counts'));
 
       if (manual) {
         showToast(t("admin.hubRefreshed"), t("admin.countsCurrent"), "success");
@@ -109,35 +92,35 @@ export default function AdminDashboardPage() {
     intervalMs: 30000,
   });
 
-  const handleListingCountUpdate = useCallback((c: { total: number; pending: number }) => {
-    setCounts((prev) => (prev.pendingListings === c.pending ? prev : { ...prev, pendingListings: c.pending }));
-  }, []);
+  const handleListingCountUpdate = useCallback(() => {
+    void fetchGlobalBadgeCounts(false);
+  }, [fetchGlobalBadgeCounts]);
 
-  const handleClaimCountUpdate = useCallback((c: { total: number; pending: number }) => {
-    setCounts((prev) => (prev.pendingClaims === c.pending ? prev : { ...prev, pendingClaims: c.pending }));
-  }, []);
+  const handleClaimCountUpdate = useCallback(() => {
+    void fetchGlobalBadgeCounts(false);
+  }, [fetchGlobalBadgeCounts]);
 
-  const handleContentCountUpdate = useCallback((c: { total: number; pending: number }) => {
-    setCounts((prev) => (prev.pendingContent === c.pending ? prev : { ...prev, pendingContent: c.pending }));
-  }, []);
+  const handleContentCountUpdate = useCallback(() => {
+    void fetchGlobalBadgeCounts(false);
+  }, [fetchGlobalBadgeCounts]);
 
-  const handleReportCountUpdate = useCallback((c: { total: number; pending: number }) => {
-    setCounts((prev) => (prev.pendingReports === c.pending ? prev : { ...prev, pendingReports: c.pending }));
-  }, []);
+  const handleReportCountUpdate = useCallback(() => {
+    void fetchGlobalBadgeCounts(false);
+  }, [fetchGlobalBadgeCounts]);
 
-  const handleEnquiriesCountUpdate = useCallback((c: { total: number; newCount: number }) => {
-    setCounts((prev) => (prev.newEnquiries === c.newCount ? prev : { ...prev, newEnquiries: c.newCount }));
-  }, []);
+  const handleEnquiriesCountUpdate = useCallback(() => {
+    void fetchGlobalBadgeCounts(false);
+  }, [fetchGlobalBadgeCounts]);
 
   // Stable identities are required: the tabs include onCountUpdate in their
   // fetch-effect deps, and inline arrows would retrigger fetching forever.
-  const handleBookingsCountUpdate = useCallback((c: { total: number; pending: number }) => {
-    setCounts((prev) => (prev.pendingBookings === c.pending ? prev : { ...prev, pendingBookings: c.pending }));
-  }, []);
+  const handleBookingsCountUpdate = useCallback(() => {
+    void fetchGlobalBadgeCounts(false);
+  }, [fetchGlobalBadgeCounts]);
 
-  const handleReviewsCountUpdate = useCallback((c: { total: number; pending: number }) => {
-    setCounts((prev) => (prev.pendingReviews === c.pending ? prev : { ...prev, pendingReviews: c.pending }));
-  }, []);
+  const handleReviewsCountUpdate = useCallback(() => {
+    void fetchGlobalBadgeCounts(false);
+  }, [fetchGlobalBadgeCounts]);
 
   if (authLoading) {
     return (
@@ -221,6 +204,7 @@ export default function AdminDashboardPage() {
 
       {/* Main Tab Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {activeTab === "public-review" && <PublicContentReviewTab />}
         {activeTab === "publishing" && (
           <div
             id="admin-tabpanel-publishing"

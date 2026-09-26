@@ -1,3 +1,4 @@
+import QueuePagination from './QueuePagination';
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import toast from "react-hot-toast";
 import {
@@ -81,14 +82,18 @@ export default function ListingsModerationTab({
   const { t, i18n } = useTranslation();
   const [listings, setListings] = useState<ModerationListing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, totalPages: 0 });
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  useEffect(() => { setPage(1); }, [statusFilter, categoryFilter, searchQuery]);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   // Multi-selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const selectedRevisions = React.useRef<Record<string, number>>({});
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const [isBulkRejectModalOpen, setIsBulkRejectModalOpen] = useState(false);
 
@@ -105,12 +110,9 @@ export default function ListingsModerationTab({
     if (!background) setLoading(true);
     setError(null);
     try {
-      const data = await adminService.getModerationListings({
-        status: statusFilter,
-        category: categoryFilter !== "all" ? categoryFilter : undefined,
-        query: searchQuery.trim() || undefined,
-        throwOnError: true,
-      });
+      const result = await adminService.getQueuePage<ModerationListing>({ type: 'listings', page, status: statusFilter, category: categoryFilter, search: searchQuery });
+      const data = result.data;
+      setPagination(result);
       setListings(data || []);
 
       if (onListingCountUpdateRef.current) {
@@ -123,7 +125,7 @@ export default function ListingsModerationTab({
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, categoryFilter, searchQuery, t]);
+  }, [statusFilter, categoryFilter, searchQuery, page, t]);
 
   useEffect(() => {
     void fetchListings();
@@ -171,6 +173,8 @@ export default function ListingsModerationTab({
 
   // Selection handlers
   const toggleSelect = (id: string) => {
+    const revision = listings.find((item) => item.id === id)?.moderation_revision;
+    if (revision) selectedRevisions.current[id] = revision;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -183,6 +187,7 @@ export default function ListingsModerationTab({
   };
 
   const selectAllFiltered = () => {
+    selectedRevisions.current = Object.fromEntries(filteredListings.map((item) => [item.id, item.moderation_revision ?? 0]));
     setSelectedIds(new Set(filteredListings.map((l) => l.id)));
   };
 
@@ -198,7 +203,8 @@ export default function ListingsModerationTab({
   const handleApprove = async (id: string) => {
     setActionLoadingId(id);
     try {
-      const ok = await adminService.approveListing(id);
+      const reviewed = previewListing?.id === id ? previewListing : listings.find((item) => item.id === id);
+      const ok = await adminService.approveListing(id, reviewed?.moderation_revision);
       if (ok) {
         toast.success(t("admin.listingApproved"));
         setListings((prev) =>
@@ -222,7 +228,7 @@ export default function ListingsModerationTab({
     const id = rejectingListing.id;
     setActionLoadingId(id);
     try {
-      const ok = await adminService.rejectListing(id, reason);
+      const ok = await adminService.rejectListing(id, reason, rejectingListing.moderation_revision);
       if (ok) {
         toast.success(t("admin.listingRejected"));
         setListings((prev) =>
@@ -279,7 +285,7 @@ export default function ListingsModerationTab({
         prev.map((l) => (selectedIds.has(l.id) ? { ...l, status: "approved" } : l))
       );
 
-      const res = await adminService.batchApproveListings(ids);
+      const res = await adminService.batchApproveListings(ids, selectedRevisions.current);
       if (res.successful.length > 0) {
         toast.success(t("admin.listingsBatchApproved", { count: res.successful.length }));
       }
@@ -311,7 +317,7 @@ export default function ListingsModerationTab({
         )
       );
 
-      const res = await adminService.batchRejectListings(ids, reason);
+      const res = await adminService.batchRejectListings(ids, reason, selectedRevisions.current);
       if (res.successful.length > 0) {
         toast.success(t("admin.listingsBatchRejected", { count: res.successful.length }));
       }
@@ -489,6 +495,7 @@ export default function ListingsModerationTab({
 
   return (
     <div className="space-y-6">
+      <QueuePagination page={page} {...pagination} busy={loading} onChange={setPage} />
       {/* Top Filter Bar & Search */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 shadow-xs border border-secondary-200/80 dark:border-slate-800 space-y-4 transition-colors">
         {/* Status Filters */}

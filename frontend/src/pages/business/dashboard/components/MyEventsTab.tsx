@@ -104,7 +104,7 @@ export function MyEventsTab() {
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="font-bold text-secondary-900 dark:text-white">{event.title}</h3>
-                <span className="rounded-full bg-secondary-100 px-2 py-0.5 text-xs font-semibold text-secondary-700 dark:bg-slate-800 dark:text-slate-300">{event.isPublished ? t("merchant.published") : t("merchant.draft")}</span>
+                <span className="rounded-full bg-secondary-100 px-2 py-0.5 text-xs font-semibold text-secondary-700 dark:bg-slate-800 dark:text-slate-300">{event.moderationStatus && event.moderationStatus !== 'approved' ? t(event.moderationStatus === 'rejected' ? 'merchant.rejected' : 'merchant.pendingReview') : event.isPublished ? t("merchant.published") : t("merchant.draft")}</span>
               </div>
               <p className="mt-1 text-sm text-secondary-500 dark:text-slate-400">{event.date} · {event.time} · {event.location}</p>
             </div>

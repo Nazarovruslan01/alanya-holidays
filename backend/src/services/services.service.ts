@@ -42,6 +42,7 @@ export class ServicesService {
     const insertData: Record<string, unknown> = {
       ...data,
       provider_id: userId,
+      status: 'pending',
     };
     const service = await this.servicesRepository.insertService(insertData);
     await this.redisService.delByPattern('services:*');
@@ -209,6 +210,8 @@ export class ServicesService {
       }
     }
 
+    if (role !== 'admin')
+      return this.requestServiceUpdate(id, safeUpdates, userId);
     await this.servicesRepository.updateService(id, safeUpdates);
     await this.redisService.delByPattern('services:*');
     return { success: true };
@@ -418,31 +421,9 @@ export class ServicesService {
       throw new UnauthorizedException('Admin access required');
     }
 
-    const { data: edit, error: fetchError } =
-      await this.servicesRepository.getServiceEditById(editId);
-    if (fetchError || !edit) throw new NotFoundException('Edit not found');
-
-    const changedData =
-      edit.changed_data && typeof edit.changed_data === 'object'
-        ? (edit.changed_data as Record<string, unknown>)
-        : {};
-
-    const safeChanges: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(changedData)) {
-      if (!IMMUTABLE_SERVICE_FIELDS.has(key)) safeChanges[key] = value;
-    }
-
-    const serviceId =
-      typeof edit.service_id === 'string'
-        ? edit.service_id
-        : typeof edit.service_id === 'number'
-          ? String(edit.service_id)
-          : '';
-    await this.servicesRepository.updateService(serviceId, safeChanges);
-    await this.servicesRepository.deleteServiceEdit(editId);
-    await this.redisService.delByPattern('services:*');
-
-    return { success: true };
+    throw new BadRequestException(
+      'Review this service edit in the public content queue with its revision.',
+    );
   }
 
   async rejectServiceEdit(

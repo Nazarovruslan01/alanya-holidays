@@ -80,7 +80,7 @@ export class AuthTokenService {
         error,
       } = await supabase.auth.getUser(token);
 
-      if (error || !user) {
+      if (error || !user || this.isBanned(user)) {
         // Supabase rejected the token (expired, revoked, banned) — purge any
         // stale cache entry so subsequent requests fail fast and stay correct.
         await this.redisService.del(cacheKey);

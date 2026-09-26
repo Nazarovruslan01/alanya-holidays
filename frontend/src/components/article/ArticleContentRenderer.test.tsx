@@ -7,6 +7,12 @@ import { directoryService } from "@/api-services/directory.service";
 import { businesses } from "@/domain/directory-businesses";
 
 describe("ArticleContentRenderer Component", () => {
+  it('supports internal platform CTA destinations without allowing external or script navigation', () => {
+    render(<MemoryRouter><ArticleContentRenderer content={'[cta href="/events" label="Events"]\n\n[cta href="//outside.example" label="External"]\n\n[cta href="javascript:alert(1)" label="Script"]'} /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: /Events -/ })).toHaveAttribute('href', '/events');
+    expect(screen.getByRole('link', { name: /External -/ })).toHaveAttribute('href', '/explore?category=');
+    expect(screen.getByRole('link', { name: /Script -/ })).toHaveAttribute('href', '/explore?category=');
+  });
   it("links only strict allowed protocols and relative paths in Markdown", () => {
     render(
       <MemoryRouter>

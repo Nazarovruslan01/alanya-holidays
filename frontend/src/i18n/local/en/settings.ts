@@ -1,4 +1,9 @@
 export default {
+  "settings.profileSubmittedTitle": "Submitted for review",
+  "settings.profileSubmitted": "Public profile changes were submitted for admin approval.",
+  "settings.profilePending": "Your public profile changes are awaiting admin approval. Your last approved profile remains public.",
+  "settings.profileRejected": "Your public profile changes were rejected. Update them and submit again.",
+  "settings.nameTooShort": "Name must contain at least 3 characters.",
   "settings.avatarEmptyError": "Image file must not be empty",
   "settings.member": "Member",
   "settings.memberName": "Alanya Holidays Member",

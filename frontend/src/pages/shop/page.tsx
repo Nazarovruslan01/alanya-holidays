@@ -112,13 +112,17 @@ export default function ShopPage() {
       const imageUrl = product.media?.find(
         (media) => media.type === "image" && media.url,
       )?.url;
-      addToCart({
+      try { addToCart({
         name: product.name,
         productId: product.id,
         price: formatPrice(product),
+        currency: product.currency,
         icon: getCategoryIcon(product),
         imageUrl,
-      });
+      }); } catch (error) {
+        showToast(t("public.addToCart"), error instanceof Error ? error.message : t("public.error"), "error");
+        return;
+      }
       showToast(t("public.addToCart"), product.name, "success");
     },
     [addToCart, showToast, t],

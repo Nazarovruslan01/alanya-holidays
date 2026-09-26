@@ -1,3 +1,4 @@
+import { mockAdminQueuePages } from '@/pages/admin/__tests__/queue-page-fixture';
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
@@ -49,6 +50,7 @@ function LocationSpy() {
 describe("Challenger M2: Frontend Empirical & UI Stress Suite", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    mockAdminQueuePages();
   });
 
   describe("1. URL Query Param Synchronization & Tab Navigation", () => {

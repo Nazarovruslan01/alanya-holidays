@@ -184,7 +184,10 @@ export class ProductsRepository {
   async getProducts(category?: string, page = 1, limit = 20) {
     const from = (page - 1) * limit;
     const to = from + limit - 1;
-    let query = this.client.from('products').select(`
+    let query = this.client
+      .from('products')
+      .select(
+        `
         id, 
         title, 
         description, 
@@ -195,7 +198,10 @@ export class ProductsRepository {
         seller_id, 
         created_at,
         seller:profiles!products_seller_id_fkey(full_name)
-    `);
+    `,
+      )
+      .eq('status', 'active')
+      .eq('moderation_status', 'approved');
 
     if (category) {
       query = query.eq('category', category);
@@ -262,7 +268,7 @@ export class ProductsRepository {
     const { data, error } = await this.client
       .from('product_items')
       .select(
-        'id, name, description, price, currency, stock, status, media, category_id, seller_id, created_at, updated_at, product_categories(id, name)',
+        'id, name, description, price, currency, stock, status, moderation_status, moderation_revision, moderation_reason, media, category_id, seller_id, created_at, updated_at, product_categories(id, name)',
       )
       .eq('id', itemId)
       .maybeSingle();
@@ -278,7 +284,7 @@ export class ProductsRepository {
       .from('product_items')
       .insert(item)
       .select(
-        'id, name, description, price, currency, stock, status, media, category_id, seller_id, created_at, updated_at',
+        'id, name, description, price, currency, stock, status, moderation_status, moderation_revision, moderation_reason, media, category_id, seller_id, created_at, updated_at',
       )
       .single();
 
@@ -295,7 +301,7 @@ export class ProductsRepository {
       .update(updates)
       .eq('id', itemId)
       .select(
-        'id, name, description, price, currency, stock, status, media, category_id, seller_id, created_at, updated_at',
+        'id, name, description, price, currency, stock, status, moderation_status, moderation_revision, moderation_reason, media, category_id, seller_id, created_at, updated_at',
       )
       .maybeSingle();
 
@@ -335,6 +341,8 @@ export class ProductsRepository {
       `,
       )
       .eq('id', id)
+      .eq('status', 'active')
+      .eq('moderation_status', 'approved')
       .single();
 
     if (error) {
@@ -456,7 +464,8 @@ export class ProductsRepository {
         .select(
           'id, name, description, price, currency, stock, media, category_id, status, created_at, product_categories(id, name)',
         )
-        .eq('status', 'active');
+        .eq('status', 'active')
+        .eq('moderation_status', 'approved');
 
       if (giftCardCategory) {
         query = query.or(
@@ -497,7 +506,8 @@ export class ProductsRepository {
       .select(
         'id, name, description, price, currency, stock, media, category_id, status, created_at, product_categories(id, name)',
       )
-      .eq('status', 'active');
+      .eq('status', 'active')
+      .eq('moderation_status', 'approved');
 
     if (giftCardCategory) {
       productsQuery = productsQuery.or(
@@ -574,6 +584,8 @@ export class ProductsRepository {
           'id, name, description, price, currency, stock, media, category_id, status, created_at, product_categories(id, name)',
         )
         .eq('id', Number.isNaN(numId) ? productId : numId)
+        .eq('status', 'active')
+        .eq('moderation_status', 'approved')
         .maybeSingle(),
       this.client
         .from('product_skus')
@@ -588,7 +600,7 @@ export class ProductsRepository {
     return {
       product: (productRes.data as unknown as ProductItemRow) || null,
       variants: [],
-      skus: skuRes.data || [],
+      skus: productRes.data ? skuRes.data || [] : [],
     };
   }
 
@@ -629,7 +641,8 @@ export class ProductsRepository {
             : ''),
       )
       .in('id', numericProductIds)
-      .eq('status', 'active');
+      .eq('status', 'active')
+      .eq('moderation_status', 'approved');
 
     if (error) throw new Error(error.message);
 
@@ -809,7 +822,7 @@ export class ProductsRepository {
     const { data, error } = await this.client
       .from('product_items')
       .select(
-        'id, name, description, price, currency, stock, status, media, category_id, seller_id, created_at, updated_at',
+        'id, name, description, price, currency, stock, status, moderation_status, moderation_revision, moderation_reason, media, category_id, seller_id, created_at, updated_at',
       )
       .eq('seller_id', sellerId)
       .order('created_at', { ascending: false });
@@ -834,7 +847,7 @@ export class ProductsRepository {
       .from('product_items')
       .insert({ ...item, seller_id: sellerId })
       .select(
-        'id, name, description, price, currency, stock, status, media, category_id, seller_id, created_at, updated_at',
+        'id, name, description, price, currency, stock, status, moderation_status, moderation_revision, moderation_reason, media, category_id, seller_id, created_at, updated_at',
       )
       .single();
 
@@ -853,7 +866,7 @@ export class ProductsRepository {
       .eq('id', itemId)
       .eq('seller_id', sellerId)
       .select(
-        'id, name, description, price, currency, stock, status, media, category_id, seller_id, created_at, updated_at',
+        'id, name, description, price, currency, stock, status, moderation_status, moderation_revision, moderation_reason, media, category_id, seller_id, created_at, updated_at',
       )
       .maybeSingle();
 

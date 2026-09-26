@@ -21,6 +21,12 @@ import { PublicMembersQueryDto } from './dto/public-members-query.dto';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  @Get('me/public-revision')
+  @UseGuards(AuthGuard)
+  getOwnPublicRevision(@CurrentUser() user: AuthUser) {
+    return this.usersService.getOwnPublicRevision(user.id);
+  }
+
   @Get('forum/members')
   async getForumMembers(
     @Query() query?: PublicMembersQueryDto,

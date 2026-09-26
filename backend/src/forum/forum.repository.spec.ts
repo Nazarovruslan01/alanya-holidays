@@ -293,6 +293,7 @@ describe('ForumRepository', () => {
         data: [{ id: 'c-1', body: 'Hello' }],
       });
       mockClient.from.mockReturnValueOnce(commentsQuery);
+      mockClient.rpc.mockResolvedValueOnce({ data: ['c-1'], error: null });
       const comments = await repository.getComments('p-1', false, 15, 30);
       expect(comments).toHaveLength(1);
       expect(commentsQuery.order.mock.calls).toEqual([

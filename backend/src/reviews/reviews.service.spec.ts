@@ -257,12 +257,10 @@ describe('ReviewsService', () => {
     it('should call repository updateReviewStatus when caller is admin', async () => {
       mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');
 
-      const res = await service.approveReview(validReviewId, validAdminId);
-      expect(res).toEqual({ success: true });
-      expect(mockRepository.updateReviewStatus).toHaveBeenCalledWith(
-        validReviewId,
-        'approved',
-      );
+      await expect(
+        service.approveReview(validReviewId, validAdminId),
+      ).rejects.toThrow('reviewed revision');
+      expect(mockRepository.updateReviewStatus).not.toHaveBeenCalled();
     });
 
     it('should return success false without calling repository when review id is not a valid UUID', async () => {
@@ -289,12 +287,10 @@ describe('ReviewsService', () => {
     it('should call repository updateReviewStatus with rejected when caller is admin', async () => {
       mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');
 
-      const res = await service.rejectReview(validReviewId, validAdminId);
-      expect(res).toEqual({ success: true });
-      expect(mockRepository.updateReviewStatus).toHaveBeenCalledWith(
-        validReviewId,
-        'rejected',
-      );
+      await expect(
+        service.rejectReview(validReviewId, validAdminId),
+      ).rejects.toThrow('reviewed revision');
+      expect(mockRepository.updateReviewStatus).not.toHaveBeenCalled();
     });
 
     it('should return success false without calling repository when review id is not a valid UUID', async () => {

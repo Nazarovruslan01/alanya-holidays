@@ -497,6 +497,7 @@ describe("Merchant Dashboard Unit & Component Tests", () => {
         {
           id: "post-own-1",
           title: "My direct guide",
+          content_type: 'guide',
           slug: "my-direct-guide",
           content: "A direct guide owned by this merchant.",
           category: "Guides",

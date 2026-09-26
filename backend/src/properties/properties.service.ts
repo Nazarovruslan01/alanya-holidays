@@ -150,7 +150,10 @@ export class PropertiesService {
       last_synced_at: _lastSyncedAt,
       ...safeUpdates
     } = updates;
-    await this.propertiesRepository.updateProperty(id, safeUpdates);
+    await this.propertiesRepository.updateProperty(id, {
+      ...safeUpdates,
+      ...(role !== 'admin' ? { status: 'pending' } : {}),
+    });
     await this.redisService.delByPattern('properties:*');
     return { success: true };
   }
@@ -332,7 +335,19 @@ export class PropertiesService {
   // Properties iCal
   // ============================================
 
-  async getICalFeeds(propertyId: string): Promise<Record<string, unknown>[]> {
+  async getICalFeeds(
+    propertyId: string,
+    userId: string,
+  ): Promise<Record<string, unknown>[]> {
+    const property =
+      await this.propertiesRepository.getPropertyHostId(propertyId);
+    if (
+      !property ||
+      (property.host_id !== userId &&
+        (await this.userRolesRepo.getRole(userId)) !== 'admin')
+    ) {
+      throw new UnauthorizedException('Not authorized');
+    }
     return this.propertiesRepository.getICalFeeds(propertyId);
   }
 

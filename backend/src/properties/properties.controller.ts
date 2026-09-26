@@ -68,10 +68,12 @@ export class PropertiesController {
   // ============================================
 
   @Get(':id/ical')
+  @UseGuards(AuthGuard)
   async getICalFeeds(
     @Param('id') propertyId: string,
+    @CurrentUser() user: AuthUser,
   ): Promise<Record<string, unknown>[]> {
-    return this.propertiesService.getICalFeeds(propertyId);
+    return this.propertiesService.getICalFeeds(propertyId, user.id);
   }
 
   @Post(':id/ical')

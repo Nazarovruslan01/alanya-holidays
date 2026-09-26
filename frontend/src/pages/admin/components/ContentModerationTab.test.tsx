@@ -1,3 +1,4 @@
+import { mockAdminQueuePages } from '@/pages/admin/__tests__/queue-page-fixture';
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import ContentModerationTab from "./ContentModerationTab";
@@ -56,6 +57,7 @@ describe("ContentModerationTab", () => {
   ];
 
   beforeEach(() => {
+    mockAdminQueuePages();
     vi.clearAllMocks();
     vi.spyOn(adminService, "getContentSubmissions").mockResolvedValue(mockSubmissions);
     vi.spyOn(adminService, "approveContentSubmission").mockResolvedValue(true);
@@ -133,7 +135,7 @@ describe("ContentModerationTab", () => {
     fireEvent.click(approveBtn);
 
     await waitFor(() => {
-      expect(adminService.approveContentSubmission).toHaveBeenCalledWith("sub-1");
+      expect(adminService.approveContentSubmission).toHaveBeenCalledWith("sub-1", 1);
       expect(toast.success).toHaveBeenCalledWith(expect.stringContaining("approved"));
     });
   });

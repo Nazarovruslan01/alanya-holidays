@@ -52,6 +52,14 @@ describe("TravelGuidesPage", () => {
     expect(await screen.findByText(mockTravelGuides[0].title)).toBeInTheDocument();
   });
 
+  it("localizes guide tags and reading time in Russian", async () => {
+    await i18n.changeLanguage("ru");
+    render(<MemoryRouter><TravelGuidesPage /></MemoryRouter>);
+    expect(await screen.findByText("Первая поездка")).toBeInTheDocument();
+    expect(screen.getByText(i18n.t("public.readTime", { count: 8 }))).toBeInTheDocument();
+    expect(screen.queryByText("8 min read")).not.toBeInTheDocument();
+  });
+
   it("redirects guests to sign in instead of opening the submission form", () => {
     render(
       <MemoryRouter initialEntries={["/travel-guides"]}>

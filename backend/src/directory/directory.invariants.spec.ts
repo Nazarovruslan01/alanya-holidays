@@ -15,6 +15,8 @@ describe('Directory Invariants Safety Net (PR-1 Invariant Spec)', () => {
     updateDirectoryListing: jest.Mock;
     deleteDirectoryListing: jest.Mock;
     getDirectoryListingOwner: jest.Mock;
+    getDirectoryListingById: jest.Mock;
+    getDirectoryListingBySlug: jest.Mock;
     updateListingStatus: jest.Mock;
     invokeFunction: jest.Mock;
     insertListingLocations: jest.Mock;
@@ -44,6 +46,8 @@ describe('Directory Invariants Safety Net (PR-1 Invariant Spec)', () => {
         ),
       deleteDirectoryListing: jest.fn().mockResolvedValue(undefined),
       getDirectoryListingOwner: jest.fn(),
+      getDirectoryListingById: jest.fn(),
+      getDirectoryListingBySlug: jest.fn(),
       updateListingStatus: jest.fn().mockResolvedValue({
         id: draftId,
         name: 'Test Biz',
@@ -71,6 +75,8 @@ describe('Directory Invariants Safety Net (PR-1 Invariant Spec)', () => {
           provide: RedisService,
           useValue: {
             getJson: jest.fn().mockResolvedValue(null),
+            getOrFetchSWR: (_key: string, load: () => Promise<unknown>) =>
+              load(),
             setJson: jest.fn().mockResolvedValue(undefined),
             delByPattern: jest.fn().mockResolvedValue(undefined),
           },
@@ -82,9 +88,38 @@ describe('Directory Invariants Safety Net (PR-1 Invariant Spec)', () => {
   });
 
   describe('1. Protected Fields Firewall Invariants', () => {
+    it('hides pending or rejected moderation revisions on both public detail routes', async () => {
+      for (const moderation_status of ['pending', 'rejected']) {
+        mockRepository.getDirectoryListingById.mockResolvedValue({
+          id: draftId,
+          status: 'approved',
+          moderation_status,
+        });
+        mockRepository.getDirectoryListingBySlug.mockResolvedValue({
+          id: draftId,
+          status: 'approved',
+          moderation_status,
+        });
+        await expect(service.getDirectoryListing(draftId)).resolves.toBeNull();
+        await expect(
+          service.getDirectoryListingBySlug('test-listing'),
+        ).resolves.toBeNull();
+      }
+      const approved = {
+        id: draftId,
+        status: 'approved',
+        moderation_status: 'approved',
+      };
+      mockRepository.getDirectoryListingById.mockResolvedValue(approved);
+      await expect(service.getDirectoryListing(draftId)).resolves.toEqual(
+        approved,
+      );
+    });
     it('1.1 saveDraft (new draft): strips/overrides is_verified, is_featured, base_score, owner_user_id, status', async () => {
       const maliciousPayload = {
         name: 'Hacked Listing',
+        tier: 'signature',
+        is_premium: true,
         is_verified: true,
         is_featured: true,
         base_score: 9999,
@@ -106,6 +141,8 @@ describe('Directory Invariants Safety Net (PR-1 Invariant Spec)', () => {
       expect(passedData.owner_user_id).toBe(userAlice);
       expect(passedData.status).toBe('draft');
       expect(passedData.name).toBe('Hacked Listing');
+      expect(passedData.tier).toBe('explorer');
+      expect(passedData.is_premium).toBe(false);
     });
 
     it('1.2 saveDraft (existing draft): overrides protected fields on update', async () => {
@@ -115,6 +152,8 @@ describe('Directory Invariants Safety Net (PR-1 Invariant Spec)', () => {
 
       const maliciousPayload = {
         name: 'Updated Name',
+        tier: 'signature',
+        is_premium: true,
         is_verified: true,
         base_score: 500,
         status: 'approved',
@@ -125,8 +164,10 @@ describe('Directory Invariants Safety Net (PR-1 Invariant Spec)', () => {
       expect(mockRepository.updateDirectoryListing).toHaveBeenCalledTimes(1);
       const passedData = mockRepository.updateDirectoryListing.mock.calls[0][1];
 
-      expect(passedData.is_verified).toBe(false);
-      expect(passedData.base_score).toBe(0);
+      expect(passedData.is_verified).toBeUndefined();
+      expect(passedData.base_score).toBeUndefined();
+      expect(passedData.tier).toBeUndefined();
+      expect(passedData.is_premium).toBeUndefined();
       expect(passedData.status).toBe('draft');
       expect(passedData.owner_user_id).toBe(userAlice);
     });
@@ -138,6 +179,8 @@ describe('Directory Invariants Safety Net (PR-1 Invariant Spec)', () => {
 
       const publishPayload = {
         name: 'Valid Coffee Shop',
+        tier: 'signature',
+        is_premium: true,
         category_id: 'cat-cafe',
         description: 'Best coffee in Alanya',
         location: 'Damlatas Cd. No 10',
@@ -164,6 +207,23 @@ describe('Directory Invariants Safety Net (PR-1 Invariant Spec)', () => {
       expect(passedUpdates.base_score).toBeUndefined();
       expect(passedUpdates.owner_user_id).toBeUndefined();
       expect(passedUpdates.id).toBeUndefined();
+      expect(passedUpdates.tier).toBeUndefined();
+      expect(passedUpdates.is_premium).toBeUndefined();
+    });
+
+    it('creates owner listings without accepting paid-tier or premium claims', async () => {
+      await service.createDirectoryListing(
+        { name: 'New owner listing', tier: 'signature', is_premium: true },
+        [],
+        userAlice,
+      );
+      expect(mockRepository.insertDirectoryListing).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tier: 'explorer',
+          is_premium: false,
+          status: 'pending',
+        }),
+      );
     });
 
     it('1.4 updateDirectoryListing: deletes protected fields from update payload', async () => {
@@ -198,7 +258,7 @@ describe('Directory Invariants Safety Net (PR-1 Invariant Spec)', () => {
       expect(passedUpdates.is_verified).toBeUndefined();
       expect(passedUpdates.is_featured).toBeUndefined();
       expect(passedUpdates.base_score).toBeUndefined();
-      expect(passedUpdates.status).toBeUndefined();
+      expect(passedUpdates.status).toBe('pending');
       expect(passedUpdates.owner_user_id).toBeUndefined();
       expect(passedUpdates.rejection_reason).toBeUndefined();
       expect(passedUpdates.subscription_id).toBeUndefined();
@@ -211,6 +271,10 @@ describe('Directory Invariants Safety Net (PR-1 Invariant Spec)', () => {
       maxPhotos: number,
       method: 'saveDraft' | 'publishDraft' | 'createDirectoryListing',
     ) => {
+      if (method === 'createDirectoryListing') {
+        tier = 'explorer';
+        maxPhotos = 5;
+      }
       const validGallery = Array.from(
         { length: maxPhotos },
         (_, i) => `photo-${i}.jpg`,
@@ -222,6 +286,7 @@ describe('Directory Invariants Safety Net (PR-1 Invariant Spec)', () => {
 
       mockRepository.getDirectoryListingOwner.mockResolvedValue({
         owner_user_id: userAlice,
+        tier,
       });
 
       const baseValidPayload: any = {
@@ -240,6 +305,7 @@ describe('Directory Invariants Safety Net (PR-1 Invariant Spec)', () => {
             { ...baseValidPayload, gallery: validGallery },
             [],
             userAlice,
+            draftId,
           ),
         ).resolves.toBeDefined();
 
@@ -249,6 +315,7 @@ describe('Directory Invariants Safety Net (PR-1 Invariant Spec)', () => {
             { ...baseValidPayload, gallery: overflowGallery },
             [],
             userAlice,
+            draftId,
           ),
         ).rejects.toThrow(
           `Photo limit exceeded for ${tier} tier: max ${maxPhotos} photos`,
@@ -371,13 +438,12 @@ describe('Directory Invariants Safety Net (PR-1 Invariant Spec)', () => {
       ).rejects.toThrow(UnauthorizedException);
       expect(mockRepository.updateListingStatus).not.toHaveBeenCalled();
 
-      // Admin role succeeds
+      // Legacy versionless approval cannot approve content the admin has not reviewed.
       mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');
-      const res = await service.approveDirectoryListing(draftId, adminUser);
-      expect(res).toEqual({ success: true });
-      expect(mockRepository.updateListingStatus).toHaveBeenCalledWith(draftId, {
-        status: 'approved',
-      });
+      await expect(
+        service.approveDirectoryListing(draftId, adminUser),
+      ).rejects.toThrow('reviewed revision');
+      expect(mockRepository.updateListingStatus).not.toHaveBeenCalled();
     });
 
     it('3.3 rejectDirectoryListing is restricted to admin role only and validates reason length', async () => {
@@ -392,16 +458,14 @@ describe('Directory Invariants Safety Net (PR-1 Invariant Spec)', () => {
 
       // Admin with valid reason
       mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');
-      const res = await service.rejectDirectoryListing(
-        draftId,
-        'Incomplete documents',
-        adminUser,
-      );
-      expect(res).toEqual({ success: true });
-      expect(mockRepository.updateListingStatus).toHaveBeenCalledWith(draftId, {
-        status: 'rejected',
-        rejection_reason: 'Incomplete documents',
-      });
+      await expect(
+        service.rejectDirectoryListing(
+          draftId,
+          'Incomplete documents',
+          adminUser,
+        ),
+      ).rejects.toThrow('reviewed revision');
+      expect(mockRepository.updateListingStatus).not.toHaveBeenCalled();
 
       // Admin with excessively long reason (> 1000 chars)
       mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');

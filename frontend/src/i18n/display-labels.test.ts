@@ -137,6 +137,7 @@ describe("localized fixed display labels", () => {
       ["ask-a-local", "Ask a Local", "Спросите местного жителя", "Bir yerliye sorun"],
       ["latest-deals", "Latest Deals", "Последние предложения", "Son fırsatlar"],
       ["popular-beaches-and-attractions", "Popular Beaches & Attractions", "Популярные пляжи и достопримечательности", "Popüler plajlar ve gezilecek yerler"],
+      ["popular-beaches-attractions", "Popular Beaches & Attractions", "Популярные пляжи и достопримечательности", "Popüler plajlar ve gezilecek yerler"],
       ["new-business-listings", "New Business Listings", "Новые объявления компаний", "Yeni işletme ilanları"],
     ] as const;
 

@@ -45,7 +45,7 @@ export default function ExplorePage() {
   const [claimBusiness, setClaimBusiness] = useState<Business | null>(null);
   const [listModalOpen, setListModalOpen] = useState(false);
 
-  const { isFavorite, favoriteCount } = useFavorites();
+  const { isFavorite, favoriteCount, favorites } = useFavorites();
   const { selectedIds, isSelected, toggleSelect, clearSelection, selectedCount, maxReached } = useCompare();
   const navigate = useNavigate();
 
@@ -95,7 +95,9 @@ export default function ExplorePage() {
       setIsLoading(true);
       setError(null);
       try {
-        const res = searchQuery.trim()
+        const favoriteRows = showFavoritesOnly ? await Promise.all(Array.from(favorites).map((id) => directoryService.getListingById(id, { allowSyncFallback: false, signal: controller.signal }))) : null;
+        const favoriteData = favoriteRows?.filter((business): business is Business => Boolean(business)).filter((business) => !searchQuery.trim() || `${business.name} ${business.description}`.toLowerCase().includes(searchQuery.trim().toLowerCase()));
+        const res = favoriteData ? { data: favoriteData, total: favoriteData.length, totalPages: 1 } : searchQuery.trim()
           ? await directoryService.searchListings(searchQuery.trim(), {
               category: activeCategory !== "all" ? activeCategory : undefined,
               page: currentPage,
@@ -128,7 +130,7 @@ export default function ExplorePage() {
     return () => {
       controller.abort();
     };
-  }, [activeCategory, currentPage, searchQuery, sortBy]);
+  }, [activeCategory, currentPage, searchQuery, sortBy, showFavoritesOnly, favorites]);
 
   const filteredBusinesses = useMemo(() => {
     if (!showFavoritesOnly) return allBusinesses;

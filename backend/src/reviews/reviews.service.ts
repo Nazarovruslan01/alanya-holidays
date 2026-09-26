@@ -1,4 +1,9 @@
-import { Injectable, Inject, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import {
   IReviewsRepository,
   REVIEWS_REPOSITORY,
@@ -115,8 +120,9 @@ export class ReviewsService {
   ): Promise<ReviewOperationResult> {
     await this.checkAdmin(requestUserId);
     if (!UUID_RE.test(id)) return { success: false };
-    await this.reviewsRepository.updateReviewStatus(id, 'approved');
-    return { success: true };
+    throw new BadRequestException(
+      'Use the public content review queue to approve the reviewed revision.',
+    );
   }
 
   async rejectReview(
@@ -125,8 +131,9 @@ export class ReviewsService {
   ): Promise<ReviewOperationResult> {
     await this.checkAdmin(requestUserId);
     if (!UUID_RE.test(id)) return { success: false };
-    await this.reviewsRepository.updateReviewStatus(id, 'rejected');
-    return { success: true };
+    throw new BadRequestException(
+      'Use the public content review queue to reject the reviewed revision.',
+    );
   }
 
   async deleteReview(

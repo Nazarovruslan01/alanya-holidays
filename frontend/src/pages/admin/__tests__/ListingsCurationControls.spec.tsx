@@ -1,3 +1,4 @@
+import { mockAdminQueuePages } from '@/pages/admin/__tests__/queue-page-fixture';
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import ListingsModerationTab from "../components/ListingsModerationTab";
@@ -45,6 +46,7 @@ describe("ListingsModerationTab: Directory Curation Controls (Task 2.2)", () => 
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    mockAdminQueuePages();
     vi.spyOn(adminService, "getModerationListings").mockResolvedValue(mockListings);
     vi.spyOn(adminService, "featureListing").mockResolvedValue(true);
     vi.spyOn(adminService, "unfeatureListing").mockResolvedValue(true);

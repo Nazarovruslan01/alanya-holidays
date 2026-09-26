@@ -327,7 +327,7 @@ describe("Settings Hub (Milestone 3)", () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText(/Profile updated successfully/i)).toBeInTheDocument();
+        expect(screen.getByText(/Public profile changes were submitted for admin approval/i)).toBeInTheDocument();
       });
       expect(onUpdated).toHaveBeenCalled();
     });

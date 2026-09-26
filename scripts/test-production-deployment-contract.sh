@@ -67,6 +67,12 @@ csp_headers = nginx.scan(/add_header Content-Security-Policy "(?<policy>[^"]+)" 
 check(failures, csp_headers.length == 2, "nginx keeps exactly two effective CSP header copies")
 frame_sources = csp_headers.map { |policy| policy[/frame-src\s+([^;]+);/, 1] }
 maps_frame_origins = %w[https://maps.google.com https://www.google.com]
+%w[script-src connect-src].each do |directive|
+  check(failures, csp_headers.all? do |policy|
+    sources = policy[/#{directive}\s+([^;]+);/, 1]&.split || []
+    %w[https://maps.googleapis.com https://maps.gstatic.com].all? { |origin| sources.include?(origin) }
+  end, "every effective #{directive} permits the Google Maps JavaScript API")
+end
 video_frame_origins = %w[https://www.youtube-nocookie.com https://player.vimeo.com]
 check(
   failures,

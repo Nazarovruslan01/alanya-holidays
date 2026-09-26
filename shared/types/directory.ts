@@ -6,6 +6,9 @@
  * alias-толерантность допустима только на ВХОДЕ (форма Host), не на выходе.
  */
 export interface DirectoryListingRecord {
+  moderation_status?: 'pending' | 'approved' | 'rejected';
+  moderation_revision?: number;
+  moderation_reason?: string | null;
   id: string;
   name?: string;
   title?: string | null;

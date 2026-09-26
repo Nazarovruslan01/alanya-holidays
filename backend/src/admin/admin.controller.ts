@@ -7,6 +7,7 @@ import {
   Query,
   UseGuards,
   Optional,
+  ConflictException,
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { ModerationAuditService } from './moderation-audit.service';
@@ -22,6 +23,12 @@ import {
 } from './admin.repository';
 import { DaysQueryDto } from '../common/dto/pagination.dto';
 import { UpdateEnquiryStatusDto } from './dto/update-enquiry-status.dto';
+import {
+  AdminQueuePageDto,
+  PublicContentQueueDto,
+  ReviewPublicContentDto,
+} from './dto/public-content-review.dto';
+import { RedisService } from '../common/redis/redis.service';
 import { AssignEnquiryDto } from './dto/assign-enquiry.dto';
 import { AdminEnquiriesQueryDto } from './dto/admin-enquiries-query.dto';
 import {
@@ -39,7 +46,51 @@ export class AdminController {
     private readonly moderationAuditService?: ModerationAuditService,
     @Optional()
     private readonly adminRepository?: AdminRepository,
+    @Optional() private readonly redisService?: RedisService,
   ) {}
+
+  @Get('public-content')
+  getPublicContent(@Query() query: PublicContentQueueDto) {
+    return this.adminRepository!.getPublicContentQueue(query);
+  }
+
+  @Get('queue-counts')
+  getQueueCounts() {
+    return this.adminRepository!.getQueueCounts();
+  }
+
+  @Get('queue')
+  getQueuePage(@Query() query: AdminQueuePageDto) {
+    return this.adminRepository!.getQueuePage(query);
+  }
+
+  @Patch('public-content/review')
+  async reviewPublicContent(
+    @Body() input: ReviewPublicContentDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    let result: Record<string, unknown>;
+    try {
+      result = await this.adminRepository!.reviewPublicContent(input, user.id);
+    } catch (error) {
+      throw new ConflictException(
+        error instanceof Error ? error.message : 'Review failed',
+      );
+    }
+    if (this.redisService)
+      await Promise.all(
+        ['services:*', 'properties:*', 'directory:*', 'blog:*', 'forum:*'].map(
+          (key) => this.redisService!.delByPattern(key),
+        ),
+      );
+    await this.moderationAuditService?.logAction({
+      entity_type: input.type,
+      entity_id: input.id,
+      action: input.approve ? 'approve' : 'reject',
+      admin_id: user.id,
+    });
+    return result;
+  }
 
   @Get('enquiries')
   async getEnquiries(

@@ -6,7 +6,7 @@ import { RedisService } from '../../common/redis/redis.service';
 import { EmailOutboxRepository } from '../../bookings/email-outbox.repository';
 import { PAYMENT_GATEWAY } from '../../webhooks/domain/payment-gateway.interface';
 import { BillingService } from '../../billing/billing.service';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 
 describe('DirectoryListingService - Admin Email Outbox Enqueueing (Task 2.4)', () => {
   let service: DirectoryListingService;
@@ -478,7 +478,9 @@ describe('DirectoryListingService - Admin Email Outbox Enqueueing (Task 2.4)', (
         status: 'approved',
       });
 
-      await service.approveDirectoryListing(validListingId, 'admin-uuid');
+      await expect(
+        service.approveDirectoryListing(validListingId, 'admin-uuid'),
+      ).rejects.toThrow('reviewed revision');
 
       expect(mockEmailOutbox.enqueue).not.toHaveBeenCalled();
     });
@@ -492,13 +494,15 @@ describe('DirectoryListingService - Admin Email Outbox Enqueueing (Task 2.4)', (
         status: 'rejected',
       });
 
-      await service.rejectDirectoryListing(
-        validListingId,
-        'Incomplete photos',
-        'admin-uuid',
-      );
+      await expect(
+        service.rejectDirectoryListing(
+          validListingId,
+          'Incomplete photos',
+          'admin-uuid',
+        ),
+      ).rejects.toThrow('reviewed revision');
 
-      expect(mockRedisService.delByPattern).toHaveBeenCalledWith('directory:*');
+      expect(mockRedisService.delByPattern).not.toHaveBeenCalled();
       expect(mockEmailOutbox.enqueue).not.toHaveBeenCalled();
     });
 
@@ -508,14 +512,14 @@ describe('DirectoryListingService - Admin Email Outbox Enqueueing (Task 2.4)', (
 
       await expect(
         service.approveDirectoryListing(validListingId, 'admin-uuid'),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow('reviewed revision');
       await expect(
         service.rejectDirectoryListing(
           validListingId,
           'No longer available',
           'admin-uuid',
         ),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow('reviewed revision');
     });
   });
 

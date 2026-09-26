@@ -35,6 +35,7 @@ export interface BlogPostItem {
   author_id?: string | null;
   author_name?: string;
   status?: string;
+  moderation_status?: string;
   view_count?: number;
   is_featured?: boolean;
   published_at?: string | null;
@@ -170,6 +171,7 @@ export interface GetBlogPostsOptions {
   tag?: string;
   search?: string;
   status?: string;
+  moderation_status?: string;
   contentType?: 'blog' | 'guide';
 }
 
@@ -216,6 +218,7 @@ export interface BackendBlogPostItem {
   cover_image_url?: string | null;
   author_id?: string | null;
   status?: string;
+  moderation_status?: string;
   view_count?: number;
   is_featured?: boolean;
   content_type?: 'blog' | 'guide';
@@ -278,6 +281,7 @@ function mapBackendPostToItem(post: BackendBlogPostItem): BlogPostItem {
     author_id: post.author_id,
     author_name: post.author?.full_name || "Alanya Holidays Editor",
     status: post.status || "published",
+    moderation_status: post.moderation_status,
     view_count: post.view_count || 0,
     is_featured: !!post.is_featured,
     content_type: post.content_type || 'blog',
@@ -408,10 +412,10 @@ export class BlogService {
     };
   }
 
-  async getMyPosts(): Promise<BlogPostItem[]> {
+  async getMyPosts(page = 1): Promise<BlogPostItem[]> {
     const response = await apiClient.get<BackendBlogResponse | BackendBlogPostItem[]>(
       "/blog/posts/me",
-      { params: { limit: 50 } }
+      { params: { limit: 50, offset: (page - 1) * 50 } }
     );
     const rawPosts = Array.isArray(response)
       ? response
@@ -419,10 +423,10 @@ export class BlogService {
     return rawPosts.map(mapBackendPostToItem);
   }
 
-  async getMySubmissions(): Promise<BlogSubmissionItem[]> {
+  async getMySubmissions(page = 1): Promise<BlogSubmissionItem[]> {
     const response = await apiClient.get<BlogSubmissionItem[]>(
       "/blog/submissions/me",
-      { params: { limit: 50 } }
+      { params: { limit: 50, offset: (page - 1) * 50 } }
     );
     return Array.isArray(response) ? response : [];
   }

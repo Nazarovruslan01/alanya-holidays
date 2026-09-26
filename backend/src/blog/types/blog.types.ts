@@ -16,6 +16,8 @@ export interface RawBlogPostTagRelation {
 }
 
 export interface BlogPost {
+  moderation_revision?: number;
+  moderation_status?: string;
   id: string;
   title: string;
   slug: string;
@@ -37,6 +39,7 @@ export interface BlogPost {
 }
 
 export interface RawBlogPostRow {
+  moderation_status?: string;
   id: string;
   title: string;
   slug: string;

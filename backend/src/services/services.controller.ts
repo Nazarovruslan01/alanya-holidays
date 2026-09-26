@@ -176,7 +176,7 @@ export class ServicesController {
   @Post()
   @UseGuards(AuthGuard)
   async createService(
-    @Body() data: CreateServiceDto | Record<string, unknown>,
+    @Body() data: CreateServiceDto,
     @CurrentUser() user: AuthUser,
   ): Promise<Record<string, unknown>> {
     return this.servicesService.createService(data, user.id);

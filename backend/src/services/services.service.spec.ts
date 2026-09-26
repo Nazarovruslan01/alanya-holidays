@@ -131,6 +131,7 @@ describe('ServicesService', () => {
       expect(mockRepository.insertService).toHaveBeenCalledWith({
         title: 'Car Rental',
         provider_id: 'user-1',
+        status: 'pending',
       });
     });
   });
@@ -207,8 +208,8 @@ describe('ServicesService', () => {
       ).rejects.toThrow(UnauthorizedException);
     });
 
-    it('should update service successfully if owner', async () => {
-      mockRepository.getServiceOwnershipInfo.mockResolvedValueOnce({
+    it('queues owner edits while retaining the approved service', async () => {
+      mockRepository.getServiceOwnershipInfo.mockResolvedValue({
         provider_id: 'owner-1',
         title: 'Title',
         type: 'car',
@@ -223,8 +224,11 @@ describe('ServicesService', () => {
       );
 
       expect(result).toEqual({ success: true });
-      expect(mockRepository.updateService).toHaveBeenCalledWith('srv-1', {
-        title: 'Updated Title',
+      expect(mockRepository.updateService).not.toHaveBeenCalled();
+      expect(mockRepository.insertServiceEdit).toHaveBeenCalledWith({
+        service_id: 'srv-1',
+        changed_data: { title: 'Updated Title' },
+        status: 'pending',
       });
     });
   });
@@ -481,13 +485,11 @@ describe('ServicesService', () => {
         type: 'car',
       });
 
-      const result = await service.approveServiceEdit('edit-1', 'admin-1');
-
-      expect(result).toEqual({ success: true });
-      expect(mockRepository.updateService).toHaveBeenCalledWith('srv-1', {
-        title: 'New Title',
-      });
-      expect(mockRepository.deleteServiceEdit).toHaveBeenCalledWith('edit-1');
+      await expect(
+        service.approveServiceEdit('edit-1', 'admin-1'),
+      ).rejects.toThrow('public content queue');
+      expect(mockRepository.updateService).not.toHaveBeenCalled();
+      expect(mockRepository.deleteServiceEdit).not.toHaveBeenCalled();
     });
 
     it('should reject service edit when admin', async () => {

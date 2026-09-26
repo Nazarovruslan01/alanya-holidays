@@ -101,7 +101,7 @@ describe("ThreadForm Success Navigation", () => {
     expect(screen.getByText(/→ Topic:/i)).toBeInTheDocument();
     expect(screen.getByText("Alanya Tips")).toBeInTheDocument();
 
-    const threadLink = screen.getByRole("link", { name: /view your thread/i });
+    const threadLink = screen.getByRole("link", { name: /preview your discussion/i });
     expect(threadLink).toHaveAttribute("href", "/thread/awesome-thread");
 
     const categoryLink = screen.getByRole("link", { name: /view in general discussion/i });

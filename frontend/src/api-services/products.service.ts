@@ -101,6 +101,8 @@ export interface ProductDetailResponse {
 }
 
 export interface SellerProduct {
+  moderation_status?: 'pending' | 'approved' | 'rejected';
+  moderation_reason?: string | null;
   id: number;
   name: string;
   description?: string | null;
@@ -223,6 +225,7 @@ class ProductsService {
   async createProductOrder(payload: CreateProductOrderPayload): Promise<CreateProductOrderResult> {
     return ordersService.createOrder({
       requestId: payload.requestId,
+      guestAccessToken: payload.guestAccessToken,
       currency: payload.currency,
       subtotal: payload.subtotal,
       customerNotes: payload.customerNotes ?? undefined,

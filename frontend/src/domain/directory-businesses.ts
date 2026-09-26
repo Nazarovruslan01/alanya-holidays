@@ -17,6 +17,7 @@ export interface Business {
   rating: number;
   reviewCount: number;
   image: string;
+  gallery?: string[];
   tags: string[];
   featured: boolean;
   trustBadge?: TrustBadgeType;

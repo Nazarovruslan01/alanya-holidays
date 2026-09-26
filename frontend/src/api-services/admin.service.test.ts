@@ -162,20 +162,24 @@ describe("admin.service", () => {
   });
 
   describe("approveListing & rejectListing & deleteListing", () => {
-    it("should call POST /directory/admin/:id/approve", async () => {
-      vi.spyOn(apiClient, "post").mockResolvedValueOnce({ success: true });
-      const success = await adminService.approveListing("list-123");
-      expect(apiClient.post).toHaveBeenCalledWith("/directory/admin/list-123/approve");
+    it("approves exactly the listing revision shown to the administrator", async () => {
+      vi.spyOn(apiClient, "patch").mockResolvedValueOnce({ moderation_status: 'approved' });
+      const success = await adminService.approveListing("list-123", 7);
+      expect(apiClient.patch).toHaveBeenCalledWith('/admin/public-content/review', { type: 'directory_listings', id: 'list-123', revision: 7, approve: true });
       expect(success).toBe(true);
     });
 
-    it("should call POST /directory/admin/:id/reject with reason", async () => {
-      vi.spyOn(apiClient, "post").mockResolvedValueOnce({ success: true });
-      const success = await adminService.rejectListing("list-123", "Incomplete info");
-      expect(apiClient.post).toHaveBeenCalledWith("/directory/admin/list-123/reject", {
-        reason: "Incomplete info",
-      });
+    it("rejects exactly the reviewed listing revision with a reason", async () => {
+      vi.spyOn(apiClient, "patch").mockResolvedValueOnce({ moderation_status: 'rejected' });
+      const success = await adminService.rejectListing("list-123", "Incomplete info", 7);
+      expect(apiClient.patch).toHaveBeenCalledWith('/admin/public-content/review', { type: 'directory_listings', id: 'list-123', revision: 7, approve: false, reason: 'Incomplete info' });
       expect(success).toBe(true);
+    });
+
+    it('fails closed when the listing preview has no revision', async () => {
+      const patch = vi.spyOn(apiClient, 'patch');
+      expect(await adminService.approveListing('list-123')).toBe(false);
+      expect(patch).not.toHaveBeenCalled();
     });
 
     it("should call DELETE /directory/:id", async () => {
@@ -575,11 +579,11 @@ describe("admin.service", () => {
       vi.spyOn(apiClient, "patch").mockResolvedValue({ success: true });
       vi.spyOn(apiClient, "delete").mockResolvedValueOnce({ success: true });
 
-      expect(await adminService.approveReview("r9")).toBe(true);
-      expect(await adminService.rejectReview("r9")).toBe(true);
+      expect(await adminService.approveReview("r9", 4)).toBe(true);
+      expect(await adminService.rejectReview("r9", 4)).toBe(true);
       expect(await adminService.deleteReview("r9")).toBe(true);
-      expect(apiClient.patch).toHaveBeenNthCalledWith(1, "/reviews/r9/approve");
-      expect(apiClient.patch).toHaveBeenNthCalledWith(2, "/reviews/r9/reject");
+      expect(apiClient.patch).toHaveBeenNthCalledWith(1, '/admin/public-content/review', { type: 'listing_reviews', id: 'r9', revision: 4, approve: true });
+      expect(apiClient.patch).toHaveBeenNthCalledWith(2, '/admin/public-content/review', expect.objectContaining({ type: 'listing_reviews', id: 'r9', revision: 4, approve: false }));
       expect(apiClient.delete).toHaveBeenCalledWith("/reviews/r9");
     });
 

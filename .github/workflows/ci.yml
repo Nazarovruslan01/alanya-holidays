@@ -168,6 +168,15 @@ jobs:
       run: |
         psql -h localhost -U postgres -d alanya_holidays -v ON_ERROR_STOP=1 -f db_scripts/verify_rls_security.sql
 
+    - name: Verify Public Content Moderation and Legacy Publications
+      env:
+        PGPASSWORD: postgrespassword
+        PGPORT: 5432
+        PGDATABASE: moderation_ci
+      run: |
+        createdb -h 127.0.0.1 -p 5432 -U postgres moderation_ci
+        bash scripts/test-public-content-review.sh
+
     - name: Verify Stripe Event Recovery
       env:
         PGPASSWORD: postgrespassword

@@ -8,6 +8,9 @@ import {
 } from "./auth.schemas";
 
 describe("Validation Schemas", () => {
+  it('does not queue a signup public name that the profile database cannot approve', () => {
+    expect(registerSchema.safeParse({ name: 'Li', email: 'test@example.com', password: 'Secure123!', confirmPassword: 'Secure123!' }).success).toBe(false);
+  });
   describe("checkoutSchema", () => {
     it("validates valid checkout form data", () => {
       const validData = {

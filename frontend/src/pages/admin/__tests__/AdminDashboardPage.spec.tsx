@@ -1,3 +1,5 @@
+import { mockAdminQueuePages } from './queue-page-fixture';
+import { apiClient } from '@/lib/api-client';
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -207,6 +209,8 @@ describe("AdminDashboardPage (4-Tab Control Center)", () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    mockAdminQueuePages();
+    vi.spyOn(apiClient, 'get').mockResolvedValue({ pendingListings: 1, pendingClaims: 1, pendingContent: 1, pendingReports: 0, newEnquiries: 1, pendingBookings: 0, pendingReviews: 0 });
     vi.spyOn(adminService, "getModerationListings").mockResolvedValue(mockListings);
     vi.spyOn(adminService, "getClaimsQueue").mockResolvedValue(mockClaims);
     vi.spyOn(adminService, "getContentSubmissions").mockResolvedValue(mockContentSubmissions);
@@ -321,7 +325,7 @@ describe("AdminDashboardPage (4-Tab Control Center)", () => {
     fireEvent.click(approveBtn);
 
     await waitFor(() => {
-      expect(adminService.approveListing).toHaveBeenCalledWith("l-101");
+      expect(adminService.approveListing).toHaveBeenCalledWith("l-101", 1);
     });
   });
 

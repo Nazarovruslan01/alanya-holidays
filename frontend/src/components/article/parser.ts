@@ -58,6 +58,7 @@ function createShortcodeNode(
         category,
         label,
         subtext,
+        ...(attrs.href ? { href: attrs.href } : {}),
       };
     }
     case "video": {

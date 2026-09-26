@@ -5,6 +5,7 @@ import { guideContents } from "@/domain/guide-contents";
 import { ArticleContentRenderer } from "@/components/article";
 import { sanitizeForumHtml } from "@/utils/sanitizeHtml";
 import { useTranslation } from "react-i18next";
+import { getBlogReadTimeLabel, getGuideTagLabel } from "@/i18n/display-labels";
 import "@/i18n";
 
 interface GuideModalProps {
@@ -162,8 +163,8 @@ export default function GuideModal({ guide, onClose }: GuideModalProps) {
       ? content.heroImage
       : getGuideCoverImage(guide);
 
-  const tag = guide.tag || guide.category || "General";
-  const readTime = guide.readTime || "8 min read";
+  const tag = getGuideTagLabel(guide.tag || guide.category || "General", t);
+  const readTime = getBlogReadTimeLabel(guide.readTime || "8 min read", t);
   const description = guide.description || guide.excerpt || "";
 
   // Check if description is a non-truncated, standalone intro (avoiding cutoff excerpt ending in "...")

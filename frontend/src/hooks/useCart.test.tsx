@@ -13,6 +13,18 @@ describe("useCart hook", () => {
     <CartProvider>{children}</CartProvider>
   );
 
+  it('rejects a second currency before state changes even within one event', () => {
+    const { result } = renderHook(() => useCart(), { wrapper });
+    act(() => {
+      result.current.addToCart({ productId: 1, name: 'EUR item', price: 10, currency: 'EUR', icon: 'item', quantity: 3 });
+      expect(() => result.current.addToCart({ productId: 2, name: 'USD item', price: 10, currency: 'USD', icon: 'item' })).toThrow('different currency');
+    });
+    expect(result.current.items).toHaveLength(1);
+    expect(result.current.totalItems).toBe(3);
+    expect(result.current.subtotalMoney.amount).toBe(30);
+    expect(result.current.subtotalMoney.currency).toBe('EUR');
+  });
+
   it("should initialize with empty cart and zero subtotalMoney", () => {
     const { result } = renderHook(() => useCart(), { wrapper });
 

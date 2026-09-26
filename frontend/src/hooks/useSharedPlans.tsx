@@ -343,10 +343,7 @@ export function useSharedPlans() {
       }
 
       if (activeUserIdRef.current === ownerId) {
-        setSharedPlans((previous) => [
-          newShared,
-          ...previous.filter((shared) => shared.shareId !== newShared.shareId),
-        ]);
+        setSharedPlans((previous) => previous.filter((shared) => shared.shareId !== newShared.shareId));
       }
 
       return newShared;

@@ -332,7 +332,7 @@ export const MyProductsTab: React.FC<MyProductsTabProps> = ({
                       STATUS_BADGES[product.status?.toLowerCase()] || STATUS_BADGES.inactive
                     }`}
                   >
-                    {product.status}
+                    {product.moderation_status && product.moderation_status !== 'approved' ? t(product.moderation_status === 'rejected' ? 'merchant.rejected' : 'merchant.pendingReview') : product.status}
                   </span>
                 </div>
                 {product.description && (

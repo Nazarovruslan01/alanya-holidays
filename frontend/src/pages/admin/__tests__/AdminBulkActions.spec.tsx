@@ -1,3 +1,4 @@
+import { mockAdminQueuePages } from '@/pages/admin/__tests__/queue-page-fixture';
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import ListingsModerationTab from "../components/ListingsModerationTab";
@@ -96,6 +97,7 @@ describe("Admin Batch Moderation (Bulk Actions Toolbar) & Multi-Tab Live Search"
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    mockAdminQueuePages();
     vi.spyOn(adminService, "getModerationListings").mockResolvedValue(mockListings);
     vi.spyOn(adminService, "getClaimsQueue").mockResolvedValue(mockClaims);
     vi.spyOn(adminService, "getContentSubmissions").mockResolvedValue(mockContentSubmissions);
@@ -159,8 +161,8 @@ describe("Admin Batch Moderation (Bulk Actions Toolbar) & Multi-Tab Live Search"
       fireEvent.click(bulkApproveBtn);
 
       await waitFor(() => {
-        expect(adminService.approveListing).toHaveBeenCalledWith("l-1");
-        expect(adminService.approveListing).toHaveBeenCalledWith("l-2");
+        expect(adminService.approveListing).toHaveBeenCalledWith("l-1", 1);
+        expect(adminService.approveListing).toHaveBeenCalledWith("l-2", 1);
       });
     });
 
@@ -236,8 +238,8 @@ describe("Admin Batch Moderation (Bulk Actions Toolbar) & Multi-Tab Live Search"
       fireEvent.click(bulkApproveBtn);
 
       await waitFor(() => {
-        expect(adminService.approveListing).toHaveBeenCalledWith("l-1");
-        expect(adminService.approveListing).toHaveBeenCalledWith("l-2");
+        expect(adminService.approveListing).toHaveBeenCalledWith("l-1", 1);
+        expect(adminService.approveListing).toHaveBeenCalledWith("l-2", 1);
       });
     });
   });
@@ -290,7 +292,7 @@ describe("Admin Batch Moderation (Bulk Actions Toolbar) & Multi-Tab Live Search"
       fireEvent.click(bulkApproveBtn);
 
       await waitFor(() => {
-        expect(adminService.approveContentSubmission).toHaveBeenCalledWith("sub-1");
+        expect(adminService.approveContentSubmission).toHaveBeenCalledWith("sub-1", 1);
       });
     });
   });

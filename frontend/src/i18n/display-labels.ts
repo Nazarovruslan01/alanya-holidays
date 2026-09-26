@@ -47,14 +47,16 @@ export function getBusinessSubcategoryLabel(value: string, t: TFunction): string
 
 export function getForumCategoryLabel(category: DisplayCategory, t: TFunction): string {
   const stableId = category.slug || category.id || slugify(category.name);
-  return translate(t, `community.category.${stableId}`, category.name);
+  const translationId = stableId === "popular-beaches-attractions" ? "popular-beaches-and-attractions" : stableId;
+  return translate(t, `community.category.${translationId}`, category.name);
 }
 
 export function getForumCategoryDescription(category: DisplayCategory, t: TFunction): string {
   const stableId = category.slug || category.id || slugify(category.name);
+  const translationId = stableId === "popular-beaches-attractions" ? "popular-beaches-and-attractions" : stableId;
   return translate(
     t,
-    `community.category.${stableId}.description`,
+    `community.category.${translationId}.description`,
     category.description || "Discussions and questions in this category",
   );
 }
@@ -70,6 +72,10 @@ export function getBlogCategoryLabel(value: string, t: TFunction): string {
 export function getBlogReadTimeLabel(value: string, t: TFunction): string {
   const minutes = value.match(/\d+/)?.[0];
   return minutes ? t("public.readTime", { count: Number(minutes) }) : value;
+}
+
+export function getGuideTagLabel(value: string, t: TFunction): string {
+  return translate(t, `guides.tag.${slugify(value)}`, value);
 }
 
 export function getShopCategoryLabel(value: string, t: TFunction): string {

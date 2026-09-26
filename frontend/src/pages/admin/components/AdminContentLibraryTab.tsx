@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import QueuePagination from './QueuePagination';
+import { adminService } from '@/api-services/admin.service';
 import { useTranslation } from 'react-i18next';
 import '@/i18n';
 import RichTextEditor from '@/components/base/RichTextEditor';
@@ -79,6 +81,9 @@ export default function AdminContentLibraryTab() {
   const [insertContent, setInsertContent] = useState<{ id: number; html: string } | null>(null);
   const [articleType, setArticleType] = useState<'all' | 'blog' | 'guide'>('all');
   const [productPage, setProductPage] = useState(1);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, totalPages: 0 });
+  useEffect(() => { setPage(1); }, [resource, articleType]);
   const [productTotal, setProductTotal] = useState(0);
   const [productSearch, setProductSearch] = useState('');
   const [productSearchDraft, setProductSearchDraft] = useState('');
@@ -103,19 +108,15 @@ export default function AdminContentLibraryTab() {
         setProductTotal(result.total);
         return;
       }
-      const data =
-        resource === 'articles'
-          ? await adminContentService.listArticles(articleType === 'all' ? undefined : articleType)
-          : resource === 'events'
-            ? await adminContentService.listEvents()
-            : await adminContentService.listListings();
-      setItems(data as ManagedItem[]);
+      const result = await adminService.getQueuePage<ManagedItem>({ type: resource, page, category: resource === 'articles' ? articleType : undefined });
+      setItems(result.data);
+      setPagination(result);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : t('admin.contentLoadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [articleType, productPage, productSearch, resource, t]);
+  }, [articleType, productPage, productSearch, resource, page, t]);
 
   useEffect(() => {
     void load();
@@ -183,9 +184,10 @@ export default function AdminContentLibraryTab() {
     if (savingRef.current) return;
     const value = embedValue.trim();
     if (!value) return;
+    if (kind === 'cta' && value.startsWith('/') && !/^\/(?!\/)[^\\\s"<>]*$/.test(value)) return;
     const shortcode =
       kind === 'cta'
-        ? `[cta category="${value}" label="${t('admin.exploreEmbed', { value })}"]`
+        ? `[cta ${value.startsWith('/') ? 'href' : 'category'}="${value.replaceAll('"', '&quot;')}" label="${t('admin.exploreEmbed', { value }).replaceAll('"', '&quot;')}"]`
         : kind === 'listing'
           ? `[venue id="${value}" layout="card"]`
           : kind === 'image'
@@ -208,8 +210,8 @@ export default function AdminContentLibraryTab() {
           title: field('title').trim(),
           content: field('content'),
           excerpt: field('excerpt').trim() || undefined,
-          category: field('category').trim() || undefined,
-          cover_image_url: field('cover_image_url').trim() || undefined,
+          category: field('category').trim() || null,
+          cover_image_url: field('cover_image_url').trim() || null,
           status: field('status') as AdminArticleInput['status'],
           is_featured: form.is_featured === true,
           content_type: field('content_type') as 'blog' | 'guide',
@@ -358,6 +360,7 @@ export default function AdminContentLibraryTab() {
           </table>
         </div>
       )}
+      {resource !== 'products' && <QueuePagination page={page} {...pagination} busy={loading} onChange={setPage} />}
       {resource === 'products' && !loading && (
         <div className="flex items-center justify-end gap-3 text-sm">
           <button type="button" aria-label={t('admin.previousPage')} disabled={productPage <= 1} onClick={() => setProductPage((page) => Math.max(1, page - 1))} className="rounded-lg border border-secondary-200 px-3 py-1.5 disabled:opacity-50">{t('admin.previous')}</button>
