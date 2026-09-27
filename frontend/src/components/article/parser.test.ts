@@ -109,6 +109,32 @@ describe("Article Shortcode AST Parser (parseArticleContent)", () => {
       ]);
     });
 
+    it("extracts an inline CTA from saved rich text without changing document order", () => {
+      const input = '<p>Before <strong>the harbor walk</strong> [cta category="restaurants" label="Book a table"] after.</p>';
+
+      expect(parseArticleContent(input)).toEqual<ArticleBlockNode[]>([
+        { type: "html", content: '<p>Before <strong>the harbor walk</strong> </p>' },
+        { type: "cta", category: "restaurants", label: "Book a table", subtext: undefined },
+        { type: "html", content: "<p> after.</p>" },
+      ]);
+    });
+
+    it("keeps CTA examples inside preformatted code as literal HTML", () => {
+      const input = '<pre><code>[cta category="restaurants" label="Example"]</code></pre>';
+
+      expect(parseArticleContent(input)).toEqual<ArticleBlockNode[]>([
+        { type: "html", content: input },
+      ]);
+    });
+
+    it("keeps inline CTA examples inside code spans as literal HTML", () => {
+      const input = '<p>Example: <code>[cta category="restaurants" label="Example"]</code></p>';
+
+      expect(parseArticleContent(input)).toEqual<ArticleBlockNode[]>([
+        { type: "html", content: input },
+      ]);
+    });
+
     it("should parse [video] shortcode with YouTube provider and caption", () => {
       const input =
         '[video src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" provider="youtube" caption="Alanya from above 4K"]';
