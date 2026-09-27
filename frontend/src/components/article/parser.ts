@@ -115,6 +115,64 @@ function createShortcodeNode(
   }
 }
 
+function splitInlineCtas(paragraphHtml: string): string {
+  const document = new DOMParser().parseFromString(paragraphHtml, "text/html");
+  const paragraph = document.body.firstElementChild;
+  if (!paragraph || paragraph.tagName !== "P") return paragraphHtml;
+
+  const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT);
+  const matches: Array<{ node: Text; start: number; end: number; shortcode: string }> = [];
+  const shortcodeRegex = /\[\s*cta\b[^\]]*\]/gi;
+  let textNode = walker.nextNode() as Text | null;
+  while (textNode) {
+    if (!textNode.parentElement?.closest("script,style,code,pre")) {
+      shortcodeRegex.lastIndex = 0;
+      let match: RegExpExecArray | null;
+      while ((match = shortcodeRegex.exec(textNode.data))) {
+        matches.push({
+          node: textNode,
+          start: match.index,
+          end: match.index + match[0].length,
+          shortcode: match[0],
+        });
+      }
+    }
+    textNode = walker.nextNode() as Text | null;
+  }
+  if (!matches.length) return paragraphHtml;
+
+  const output: string[] = [];
+  let startNode: Node = paragraph;
+  let startOffset = 0;
+  const appendParagraph = (range: Range) => {
+    const fragment = range.cloneContents();
+    const wrapper = document.createElement("p");
+    for (const attribute of Array.from(paragraph.attributes)) {
+      wrapper.setAttribute(attribute.name, attribute.value);
+    }
+    wrapper.append(fragment);
+    if (wrapper.textContent?.trim() || wrapper.firstElementChild) {
+      output.push(wrapper.outerHTML);
+    }
+  };
+
+  for (const match of matches) {
+    const range = document.createRange();
+    range.setStart(startNode, startOffset);
+    range.setEnd(match.node, match.start);
+    appendParagraph(range);
+    output.push(match.shortcode);
+    startNode = match.node;
+    startOffset = match.end;
+  }
+
+  const remainder = document.createRange();
+  remainder.setStart(startNode, startOffset);
+  remainder.setEnd(paragraph, paragraph.childNodes.length);
+  appendParagraph(remainder);
+  return output.join("\n");
+}
+
 /**
  * Parses raw article markdown & shortcode content into an AST of ArticleBlockNode items.
  *
@@ -152,7 +210,8 @@ export function parseArticleContent(rawContent: string): ArticleBlockNode[] {
       return isApprovedInlineVideoUrl(src)
         ? `\n[video src="${src}" provider="html5"]\n`
         : '';
-    });
+    })
+    .replace(/<p\b[^>]*>[\s\S]*?<\/p>/gi, splitInlineCtas);
 
   const nodes: ArticleBlockNode[] = [];
   const lines = normalizedContent.split(/\r?\n/);

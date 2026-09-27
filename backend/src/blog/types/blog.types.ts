@@ -84,6 +84,7 @@ export interface BlogSubmissionUser {
 export interface BlogSubmission {
   id: string;
   user_id: string;
+  moderation_revision?: number;
   title: string;
   content: string;
   author_name?: string | null;

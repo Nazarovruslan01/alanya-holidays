@@ -186,6 +186,16 @@ Recommended quick stop:
       expect(document.querySelector('script')).not.toBeInTheDocument();
     });
 
+    it("renders a saved inline CTA between the surrounding paragraph content", () => {
+      const content = '<p>Before [cta category="restaurants" label="Reserve now"] after.</p>';
+      const { container } = render(<MemoryRouter><ArticleContentRenderer content={content} /></MemoryRouter>);
+
+      const renderedText = container.querySelector(".article-content-flow")?.textContent ?? "";
+      expect(renderedText.indexOf("Before")).toBeLessThan(renderedText.indexOf("Reserve now"));
+      expect(renderedText.indexOf("Reserve now")).toBeLessThan(renderedText.indexOf("after."));
+      expect(renderedText).not.toContain("[cta");
+    });
+
     it("renders empty container without crashing when content is empty", () => {
       const { container } = render(
         <MemoryRouter>

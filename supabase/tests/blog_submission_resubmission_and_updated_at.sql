@@ -20,6 +20,7 @@ VALUES
   ('20000000-0000-0000-0000-000000000002', 'submission-two@example.test', 'Submission Two', 'user'),
   ('20000000-0000-0000-0000-000000000003', 'submission-three@example.test', 'Submission Three', 'user')
 ON CONFLICT (id) DO NOTHING;
+UPDATE public.profiles SET role = 'admin' WHERE id = '20000000-0000-0000-0000-000000000003';
 
 INSERT INTO public.blog_submissions (
   id,
@@ -32,11 +33,29 @@ INSERT INTO public.blog_submissions (
 VALUES
   ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'Rejected', 'Original', 'rejected', 'Needs revision'),
   ('10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', 'Review', 'Matrix', 'pending_review', NULL),
-  ('10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000003', 'Approved', 'Invalid', 'approved', NULL);
+  ('10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000003', 'Approved', 'Invalid', 'approved', NULL),
+  ('10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000001', 'Explicit resubmit', 'Original', 'rejected', 'Needs revision'),
+  ('10000000-0000-0000-0000-000000000005', '20000000-0000-0000-0000-000000000002', 'Legacy pending reason', 'Original', 'pending_review', 'Old rejection reason');
 
 \if :apply_fix
 \ir ../migrations/20260908000000_fix_blog_submission_updates_and_resubmission.sql
+\ir ../migrations/20260927000005_blog_submission_resubmit_revision.sql
 \endif
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.blog_submissions
+    WHERE id = '10000000-0000-0000-0000-000000000005'
+      AND status = 'pending_review'
+      AND rejection_reason IS NULL
+      AND moderation_revision = 1
+  ) THEN
+    RAISE EXCEPTION 'legacy rejection reason was not cleared without changing status or revision';
+  END IF;
+END;
+$$;
 
 DO $$
 DECLARE
@@ -83,28 +102,80 @@ BEGIN
     FROM public.blog_submissions
     WHERE id = '10000000-0000-0000-0000-000000000001'
       AND title = 'Saved title'
+      AND status = 'pending_review'
+      AND rejection_reason IS NULL
+      AND moderation_revision = 2
       AND updated_at IS NOT NULL
   ) THEN
-    RAISE EXCEPTION 'submission text and updated_at did not save and reload together';
+    RAISE EXCEPTION 'rejected edit did not save, clear its reason, advance its revision, and resubmit';
   END IF;
 END;
 $$;
 
-UPDATE public.blog_submissions
-SET status = 'pending_review', rejection_reason = NULL
-WHERE id = '10000000-0000-0000-0000-000000000001';
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.review_blog_submission(
+      '10000000-0000-0000-0000-000000000001',
+      1,
+      '20000000-0000-0000-0000-000000000003',
+      TRUE
+    );
+    RAISE EXCEPTION 'stale review accepted after rejected edit';
+  EXCEPTION
+    WHEN serialization_failure THEN NULL;
+  END;
+END;
+$$;
 
 DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1
     FROM public.blog_submissions
-    WHERE id = '10000000-0000-0000-0000-000000000001'
+    WHERE id = '10000000-0000-0000-0000-000000000004'
+      AND status = 'rejected'
+      AND rejection_reason = 'Needs revision'
+      AND moderation_revision = 1
+  ) THEN
+    RAISE EXCEPTION 'rejection reason was not retained while the submission remained rejected';
+  END IF;
+END;
+$$;
+
+UPDATE public.blog_submissions
+SET status = 'pending_review', rejection_reason = NULL
+WHERE id = '10000000-0000-0000-0000-000000000004'
+  AND status = 'rejected';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.blog_submissions
+    WHERE id = '10000000-0000-0000-0000-000000000004'
       AND status = 'pending_review'
       AND rejection_reason IS NULL
+      AND moderation_revision = 2
   ) THEN
-    RAISE EXCEPTION 'resubmission did not change status and clear the rejection reason atomically';
+    RAISE EXCEPTION 'explicit resubmit did not clear the reason and advance the revision atomically';
   END IF;
+END;
+$$;
+
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.review_blog_submission(
+      '10000000-0000-0000-0000-000000000004',
+      1,
+      '20000000-0000-0000-0000-000000000003',
+      TRUE
+    );
+    RAISE EXCEPTION 'stale review accepted after explicit resubmit';
+  EXCEPTION
+    WHEN serialization_failure THEN NULL;
+  END;
 END;
 $$;
 

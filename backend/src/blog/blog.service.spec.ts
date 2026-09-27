@@ -938,12 +938,23 @@ describe('BlogService', () => {
       });
       mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
       mockRepository.updateBlogSubmissionStatus.mockResolvedValueOnce([
-        { id: 'own-sub' },
+        {
+          id: 'own-sub',
+          status: 'pending_review',
+          rejection_reason: null,
+          moderation_revision: 2,
+        },
       ]);
 
       await expect(
         service.resubmitUserBlogSubmission('own-sub', 'user-1'),
-      ).resolves.toEqual(expect.objectContaining({ status: 'pending_review' }));
+      ).resolves.toEqual(
+        expect.objectContaining({
+          status: 'pending_review',
+          rejection_reason: null,
+          moderation_revision: 2,
+        }),
+      );
       expect(mockRepository.updateBlogSubmissionStatus).toHaveBeenCalledWith(
         'own-sub',
         'pending_review',

@@ -441,16 +441,28 @@ export class BlogRepository {
     status: string,
     currentStatus: string,
     extraUpdates: Record<string, unknown> = {},
-  ): Promise<Array<{ id: string }> | null> {
+  ): Promise<Array<
+    Pick<
+      BlogSubmission,
+      'id' | 'status' | 'rejection_reason' | 'moderation_revision'
+    >
+  > | null> {
     const { data, error } = await this.client
       .from('blog_submissions')
       .update({ ...extraUpdates, status })
       .eq('id', id)
       .eq('status', currentStatus)
-      .select('id');
+      .select('id,status,rejection_reason,moderation_revision');
 
     if (error) throw new Error(error.message);
-    return data || null;
+    return (
+      (data as unknown as Array<
+        Pick<
+          BlogSubmission,
+          'id' | 'status' | 'rejection_reason' | 'moderation_revision'
+        >
+      >) || null
+    );
   }
 
   async getProfileForNotification(

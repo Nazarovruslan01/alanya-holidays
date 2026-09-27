@@ -203,7 +203,7 @@ export function MyContentTab() {
                 <p className="mt-1 line-clamp-2 text-sm text-secondary-500 dark:text-slate-400">{post.excerpt || post.content}</p>
               </div>
               <button type="button" onClick={() => beginEdit({ kind: "post", item: post })} className="inline-flex items-center gap-1.5 rounded-xl bg-secondary-100 px-3 py-2 text-xs font-semibold text-secondary-800 hover:bg-secondary-200 dark:bg-slate-800 dark:text-slate-200">
-                <Pencil className="h-3.5 w-3.5" /> {t("common.edit")}
+                <Pencil className="h-3.5 w-3.5" /> {t("merchant.edit")}
               </button>
             </div>
           </article>
@@ -223,12 +223,12 @@ export function MyContentTab() {
                   <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-800">{contentType(submission.category, t)}</span>
                   <span className="rounded-full bg-secondary-100 px-2 py-0.5 text-xs font-semibold capitalize text-secondary-700 dark:bg-slate-800 dark:text-slate-300">{submission.status.replaceAll("_", " ")}</span>
                 </div>
-                {submission.rejection_reason && <p className="mt-2 text-sm text-rose-700 dark:text-rose-300">{submission.rejection_reason}</p>}
+                {submission.status === "rejected" && submission.rejection_reason && <p className="mt-2 text-sm text-rose-700 dark:text-rose-300">{submission.rejection_reason}</p>}
               </div>
               <div className="flex gap-2">
                 {["pending_review", "rejected"].includes(submission.status) && (
                   <button type="button" onClick={() => beginEdit({ kind: "submission", item: submission })} className="inline-flex items-center gap-1.5 rounded-xl bg-secondary-100 px-3 py-2 text-xs font-semibold text-secondary-800 hover:bg-secondary-200 dark:bg-slate-800 dark:text-slate-200">
-                    <Pencil className="h-3.5 w-3.5" /> {t("common.edit")}
+                    <Pencil className="h-3.5 w-3.5" /> {t("merchant.edit")}
                   </button>
                 )}
                 {submission.status === "rejected" && (

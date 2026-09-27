@@ -2,6 +2,7 @@ import "@testing-library/jest-dom";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { blogService } from "@/api-services/blog.service";
+import i18n from "@/i18n";
 import { MyContentTab } from "./MyContentTab";
 
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { id: "author-1" } }) }));
@@ -22,6 +23,7 @@ vi.mock("@/api-services/blog.service", async () => {
       getMySubmissions: vi.fn(),
       updateMyPost: vi.fn(),
       updateMySubmission: vi.fn(),
+      resubmitMySubmission: vi.fn(),
     },
   };
 });
@@ -89,12 +91,27 @@ const submission = {
 };
 
 describe("MyContentTab", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
     vi.clearAllMocks();
     quillState.textChangeCallbacks = [];
     vi.mocked(blogService.getMyPosts).mockResolvedValue([post]);
     vi.mocked(blogService.getMySubmissions).mockResolvedValue([]);
     vi.mocked(blogService.updateMyPost).mockResolvedValue(post);
+    vi.mocked(blogService.updateMySubmission).mockResolvedValue(submission);
+  });
+
+  it.each([
+    ["en", "Edit"],
+    ["ru", "Изменить"],
+    ["tr", "Düzenle"],
+  ])("shows the %s edit label in the selected language", async (language, label) => {
+    await i18n.changeLanguage(language);
+    vi.mocked(blogService.getMyPosts).mockResolvedValue([post]);
+
+    render(<MyContentTab />);
+
+    expect(await screen.findByRole("button", { name: label })).toBeInTheDocument();
   });
 
   it("hydrates formatted HTML, submits edits, and retains content after a save failure", async () => {
@@ -141,6 +158,40 @@ describe("MyContentTab", () => {
       "submission-1",
       expect.objectContaining({ content: editedHtml }),
     ));
+  });
+
+  it("hides the old rejection reason after an edited submission returns to review", async () => {
+    vi.mocked(blogService.getMyPosts).mockResolvedValue([]);
+    const rejected = { ...submission, status: "rejected" as const, rejection_reason: "Please add sources." };
+    const updated = { ...rejected, content: "<p>Updated submission content.</p>", status: "pending_review" as const, rejection_reason: null };
+    vi.mocked(blogService.getMySubmissions).mockResolvedValue([rejected]);
+    vi.mocked(blogService.updateMySubmission).mockResolvedValue(updated);
+
+    render(<MyContentTab />);
+    expect(await screen.findByText("Please add sources.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const editor = screen.getByTestId("mock-quill-editor");
+    editor.innerHTML = updated.content;
+    act(() => quillState.textChangeCallbacks.forEach((callback) => callback()));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(blogService.updateMySubmission).toHaveBeenCalled());
+    await waitFor(() => {
+      expect(screen.queryByText("Please add sources.")).not.toBeInTheDocument();
+      expect(screen.getByText("pending review")).toBeInTheDocument();
+    });
+  });
+
+  it("does not show a legacy rejection reason while a submission is pending review", async () => {
+    vi.mocked(blogService.getMyPosts).mockResolvedValue([]);
+    vi.mocked(blogService.getMySubmissions).mockResolvedValue([
+      { ...submission, rejection_reason: "Old rejection note" },
+    ]);
+
+    render(<MyContentTab />);
+
+    expect(await screen.findByText("Harbor story")).toBeInTheDocument();
+    expect(screen.queryByText("Old rejection note")).not.toBeInTheDocument();
   });
 
   it("filters posts and submissions locally without changing the loaded data", async () => {

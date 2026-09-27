@@ -571,7 +571,7 @@ export class BlogService {
         'Submission status changed; reload and try again',
       );
     }
-    return { ...submission, status: 'pending_review', rejection_reason: null };
+    return { ...submission, ...updatedRows[0] };
   }
 
   async approveBlogSubmission(
