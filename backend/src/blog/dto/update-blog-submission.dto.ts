@@ -19,7 +19,7 @@ export class UpdateBlogSubmissionDto {
 
   @IsString()
   @MinLength(10)
-  @MaxLength(100000)
+  @MaxLength(500000)
   @IsOptional()
   content?: string;
 

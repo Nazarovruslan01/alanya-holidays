@@ -6,6 +6,8 @@ import { MemoryRouter } from "react-router-dom";
 import VillaStaysPage from "./villa-stays/page";
 import YachtChartersPage from "./yacht-charters/page";
 import LuxuryExperiencePage from "./luxury-experience/page";
+import ContactPage from "./contact/page";
+import { adminService } from "@/api-services/admin.service";
 import { conciergeService, type Yacht } from "@/api-services/concierge.service";
 import { propertiesService } from "@/api-services/properties.service";
 
@@ -90,7 +92,14 @@ describe("concierge enquiry page flows", () => {
       success: true,
       id: "enq-123",
     });
+    vi.spyOn(adminService, "submitEnquiry").mockResolvedValue({ success: true, id: "contact-123" });
   });
+
+  const fillContactForm = () => {
+    fireEvent.change(screen.getByLabelText(/your name/i), { target: { value: "Aylin Kaya" } });
+    fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: "aylin@example.com" } });
+    fireEvent.change(screen.getByLabelText(/your message/i), { target: { value: "Please help with my trip." } });
+  };
 
   it("redirects villa enquiries to booking confirmation with enquiry state", async () => {
     render(
@@ -199,5 +208,89 @@ describe("concierge enquiry page flows", () => {
         })
       );
     });
+  });
+
+  it.each(["whatsapp", "phone_call"] as const)(
+    "requires and submits a phone number for %s contact",
+    async (preferredContact) => {
+      render(
+        <MemoryRouter>
+          <ContactPage />
+        </MemoryRouter>,
+      );
+
+      fillContactForm();
+      fireEvent.click(screen.getByRole("radio", { name: preferredContact === "whatsapp" ? "WhatsApp" : "Phone Call" }));
+      fireEvent.submit(screen.getByRole("button", { name: /send message/i }).closest("form")!);
+
+      expect(screen.getByText(/please enter your phone number/i)).toBeInTheDocument();
+      expect(adminService.submitEnquiry).not.toHaveBeenCalled();
+
+      fireEvent.change(screen.getByLabelText(/phone number/i), { target: { value: " +90 555 123 4567 " } });
+      fireEvent.submit(screen.getByRole("button", { name: /send message/i }).closest("form")!);
+
+      await waitFor(() => {
+        expect(adminService.submitEnquiry).toHaveBeenCalledWith(
+          expect.objectContaining({
+            phone: "+90 555 123 4567",
+            preferred_contact: preferredContact,
+            message: expect.stringContaining("Preferred contact method"),
+          }),
+        );
+      });
+    },
+  );
+
+  it("submits an email enquiry without requiring a phone number", async () => {
+    render(
+      <MemoryRouter>
+        <ContactPage />
+      </MemoryRouter>,
+    );
+
+    fillContactForm();
+    fireEvent.submit(screen.getByRole("button", { name: /send message/i }).closest("form")!);
+
+    await waitFor(() => {
+      expect(adminService.submitEnquiry).toHaveBeenCalledWith(
+        expect.objectContaining({ preferred_contact: "email", phone: undefined }),
+      );
+      expect(mockNavigate).toHaveBeenCalledWith("/booking-confirmation", expect.anything());
+    });
+  });
+
+  it("ignores the honeypot without sending an enquiry", () => {
+    render(
+      <MemoryRouter>
+        <ContactPage />
+      </MemoryRouter>,
+    );
+
+    const honeypot = document.querySelector<HTMLInputElement>('input[name="phone_alt"]');
+    expect(honeypot).not.toBeNull();
+    fireEvent.change(honeypot!, { target: { value: "bot-value" } });
+    fireEvent.submit(screen.getByRole("button", { name: /send message/i }).closest("form")!);
+
+    expect(adminService.submitEnquiry).not.toHaveBeenCalled();
+  });
+
+  it("retains the phone and message when submission fails", async () => {
+    vi.mocked(adminService.submitEnquiry).mockRejectedValueOnce(new Error("Network down"));
+    render(
+      <MemoryRouter>
+        <ContactPage />
+      </MemoryRouter>,
+    );
+
+    fillContactForm();
+    fireEvent.click(screen.getByRole("radio", { name: "WhatsApp" }));
+    fireEvent.change(screen.getByLabelText(/phone number/i), { target: { value: "+90 555 123 4567" } });
+    fireEvent.submit(screen.getByRole("button", { name: /send message/i }).closest("form")!);
+
+    await waitFor(() => {
+      expect(screen.getByText("Network down")).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText(/phone number/i)).toHaveValue("+90 555 123 4567");
+    expect(screen.getByLabelText(/your message/i)).toHaveValue("Please help with my trip.");
   });
 });

@@ -10,6 +10,7 @@ export interface StoredDraftData {
   formData: Partial<CreateListingInput>;
   draftId?: string | null;
   lastSavedAt: string;
+  cloudSynced?: boolean;
 }
 
 export interface UseListingDraftOptions {

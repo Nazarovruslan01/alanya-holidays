@@ -51,6 +51,9 @@ BEGIN
     RAISE EXCEPTION 'service_role cannot execute verify_claim_email';
   END IF;
 
+  -- Token assertions need an already-reviewed claimable listing.
+  PERFORM set_config('request.jwt.claims', '{"role":"service_role"}', true);
+  PERFORM set_config('app.content_review', 'approved', true);
   INSERT INTO public.directory_listings (id, name, title, slug, status, creation_source)
   VALUES (
     v_listing_id,
@@ -61,6 +64,8 @@ BEGIN
     'admin'
   );
 
+  PERFORM set_config('app.content_review', '', true);
+  PERFORM set_config('request.jwt.claims', '{}', true);
   INSERT INTO public.listing_claims (
     id, listing_id, email, phone, role, business_name, contact_phone,
     status, verification_token_hash, verification_expires_at

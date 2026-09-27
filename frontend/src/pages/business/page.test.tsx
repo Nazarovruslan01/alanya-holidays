@@ -202,6 +202,18 @@ describe("BusinessDetailPage favorites authentication", () => {
     expect(screen.queryByText("0.0")).not.toBeInTheDocument();
   });
 
+  it("omits hero and sidebar website links when the website is blank", async () => {
+    vi.mocked(directoryService.getListingById).mockResolvedValue({
+      ...business,
+      website: "   ",
+    });
+
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "Craft Coffee" })).toBeInTheDocument();
+    expect(screen.queryAllByRole("link", { name: /website/i })).toHaveLength(0);
+  });
+
   it.each([
     [
       "ru",
@@ -295,5 +307,92 @@ describe("BusinessDetailPage favorites authentication", () => {
     fireEvent.click(showAll);
     expect(screen.getByRole("button", { name: "Показать меньше" })).toBeInTheDocument();
     expect(screen.getByText("Untranslated review content 5")).toBeInTheDocument();
+  });
+
+  it("submits review metadata without publishing the pending review locally", async () => {
+    authState.isAuthenticated = true;
+    vi.mocked(directoryService.submitReview).mockResolvedValue({
+      id: "pending-review",
+      businessId: business.id,
+      reviewerName: "Authenticated User",
+      reviewerAvatar: null,
+      rating: 5,
+      date: "2026-09-09",
+      title: "A memorable visit",
+      content: "The service was excellent.",
+      visitType: "Family",
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Write a Review" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rate 5 out of 5" }));
+    fireEvent.change(document.getElementById("review-name")!, {
+      target: { value: "Form Name" },
+    });
+    fireEvent.change(document.getElementById("review-email")!, {
+      target: { value: "reviewer@example.test" },
+    });
+    fireEvent.change(document.getElementById("review-visit-type")!, {
+      target: { value: "Family" },
+    });
+    fireEvent.change(document.getElementById("review-title")!, {
+      target: { value: "A memorable visit" },
+    });
+    fireEvent.change(document.getElementById("review-content")!, {
+      target: { value: "The service was excellent." },
+    });
+    fireEvent.submit(document.getElementById("business-review-form")!);
+
+    expect(await screen.findByText("Review submitted!")).toBeInTheDocument();
+    expect(directoryService.submitReview).toHaveBeenCalledWith(
+      business.id,
+      5,
+      "The service was excellent.",
+      { title: "A memorable visit", visitType: "Family" },
+    );
+    expect(screen.getByText("No community reviews yet")).toBeInTheDocument();
+    expect(screen.queryByText("The service was excellent.")).not.toBeInTheDocument();
+  });
+
+  it("preserves entered review fields when submission fails", async () => {
+    authState.isAuthenticated = true;
+    vi.mocked(directoryService.submitReview).mockRejectedValue(
+      new Error("network failed"),
+    );
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Write a Review" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rate 4 out of 5" }));
+    fireEvent.change(document.getElementById("review-name")!, {
+      target: { value: "Form Name" },
+    });
+    fireEvent.change(document.getElementById("review-email")!, {
+      target: { value: "reviewer@example.test" },
+    });
+    fireEvent.change(document.getElementById("review-visit-type")!, {
+      target: { value: "Couple" },
+    });
+    fireEvent.change(document.getElementById("review-title")!, {
+      target: { value: "Keep this title" },
+    });
+    fireEvent.change(document.getElementById("review-content")!, {
+      target: { value: "Keep this review content." },
+    });
+    fireEvent.submit(document.getElementById("business-review-form")!);
+
+    expect(
+      await screen.findByText(
+        "Network error. Please check your connection and try again.",
+      ),
+    ).toBeInTheDocument();
+    expect(document.getElementById("review-name")).toHaveValue("Form Name");
+    expect(document.getElementById("review-email")).toHaveValue(
+      "reviewer@example.test",
+    );
+    expect(document.getElementById("review-visit-type")).toHaveValue("Couple");
+    expect(document.getElementById("review-title")).toHaveValue("Keep this title");
+    expect(document.getElementById("review-content")).toHaveValue(
+      "Keep this review content.",
+    );
   });
 });

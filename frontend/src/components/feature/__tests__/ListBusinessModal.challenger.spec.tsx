@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import ListBusinessModal from "../ListBusinessModal";
 import { directoryService } from "@/api-services/directory.service";
@@ -110,6 +110,68 @@ describe("Adversarial Empirical Verification: ListBusinessModal Component", () =
 
       expect(await screen.findByText(/draft saved locally on this device/i)).toBeInTheDocument();
       expect(onDraftSaved).toHaveBeenCalled();
+    });
+
+    it("blocks closing while a draft save is pending and allows it after success", async () => {
+      let resolveSave!: (
+        value: Awaited<ReturnType<typeof directoryService.saveDraft>>
+      ) => void;
+      vi.spyOn(directoryService, "saveDraft").mockReturnValueOnce(
+        new Promise<Awaited<ReturnType<typeof directoryService.saveDraft>>>((resolve) => {
+          resolveSave = resolve;
+        })
+      );
+      const onClose = vi.fn();
+
+      render(<ListBusinessModal isOpen={true} onClose={onClose} />);
+      fireEvent.click(screen.getByTestId("select-tier-explorer"));
+      fireEvent.change(screen.getByLabelText(/business name/i), {
+        target: { value: "Pending Draft" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /save as draft/i }));
+
+      const closeButton = screen.getByRole("button", { name: /close/i });
+      fireEvent.click(closeButton);
+      expect(onClose).not.toHaveBeenCalled();
+      expect(closeButton).toBeDisabled();
+
+      await act(async () => {
+        resolveSave({
+          id: "saved-draft-id",
+        } as Awaited<ReturnType<typeof directoryService.saveDraft>>);
+      });
+      await waitFor(() => expect(closeButton).not.toBeDisabled());
+      fireEvent.click(closeButton);
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("allows closing after a pending draft save fails", async () => {
+      let rejectSave!: (reason: Error) => void;
+      vi.spyOn(directoryService, "saveDraft").mockReturnValueOnce(
+        new Promise<Awaited<ReturnType<typeof directoryService.saveDraft>>>((_, reject) => {
+          rejectSave = reject;
+        })
+      );
+      const onClose = vi.fn();
+
+      render(<ListBusinessModal isOpen={true} onClose={onClose} />);
+      fireEvent.click(screen.getByTestId("select-tier-explorer"));
+      fireEvent.change(screen.getByLabelText(/business name/i), {
+        target: { value: "Failed Pending Draft" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /save as draft/i }));
+
+      const closeButton = screen.getByRole("button", { name: /close/i });
+      fireEvent.click(closeButton);
+      expect(onClose).not.toHaveBeenCalled();
+      expect(closeButton).toBeDisabled();
+
+      await act(async () => {
+        rejectSave(new Error("save failed"));
+      });
+      await waitFor(() => expect(closeButton).not.toBeDisabled());
+      fireEvent.click(closeButton);
+      expect(onClose).toHaveBeenCalledTimes(1);
     });
   });
 

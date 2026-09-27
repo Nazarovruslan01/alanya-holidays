@@ -47,6 +47,7 @@ export default {
   "services.preferredContact": "Tercih edilen iletişim yöntemi",
   "services.fullName": "Adınız ve soyadınız",
   "services.emailAddress": "E-posta adresiniz",
+  "services.phoneNumber": "Telefon numaranız",
   "services.phoneOptional": "Telefon numaranız (isteğe bağlı)",
   "services.specialRequests": "Özel istekleriniz veya sorularınız? (isteğe bağlı)",
   "services.sending": "Gönderiliyor...",
@@ -532,5 +533,6 @@ export default {
   "services.form.requestAvailability": "Uygunluk talep et",
   "services.validation.name": "Lütfen adınızı girin.",
   "services.validation.message": "Lütfen mesajınızı girin.",
+  "services.validation.phoneRequired": "WhatsApp veya telefon araması için telefon numaranızı girin.",
   "services.contact.thanks": "Bize ulaştığınız için teşekkürler! 24 saat içinde yanıt vereceğiz.",
 };

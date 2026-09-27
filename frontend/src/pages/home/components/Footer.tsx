@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { adminService } from "@/api-services/admin.service";
+import { useAuth } from "@/context/AuthContext";
 import { useTranslation } from "react-i18next";
 
 export default function Footer() {
   const { t } = useTranslation();
+  const { isAdmin } = useAuth();
   const [email, setEmail] = useState("");
   const [submitStatus, setSubmitStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -194,12 +196,14 @@ export default function Footer() {
             >
               {t("home.terms", "Terms")}
             </Link>
-            <Link
-              to="/admin"
-              className="text-white/60 text-xs hover:text-white transition-colors underline"
-            >
-              {t("home.admin", "Admin")}
-            </Link>
+            {isAdmin && (
+              <Link
+                to="/admin"
+                className="text-white/60 text-xs hover:text-white transition-colors underline"
+              >
+                {t("home.admin", "Admin")}
+              </Link>
+            )}
           </div>
         </div>
       </div>

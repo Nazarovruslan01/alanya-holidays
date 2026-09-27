@@ -39,6 +39,25 @@ describe('security.config', () => {
   });
 
   describe('createCorsOriginDelegate', () => {
+    it('allows only the canonical and www HTTPS production origins', () => {
+      const origins = parseAllowedOrigins({});
+      expect(origins).toEqual(
+        expect.arrayContaining([
+          'https://alanyaholidays.com',
+          'https://www.alanyaholidays.com',
+        ]),
+      );
+      expect(origins).not.toContain('*');
+      for (const origin of [
+        'https://alanyaholidays.com',
+        'https://www.alanyaholidays.com',
+      ]) {
+        const callback = jest.fn();
+        createCorsOriginDelegate(origins)(origin, callback);
+        expect(callback).toHaveBeenCalledWith(null, true);
+      }
+    });
+
     it('should allow configured origin', () => {
       const delegate = createCorsOriginDelegate(['https://app.example.com']);
       const callback = jest.fn();

@@ -1,9 +1,15 @@
 import { createRequire } from 'node:module';
+import { BadRequestException } from '@nestjs/common';
 import type sanitizeHtmlType from 'sanitize-html';
 
 const sanitizeHtml = createRequire(__filename)(
   'sanitize-html',
 ) as typeof sanitizeHtmlType;
+const decodeHtml = (
+  createRequire(__filename)('entities') as {
+    decodeHTML: (value: string) => string;
+  }
+).decodeHTML;
 
 const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
 const VIMEO_ID = /^\d+$/;
@@ -18,6 +24,26 @@ const youtubeHosts = new Set([
   'www.youtube-nocookie.com',
 ]);
 const vimeoHosts = new Set(['vimeo.com', 'www.vimeo.com', 'player.vimeo.com']);
+
+export const MAX_RICH_TEXT_VISIBLE_LENGTH = 100000;
+export const MAX_RICH_TEXT_HTML_LENGTH = 500000;
+
+export function getRichTextVisibleText(value: string): string {
+  return decodeHtml(
+    sanitizeHtml(value, { allowedTags: [], allowedAttributes: {} }),
+  ).trim();
+}
+
+export function assertRichTextLength(value: string): void {
+  if (value.length > MAX_RICH_TEXT_HTML_LENGTH) {
+    throw new BadRequestException('Rich text HTML exceeds the maximum size');
+  }
+  if (getRichTextVisibleText(value).length > MAX_RICH_TEXT_VISIBLE_LENGTH) {
+    throw new BadRequestException(
+      'Rich text exceeds the maximum visible length',
+    );
+  }
+}
 
 export function normalizeVideoEmbedUrl(value: string): string | null {
   try {

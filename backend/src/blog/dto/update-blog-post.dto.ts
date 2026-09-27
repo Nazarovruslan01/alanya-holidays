@@ -25,7 +25,7 @@ export class UpdateBlogPostDto {
 
   @IsString()
   @IsNotEmpty()
-  @MaxLength(100000)
+  @MaxLength(500000)
   @IsOptional()
   content?: string;
 

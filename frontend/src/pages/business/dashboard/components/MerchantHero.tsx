@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   FileText,
   TrendingUp,
-  Sparkles,
   Eye,
   Award,
 } from "lucide-react";
@@ -65,10 +64,6 @@ export const MerchantHero: React.FC<MerchantHeroProps> = ({
               <h1 className="text-2xl sm:text-3xl font-display font-semibold text-white tracking-tight truncate">
                 {merchantName}
               </h1>
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-400/30">
-                <Sparkles className="w-3 h-3 text-amber-300" />
-                {t("merchant.verifiedOwner")}
-              </span>
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
                 <Award className="w-3 h-3 text-indigo-300" />
                 {t("merchant.tier", { tier: formattedTier })}
@@ -117,7 +112,7 @@ export const MerchantHero: React.FC<MerchantHeroProps> = ({
               className="flex items-center gap-2 text-xs sm:text-sm text-slate-300 hover:text-white hover:bg-white/10 px-3 py-1.5 rounded-lg transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400/50"
             >
               <TrendingUp className="w-4 h-4 text-sky-400 shrink-0" />
-              <span>{t("merchant.analyticsReady")}</span>
+              <span>{t("merchant.viewAnalytics")}</span>
             </button>
           </div>
 

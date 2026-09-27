@@ -581,42 +581,46 @@ describe('ForumEventService', () => {
       expect(mockRepository.updateEventWithMedia).toHaveBeenCalledTimes(1);
     });
 
-    it('rejects merchant publication and mutations of a published event', async () => {
+    it('lets the owner edit published normal fields but protects moderation fields', async () => {
       mockUserRoles.getRole.mockResolvedValue('user');
-      mockRepository.getEventOwnership
-        .mockResolvedValueOnce({
-          host_id: userId,
-          created_by: userId,
-          is_published: false,
-          image_url: null,
-          video_url: null,
-        })
-        .mockResolvedValueOnce({
-          host_id: userId,
-          created_by: userId,
-          is_published: true,
-          image_url: null,
-          video_url: null,
-        })
-        .mockResolvedValueOnce({
-          host_id: userId,
-          created_by: userId,
-          is_published: true,
-          image_url: null,
-          video_url: null,
-        });
+      mockRepository.getEventOwnership.mockResolvedValue({
+        host_id: userId,
+        created_by: userId,
+        is_published: true,
+        image_url: null,
+        video_url: null,
+      });
+      mockRepository.updateEventWithMedia.mockResolvedValue({ id: eventId });
 
+      await expect(
+        service.updateForumEvent(eventId, { title: 'Published edit' }, userId),
+      ).resolves.toEqual({ id: eventId });
+      await expect(
+        service.updateForumEvent(eventId, { host_id: 'another-user' }, userId),
+      ).rejects.toThrow(ForbiddenException);
       await expect(
         service.updateForumEvent(eventId, { is_published: true }, userId),
       ).rejects.toThrow(ForbiddenException);
       await expect(
-        service.updateForumEvent(eventId, { title: 'Published edit' }, userId),
+        service.updateForumEvent(eventId, { is_published: false }, userId),
       ).rejects.toThrow(ForbiddenException);
       await expect(service.deleteForumEvent(eventId, userId)).rejects.toThrow(
         ForbiddenException,
       );
-      expect(mockRepository.updateEvent).not.toHaveBeenCalled();
-      expect(mockRepository.deleteEvent).not.toHaveBeenCalled();
+    });
+
+    it('rejects a non-owner of a published event', async () => {
+      mockUserRoles.getRole.mockResolvedValue('user');
+      mockRepository.getEventOwnership.mockResolvedValue({
+        host_id: 'another-user',
+        created_by: 'another-user',
+        is_published: true,
+        image_url: null,
+        video_url: null,
+      });
+      await expect(
+        service.updateForumEvent(eventId, { title: 'Forged edit' }, userId),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('loads draft and published events scoped to the authenticated owner', async () => {

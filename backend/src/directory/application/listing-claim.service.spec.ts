@@ -2,6 +2,7 @@ import { ListingClaimService } from './listing-claim.service';
 import { DirectoryRepository } from '../directory.repository';
 import { UserRolesRepository } from '../../common/auth/user-roles.repository';
 import { EmailOutboxRepository } from '../../bookings/email-outbox.repository';
+import { BadRequestException, Logger } from '@nestjs/common';
 
 describe('ListingClaimService verification tokens', () => {
   const claim = {
@@ -204,10 +205,47 @@ describe('ListingClaimService verification tokens', () => {
       error: null,
     });
 
+    const rejection = await service
+      .approveListingClaim('claim-1', 'admin-1')
+      .catch((error: unknown) => error);
+
+    expect(rejection).toBeInstanceOf(BadRequestException);
+    expect((rejection as BadRequestException).getStatus()).toBe(400);
+    expect((rejection as Error).message).toBe(
+      'Listing is not eligible for ownership claims',
+    );
+
+    expect(repository.getListingClaimById).not.toHaveBeenCalled();
+    expect(repository.invokeFunction).not.toHaveBeenCalled();
+  });
+
+  it('logs safe RPC failure context while returning a generic server error', async () => {
+    const loggerError = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    const rpcError = Object.assign(
+      new Error('database failure contains CONTACT_PAYLOAD_SENTINEL'),
+      { code: '42703' },
+    );
+    userRoles.getRole.mockResolvedValueOnce('admin');
+    repository.callApproveListingClaimRpc.mockResolvedValueOnce({
+      data: null,
+      error: rpcError,
+    });
+
     await expect(
       service.approveListingClaim('claim-1', 'admin-1'),
-    ).rejects.toThrow('Listing is not eligible for ownership claims');
+    ).rejects.toThrow('Failed to approve claim');
 
+    expect(loggerError).toHaveBeenCalledWith({
+      action: 'approve',
+      claimId: 'claim-1',
+      code: '42703',
+      message: 'Listing claim RPC failed',
+    });
+    expect(JSON.stringify(loggerError.mock.calls)).not.toContain(
+      'CONTACT_PAYLOAD_SENTINEL',
+    );
     expect(repository.getListingClaimById).not.toHaveBeenCalled();
     expect(repository.invokeFunction).not.toHaveBeenCalled();
   });

@@ -120,10 +120,10 @@ export default function BlogSubmitPage() {
     else if (trimmedTitle.length > 150)
       nextFieldErrors.title = t("blogSubmit.titleTooLong");
 
-    const textContent = trimmedContent.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").trim();
+    const textContent = new DOMParser().parseFromString(trimmedContent, "text/html").body.textContent?.trim() || "";
     if (textContent.length < 10)
       nextFieldErrors.content = t("blogSubmit.contentTooShort");
-    else if (trimmedContent.length > 100000)
+    else if (textContent.length > 100000)
       nextFieldErrors.content = t("blogSubmit.contentTooLong");
 
     if (trimmedVideoUrl) {

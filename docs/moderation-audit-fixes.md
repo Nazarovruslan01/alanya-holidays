@@ -253,3 +253,68 @@ No commit, push, deployment or production write was performed. Staging rollout,
 live provider/email configuration, and the customer's reported mutation 403
 remain unverified; passing local and mocked checks is not a production-readiness
 claim for those paths.
+
+## Release integration amendment — MOD-20260927-PR
+
+The user subsequently authorized commit, push, PR creation and merge when green.
+The coordinator committed the reviewed snapshot as `cc7ecc3`; this integration
+merges `origin/main` at `203c584` into the same task branch with `--no-commit
+--no-ff`. The sole writer and independent review/verifier boundaries, and the
+user-approved Astra routing exception, remain unchanged. Commit/push/PR/merge
+actions belong to the coordinator. Production migration application was not
+authorized or performed; the earlier verification ledger describes the prior
+snapshot rather than this merged candidate.
+
+Seven textual conflicts were resolved by preserving upstream draft aliases,
+claim/review metadata, real galleries, content search and editor improvements
+alongside reviewed-revision moderation and authoritative billing fields. Both
+merchant account-isolation and resumed-draft regression groups remain. Upstream
+rich-text limits are 100,000 visible characters and 500,000 raw HTML characters;
+paste/drop still uses uploaded media. Legacy review endpoints still fail closed
+without the inspected revision; the unified approval path invalidates directory
+cache, and upstream cache invalidation on deletion is retained.
+
+CD now checks the required moderation projections with read-only REST requests
+using `limit=0`, including `profile_public_revisions`, service base revisions and
+editorial submission revisions. It reads OpenAPI metadata to verify the parameter
+contracts of `review_public_content` and `review_blog_submission`; it never calls
+those mutation RPCs. The existing bounded retries and per-request timeout remain.
+Missing columns/tables/RPC metadata stop CD before git reset or stack mutation,
+leaving the running release in place. This can deliberately block deployment
+after a green merge until a separately authorized schema rollout is complete.
+This metadata preflight is a compatibility marker, not proof of trigger bodies
+or a replacement for SQL regressions and rollout smoke tests.
+
+Focused integration checks used Node 22.21.1 / pnpm 11.16.0 and
+`pnpm install --offline --frozen-lockfile`. Backend focused blog/directory/reviews/
+forum/rich-text checks passed 658 tests in 36 suites; frontend business/editor/
+library/draft checks passed 120 tests in 12 files. Workspace typecheck passed all
+4 tasks; both read-only linters passed. The deployment contract passed 58
+assertions, including execution of the actual Node preflight with missing table,
+column, RPC and stale-signature responses; workflow smoke passed 2 tests.
+
+SQL verification uses PostgreSQL **16 server and client**, matching current CI.
+The previously used PostgreSQL 14 server cannot execute the upstream six-argument
+`regexp_replace`; its client also lacks `\getenv`. These were environment
+failures, resolved without editing upstream migrations. The local PG16 container
+is `alanya-mod-pr-pg16`, exposed only at `127.0.0.1:55474`. A transient
+`postgres:16-alpine` client mounts the task worktree read-only at `/workspace`,
+uses `--network container:alanya-mod-pr-pg16`, and sets `PGHOST=127.0.0.1`,
+`PGPORT=5432`, `PGUSER=postgres`, `PGPASSWORD=postgrespassword` (synthetic CI value)
+and a disposable `moderation_*` database. Run the fixture, all migrations, then
+the complete ordered SQL verification commands in `.github/workflows/ci.yml`.
+The separate moderation harness runs on another fresh disposable database.
+The complete CI sequence passed on `moderation_integration_ci_final` (exit 0,
+`/tmp/mod-integration-sql-ci16-final.log`); the moderation harness passed on
+`moderation_integration_contract` (exit 0,
+`/tmp/mod-integration-moderation-sql16.log`). Gallery/merchant integration checks
+subsequently passed 88 tests in 2 files.
+
+Historical SQL fixtures now explicitly establish reviewed publications before
+testing claim/notification compatibility; review bypass is scoped to synthetic
+setup and reset. Review metadata approval uses the real revision-checking RPC.
+The published-event owner-edit regression now also asserts pending moderation
+and revision advancement. No policies or production triggers were weakened to
+satisfy prior publication assumptions. Integration logs use
+`/tmp/mod-integration-*`; the final integration review/full verifier results are
+recorded by the coordinator after the writer freezes this candidate.

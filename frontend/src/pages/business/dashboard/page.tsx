@@ -576,7 +576,7 @@ function MerchantDashboard() {
                   website: draftToResume.website,
                   tier: ((draftToResume as unknown as { tier?: string }).tier as CreateListingInput["tier"]) || "explorer",
                   price_level: draftToResume.priceRange,
-                  images: draftToResume.image ? [draftToResume.image] : [],
+                  images: draftToResume.gallery ?? [],
                 } as Partial<CreateListingInput>)
               : undefined
           }

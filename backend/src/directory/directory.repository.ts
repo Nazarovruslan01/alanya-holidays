@@ -635,7 +635,7 @@ export class DirectoryRepository {
     userId: string,
   ): Promise<{
     data: ClaimRpcResult[] | null;
-    error: Error | null;
+    error: (Error & { code?: string }) | null;
   }> {
     const res = await this.client.rpc('approve_listing_claim', {
       p_claim_id: claimId,
@@ -643,7 +643,9 @@ export class DirectoryRepository {
     });
     return {
       data: (res.data as ClaimRpcResult[]) ?? null,
-      error: res.error ? new Error(res.error.message) : null,
+      error: res.error
+        ? Object.assign(new Error(res.error.message), { code: res.error.code })
+        : null,
     };
   }
 
@@ -653,7 +655,7 @@ export class DirectoryRepository {
     userId: string,
   ): Promise<{
     data: ClaimRpcResult[] | null;
-    error: Error | null;
+    error: (Error & { code?: string }) | null;
   }> {
     const res = await this.client.rpc('reject_listing_claim', {
       p_claim_id: claimId,
@@ -662,7 +664,9 @@ export class DirectoryRepository {
     });
     return {
       data: (res.data as ClaimRpcResult[]) ?? null,
-      error: res.error ? new Error(res.error.message) : null,
+      error: res.error
+        ? Object.assign(new Error(res.error.message), { code: res.error.code })
+        : null,
     };
   }
 

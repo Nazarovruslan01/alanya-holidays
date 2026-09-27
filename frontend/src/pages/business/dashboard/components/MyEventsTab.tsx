@@ -6,6 +6,19 @@ import { eventsService, type ForumEvent } from "@/api-services/events.service";
 import { ApiError } from "@/lib/api-client";
 import { logger } from "@/lib/logger";
 
+const padDateTimePart = (value: number) => String(value).padStart(2, "0");
+
+const toDateTimeLocalValue = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 16);
+  return `${date.getFullYear()}-${padDateTimePart(date.getMonth() + 1)}-${padDateTimePart(date.getDate())}T${padDateTimePart(date.getHours())}:${padDateTimePart(date.getMinutes())}`;
+};
+
+const serializeLocalDateTime = (value: string) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toISOString();
+};
+
 const eventError = (error: unknown) => {
   if (error instanceof ApiError && error.status === 401) {
     return i18n.t("merchant.sessionExpired");
@@ -61,7 +74,7 @@ export function MyEventsTab() {
         title: form.title.trim(),
         description: form.description.trim(),
         location: form.location.trim(),
-        event_date: form.eventDate,
+        event_date: serializeLocalDateTime(form.eventDate),
       });
       setEvents((current) =>
         current.map((event) => (event.id === updated.id ? updated : event))
@@ -118,7 +131,7 @@ export function MyEventsTab() {
           <div className="w-full max-w-xl space-y-4 rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900">
             <h2 id="event-editor-title" className="text-lg font-bold text-secondary-900 dark:text-white">{t("merchant.editEvent")}</h2>
             <label className="block text-sm font-semibold text-secondary-700 dark:text-slate-300">{t("merchant.title")}<input value={form.title} onChange={(e) => setForm((current) => ({ ...current, title: e.target.value }))} className="mt-1 w-full rounded-xl border border-secondary-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label>
-            <label className="block text-sm font-semibold text-secondary-700 dark:text-slate-300">{t("merchant.dateTime")}<input type="datetime-local" value={form.eventDate.slice(0, 16)} onChange={(e) => setForm((current) => ({ ...current, eventDate: e.target.value }))} className="mt-1 w-full rounded-xl border border-secondary-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label>
+            <label className="block text-sm font-semibold text-secondary-700 dark:text-slate-300">{t("merchant.dateTime")}<input type="datetime-local" value={toDateTimeLocalValue(form.eventDate)} onChange={(e) => setForm((current) => ({ ...current, eventDate: e.target.value }))} className="mt-1 w-full rounded-xl border border-secondary-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label>
             <label className="block text-sm font-semibold text-secondary-700 dark:text-slate-300">{t("merchant.location")}<input value={form.location} onChange={(e) => setForm((current) => ({ ...current, location: e.target.value }))} className="mt-1 w-full rounded-xl border border-secondary-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label>
             <label className="block text-sm font-semibold text-secondary-700 dark:text-slate-300">{t("merchant.description")}<textarea rows={5} value={form.description} onChange={(e) => setForm((current) => ({ ...current, description: e.target.value }))} className="mt-1 w-full rounded-xl border border-secondary-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label>
             <div className="flex justify-end gap-3">
