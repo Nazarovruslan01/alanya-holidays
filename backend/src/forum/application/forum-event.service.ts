@@ -155,7 +155,10 @@ export class ForumEventService {
   ): Promise<ForumEvent | null> {
     const data = await this.forumRepository.getEventBySlug(slug, EVENT_SELECT);
     if (!data) return null;
-    if (data.is_published === false) {
+    if (
+      data.is_published === false ||
+      (data.moderation_status && data.moderation_status !== 'approved')
+    ) {
       if (!userId) return null;
       const role = await this.getRole(userId);
       if (

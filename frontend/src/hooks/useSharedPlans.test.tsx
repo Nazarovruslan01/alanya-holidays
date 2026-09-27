@@ -48,7 +48,7 @@ describe("useSharedPlans publication", () => {
     itineraryMocks.getCommunityItineraries.mockResolvedValue([]);
   });
 
-  it("adds a shared plan only after the owner publish API confirms", async () => {
+  it("keeps a submitted plan out of the community until moderation approves", async () => {
     let resolvePublish!: (value: unknown) => void;
     itineraryMocks.updateItinerary.mockReturnValueOnce(
       new Promise((resolve) => {
@@ -64,11 +64,11 @@ describe("useSharedPlans publication", () => {
     expect(result.current.isPlanShared(plan.id)).toBeNull();
 
     await act(async () => {
-      resolvePublish({ id: plan.id, is_public: true });
+      resolvePublish({ id: plan.id, is_public: true, moderation_status: 'pending' });
       await publishing;
     });
 
-    expect(result.current.isPlanShared(plan.id)).toBe(plan.id);
+    expect(result.current.isPlanShared(plan.id)).toBeNull();
     expect(itineraryMocks.updateItinerary).toHaveBeenCalledWith(
       plan.id,
       expect.objectContaining({

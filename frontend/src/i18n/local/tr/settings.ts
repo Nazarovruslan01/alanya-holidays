@@ -1,4 +1,9 @@
 export default {
+  "settings.profileSubmittedTitle": "İncelemeye gönderildi",
+  "settings.profileSubmitted": "Herkese açık profil değişiklikleri yönetici onayına gönderildi.",
+  "settings.profilePending": "Profil değişiklikleriniz yönetici onayını bekliyor. Son onaylanan profiliniz herkese açık kalır.",
+  "settings.profileRejected": "Profil değişiklikleriniz reddedildi. Düzenleyip yeniden gönderin.",
+  "settings.nameTooShort": "Ad en az 3 karakter içermelidir.",
   "settings.avatarEmptyError": "Görsel dosyası boş olamaz",
   "settings.member": "Üye",
   "settings.memberName": "Alanya Holidays Üyesi",

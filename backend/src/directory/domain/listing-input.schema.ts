@@ -35,6 +35,9 @@ export const PROTECTED_FIELDS = [
   'creation_source',
   'can_claim',
   'rejection_reason',
+  'moderation_status',
+  'moderation_revision',
+  'moderation_reason',
 ] as const;
 
 export type ProtectedField = (typeof PROTECTED_FIELDS)[number];

@@ -14,6 +14,7 @@ import {
 } from "@/api-services/blog.service";
 import { logger } from "@/lib/logger";
 import { useTranslation } from "react-i18next";
+import { getBlogReadTimeLabel, getGuideTagLabel } from "@/i18n/display-labels";
 
 export default function TravelGuidesPage() {
   const { t } = useTranslation();
@@ -122,15 +123,15 @@ export default function TravelGuidesPage() {
       </div>
       <main>
         {/* Hero Section */}
-        <section className="print-hide relative w-full h-[320px] md:h-[420px] overflow-hidden">
+        <section className="print-hide relative flex items-end w-full min-h-[320px] md:min-h-[420px] overflow-hidden">
           <PageHeroImage
             page="travelGuides"
             alt={t("public.guides.heroAlt")}
           />
           <div className="absolute inset-0 bg-gradient-to-b from-foreground-950/60 via-foreground-950/40 to-foreground-950/80"></div>
 
-          <div className="absolute bottom-0 left-0 right-0 w-full px-4 md:px-8 lg:px-12 pb-10 md:pb-14">
-            <div className="flex items-center gap-2 mb-4">
+          <div className="relative w-full px-4 md:px-8 lg:px-12 pt-24 md:pt-28 pb-10 md:pb-14">
+            <div className="flex flex-wrap items-center gap-2 mb-4">
               <Link
                 to="/"
                 className="text-white/60 hover:text-white/90 text-sm transition-colors underline underline-offset-2"
@@ -188,17 +189,17 @@ export default function TravelGuidesPage() {
                 >
                   {t("public.allCategories")}
                 </button>
-                {tags.map((t) => (
+                {tags.map((tag) => (
                   <button
-                    key={t.id}
-                    onClick={() => setSelectedTag(t.name)}
+                    key={tag.id}
+                    onClick={() => setSelectedTag(tag.name)}
                     className={`px-4 py-2 rounded-full text-xs md:text-sm font-medium transition-all whitespace-nowrap cursor-pointer ${
-                      selectedTag === t.name
+                      selectedTag === tag.name
                         ? "bg-primary-500 text-white shadow-sm"
                         : "bg-white border border-foreground-200 text-foreground-700 hover:border-primary-300 hover:text-primary-600"
                     }`}
                   >
-                    {t.name}
+                    {getGuideTagLabel(tag.name, t)}
                   </button>
                 ))}
               </div>
@@ -252,8 +253,8 @@ export default function TravelGuidesPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6">
                 {guides.map((guide) => {
                   const icon = guide.icon || "ri-book-open-line";
-                  const tag = guide.tag || guide.category || "General";
-                  const readTime = guide.readTime || "8 min read";
+                  const tag = getGuideTagLabel(guide.tag || guide.category || "General", t);
+                  const readTime = getBlogReadTimeLabel(guide.readTime || "8 min read", t);
                   const description = guide.description || guide.excerpt || "";
 
                   return (
@@ -320,7 +321,7 @@ export default function TravelGuidesPage() {
             const heroImage =
               guide.cover_image_url ||
               "/images/placeholder-business.svg";
-            const readTime = guide.readTime || "8 min read";
+            const readTime = getBlogReadTimeLabel(guide.readTime || "8 min read", t);
             const description = guide.description || guide.excerpt || "";
 
             return (

@@ -66,6 +66,7 @@ export class DirectoryRepository {
       .from('directory_listings')
       .select('*', { count: 'exact' })
       .eq('status', 'approved')
+      .eq('moderation_status', 'approved')
       .order(orderColumn, { ascending })
       .order('id', { ascending: true });
 
@@ -148,6 +149,7 @@ export class DirectoryRepository {
       .select(LISTING_LOCATIONS_SELECT)
       .eq('category_id', categoryId)
       .eq('status', 'approved')
+      .eq('moderation_status', 'approved')
       .order('base_score', { ascending: false })
       .order('is_featured', { ascending: false })
       .order('net_votes', { ascending: false, nullsFirst: false })
@@ -166,7 +168,8 @@ export class DirectoryRepository {
     let q = this.client
       .from('directory_listings')
       .select(LISTING_LOCATIONS_SELECT, { count: 'exact' })
-      .eq('status', 'approved');
+      .eq('status', 'approved')
+      .eq('moderation_status', 'approved');
 
     const trimmed = query.trim();
     if (trimmed) {
@@ -208,6 +211,7 @@ export class DirectoryRepository {
       .select(LISTING_LOCATIONS_SELECT)
       .eq('is_premium', false)
       .eq('status', 'approved')
+      .eq('moderation_status', 'approved')
       .order('net_votes', { ascending: false, nullsFirst: false })
       .limit(6);
     if (error) throw new Error(error.message);
@@ -220,6 +224,7 @@ export class DirectoryRepository {
       .select(LISTING_LOCATIONS_SELECT)
       .eq('is_premium', true)
       .eq('status', 'approved')
+      .eq('moderation_status', 'approved')
       .order('base_score', { ascending: false })
       .limit(6);
     if (error) throw new Error(error.message);
@@ -233,6 +238,7 @@ export class DirectoryRepository {
       .eq('tier', 'signature')
       .eq('is_premium', true)
       .eq('status', 'approved')
+      .eq('moderation_status', 'approved')
       .order('base_score', { ascending: false })
       .limit(4);
     if (error) throw new Error(error.message);
@@ -247,6 +253,7 @@ export class DirectoryRepository {
       .select(LISTING_LOCATIONS_SELECT)
       .not('claimed_at', 'is', null)
       .eq('status', 'approved')
+      .eq('moderation_status', 'approved')
       .order('claimed_at', { ascending: false })
       .limit(limit);
     if (error) throw new Error(error.message);
@@ -338,13 +345,13 @@ export class DirectoryRepository {
 
   async getDirectoryListingOwner(
     id: string,
-  ): Promise<{ owner_user_id?: string | null } | null> {
+  ): Promise<{ owner_user_id?: string | null; tier?: string | null } | null> {
     if (!UUID_RE.test(id)) return null;
     const { data, error } = await this.client
       .from('directory_listings')
-      .select('owner_user_id')
+      .select('owner_user_id, tier')
       .eq('id', id)
-      .single<{ owner_user_id?: string | null }>();
+      .single<{ owner_user_id?: string | null; tier?: string | null }>();
     if (error && (error.code === 'PGRST116' || error.code === '22P02')) {
       return null;
     }

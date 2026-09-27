@@ -5,6 +5,7 @@ import {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
   type ReactNode,
 } from "react";
 import { Money } from "@/domain/money.vo";
@@ -32,6 +33,7 @@ export interface AddToCartProduct {
   skuId?: string | number | null;
   skuLabel?: string | null;
   quantity?: number;
+  currency?: string;
 }
 
 export interface CartContextValue {
@@ -149,6 +151,12 @@ function saveCart(items: CartItem[]): void {
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>(loadCart);
+  const itemsRef = useRef(items);
+  const updateItems = useCallback((update: (previous: CartItem[]) => CartItem[]) => {
+    const next = update(itemsRef.current);
+    itemsRef.current = next;
+    setItems(next);
+  }, []);
 
   useEffect(() => {
     saveCart(items);
@@ -163,9 +171,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (product.price instanceof Money) {
       money = product.price;
     } else if (typeof product.price === "number") {
-      money = Money.fromDecimal(product.price);
+      money = Money.fromDecimal(product.price, product.currency);
     } else {
-      money = Money.parse(product.price);
+      money = Money.parse(product.price, product.currency);
     }
 
     const priceStr =
@@ -173,7 +181,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const qtyToAdd =
       product.quantity && product.quantity > 0 ? product.quantity : 1;
 
-    setItems((prev) => {
+    if (itemsRef.current.some((item) => item.moneyPrice.currency !== money.currency)) {
+      throw new Error("Please check out or clear your cart before adding a different currency.");
+    }
+
+    updateItems((prev) => {
       const identity = {
         productId: product.productId,
         skuId: product.skuId,
@@ -206,30 +218,30 @@ export function CartProvider({ children }: { children: ReactNode }) {
         },
       ];
     });
-  }, []);
+  }, [updateItems]);
 
   const removeFromCart = useCallback((target: CartItem) => {
-    setItems((prev) => prev.filter((item) => !hasSameCartIdentity(item, target)));
-  }, []);
+    updateItems((prev) => prev.filter((item) => !hasSameCartIdentity(item, target)));
+  }, [updateItems]);
 
   const updateQuantity = useCallback(
     (target: CartItem, quantity: number) => {
       if (quantity <= 0) {
-        setItems((prev) => prev.filter((item) => !hasSameCartIdentity(item, target)));
+        updateItems((prev) => prev.filter((item) => !hasSameCartIdentity(item, target)));
         return;
       }
-      setItems((prev) =>
+      updateItems((prev) =>
         prev.map((item) =>
           hasSameCartIdentity(item, target) ? { ...item, quantity } : item,
         ),
       );
     },
-    [],
+    [updateItems],
   );
 
   const clearCart = useCallback(() => {
-    setItems([]);
-  }, []);
+    updateItems(() => []);
+  }, [updateItems]);
 
   const totalItems = useMemo(
     () => items.reduce((sum, item) => sum + item.quantity, 0),

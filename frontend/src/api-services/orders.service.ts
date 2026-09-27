@@ -283,6 +283,10 @@ export class OrdersService {
     }
   }
 
+  async getAdminOrders(): Promise<SellerOrder[]> {
+    return apiClient.get<SellerOrder[]>("/products/admin/orders");
+  }
+
   /**
    * Retrieves orders containing products owned by the current seller.
    * Dispatches GET /products/orders/seller via apiClient.

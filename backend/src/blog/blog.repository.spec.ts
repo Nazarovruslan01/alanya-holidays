@@ -57,6 +57,31 @@ describe('BlogRepository', () => {
     expect(client.eq).toHaveBeenCalledWith('content_type', 'blog');
   });
 
+  it('deletes a tag relationship using only its actual composite key columns', async () => {
+    const relation = {
+      delete: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+    };
+    client.from.mockReturnValueOnce(relation);
+    await repository.deleteSingleBlogPostTag('post-1', 'tag-1');
+    expect(relation.eq.mock.calls).toEqual([
+      ['post_id', 'post-1'],
+      ['tag_id', 'tag-1'],
+    ]);
+  });
+
+  it('includes guides in the authenticated author own-content listing', async () => {
+    await repository.getBlogPosts(
+      { authorId: 'owner' },
+      20,
+      0,
+      'guest',
+      'owner',
+    );
+    expect(client.eq).not.toHaveBeenCalledWith('content_type', 'blog');
+    expect(client.eq).toHaveBeenCalledWith('author_id', 'owner');
+  });
+
   it('excludes guides from featured blog queries', async () => {
     await repository.getFeaturedBlogPosts(3);
 
@@ -181,8 +206,19 @@ describe('BlogRepository', () => {
         }),
       };
       client.from
+        .mockReturnValueOnce({
+          select: jest.fn().mockReturnThis(),
+          eq: jest.fn().mockReturnThis(),
+          maybeSingle: jest
+            .fn()
+            .mockResolvedValue({ data: { id: 'post-1' }, error: null }),
+        })
         .mockReturnValueOnce(commentQuery)
         .mockReturnValueOnce(likesQuery);
+      client.rpc.mockResolvedValueOnce({
+        data: ['page-comment-1', 'page-comment-2'],
+        error: null,
+      });
 
       const comments = await repository.getBlogComments(
         'post-1',
@@ -192,6 +228,10 @@ describe('BlogRepository', () => {
       );
 
       expect(commentQuery.range).toHaveBeenCalledWith(4, 5);
+      expect(commentQuery.eq).toHaveBeenCalledWith(
+        'moderation_status',
+        'approved',
+      );
       expect(likesQuery.in).toHaveBeenCalledWith('comment_id', [
         'page-comment-1',
         'page-comment-2',

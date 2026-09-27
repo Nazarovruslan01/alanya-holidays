@@ -70,25 +70,54 @@ jobs:
                   console.error("Required Supabase environment is unavailable inside the backend container.");
                   process.exit(1);
                 }
-                const endpoint = supabaseUrl.replace(/\/+$/, "") +
-                  "/rest/v1/business_account_applications?select=*&limit=0";
+                const restUrl = supabaseUrl.replace(/\/+$/, "") + "/rest/v1";
+                const reviewColumns = "moderation_status,moderation_revision,moderation_reason";
+                const endpoints = [
+                  "/business_account_applications?select=id&limit=0",
+                  ...["directory_listings", "services", "properties", "products", "product_items",
+                    "forum_events", "listing_reviews", "reviews", "blog_posts", "forum_posts",
+                    "forum_comments", "blog_comments", "saved_itineraries"].map(
+                    (table) => "/" + table + "?select=" + reviewColumns + "&limit=0"),
+                  "/profile_public_revisions?select=id,changes," + reviewColumns + "&limit=0",
+                  "/service_edits?select=base_revision," + reviewColumns + "&limit=0",
+                  "/blog_submissions?select=moderation_revision&limit=0",
+                  "/",
+                ];
                 const delay = (milliseconds) =>
                   new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-                async function probeSchema() {
+                async function probeEndpoint(path) {
                   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
                     const controller = new AbortController();
                     const timeout = setTimeout(() => controller.abort(), timeoutMs);
                     try {
-                      const response = await fetch(endpoint, {
+                      const response = await fetch(restUrl + path, {
                         headers: {
                           apikey: serviceRoleKey,
                           Authorization: "Bearer " + serviceRoleKey,
+                          Accept: path === "/" ? "application/openapi+json" : "application/json",
                         },
                         signal: controller.signal,
                       });
                       if (response.ok) {
-                        console.log("✓ Required production schema is ready.");
+                        if (path === "/") {
+                          // Read metadata only: never invoke a publication RPC as a probe.
+                          const schema = await response.json();
+                          for (const name of ["review_public_content", "review_blog_submission"]) {
+                            const operation = schema.paths?.["/rpc/" + name]?.post;
+                            const body = operation?.parameters?.find((parameter) => parameter.in === "body")?.schema;
+                            const definition = body?.$ref
+                              ? schema.definitions?.[body.$ref.replace("#/definitions/", "")]
+                              : body;
+                            const fields = definition?.properties || {};
+                            const required = ["p_id", "p_revision", "p_actor", "p_approve", "p_reason"];
+                            if (name === "review_public_content") required.push("p_table");
+                            if (!required.every((field) => Object.hasOwn(fields, field))) {
+                              console.error("Required versioned moderation RPC metadata is unavailable.");
+                              return false;
+                            }
+                          }
+                        }
                         return true;
                       }
                       const isTransient = response.status === 408 ||
@@ -114,6 +143,14 @@ jobs:
                     await delay(retryDelayMs);
                   }
                   return false;
+                }
+
+                async function probeSchema() {
+                  for (const path of endpoints) {
+                    if (!await probeEndpoint(path)) return false;
+                  }
+                  console.log("✓ Required production schema is ready.");
+                  return true;
                 }
 
                 probeSchema()
@@ -170,14 +207,14 @@ jobs:
                 docker compose -f docker-compose.prod.yml logs --tail=100 backend || true
                 docker compose -f docker-compose.prod.yml logs --tail=50 nginx || true
                 docker compose -f docker-compose.prod.yml logs --tail=50 frontend || true
-                exit 1
+                return 1
               fi
               # git reset may replace the bind-mounted config inode. Recreate
               # Nginx so Docker binds the file from the deployed commit.
               if ! docker compose --env-file .env.production -f docker-compose.prod.yml up -d --force-recreate --no-deps nginx; then
                 echo "❌ Nginx recreation failed after the stack update."
                 docker compose -f docker-compose.prod.yml logs --tail=50 nginx || true
-                exit 1
+                return 1
               fi
             }
 
@@ -211,7 +248,25 @@ jobs:
               verify_csp || return 1
             }
 
-            deploy_stack
+            rollback() {
+              if [ -n "$PREVIOUS_COMMIT" ] && [ "$PREVIOUS_COMMIT" != "$TARGET_COMMIT" ]; then
+                echo "Rolling back to previous commit $PREVIOUS_COMMIT..."
+                git reset --hard "$PREVIOUS_COMMIT" || return 1
+                deploy_stack || return 1
+                docker compose -f docker-compose.prod.yml exec -T nginx nginx -t && \
+                  docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload || return 1
+                if verify_health; then
+                  echo "✓ Rollback successful. System restored to $PREVIOUS_COMMIT."
+                  return 0
+                fi
+              fi
+              return 1
+            }
+
+            if ! deploy_stack; then
+              rollback || echo "CRITICAL: Rollback failed or no previous release is available."
+              exit 1
+            fi
 
             # Obtain real Let's Encrypt certificate if not currently valid Let's Encrypt cert
             if [ "$IS_LETS_ENCRYPT" -eq 0 ]; then
@@ -251,18 +306,7 @@ jobs:
 
             if ! verify_post_deploy; then
               echo "Post-deployment verification failed. Initiating automated rollback..."
-              if [ -n "$PREVIOUS_COMMIT" ] && [ "$PREVIOUS_COMMIT" != "$TARGET_COMMIT" ]; then
-                echo "Rolling back to previous commit $PREVIOUS_COMMIT..."
-                git reset --hard "$PREVIOUS_COMMIT"
-                deploy_stack
-                docker compose -f docker-compose.prod.yml exec -T nginx nginx -t && \
-                  docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload || true
-                if verify_health; then
-                  echo "✓ Rollback successful. System restored to $PREVIOUS_COMMIT."
-                else
-                  echo "CRITICAL: Rollback failed to achieve healthy status!"
-                fi
-              fi
+              rollback || echo "CRITICAL: Rollback failed or no previous release is available."
               exit 1
             fi
 

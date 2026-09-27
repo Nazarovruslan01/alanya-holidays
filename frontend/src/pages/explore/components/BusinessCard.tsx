@@ -88,7 +88,7 @@ export default function BusinessCard({
       onKeyDown={handleKeyDown}
       className={`bg-white rounded-2xl border transition-all duration-300 group overflow-hidden cursor-pointer ${
         isHorizontal
-          ? "flex flex-col md:flex-row hover:shadow-lg"
+          ? "flex flex-row hover:shadow-lg"
           : "flex flex-col hover:shadow-md"
       } ${
         compareMode
@@ -102,14 +102,14 @@ export default function BusinessCard({
       <div
         className={`relative overflow-hidden shrink-0 ${
           isHorizontal
-            ? "w-full md:w-80 md:min-w-[20rem] h-52 md:h-auto min-h-[13rem]"
+            ? "w-24 sm:w-40 md:w-80 md:min-w-[20rem] self-stretch"
             : "w-full h-52"
         }`}
       >
         <img
           src={business.image}
           alt={business.name}
-          className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
+          className={`${isHorizontal ? "absolute inset-0 " : ""}w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500`}
           loading="lazy"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 md:hidden pointer-events-none" />
@@ -143,7 +143,7 @@ export default function BusinessCard({
         )}
 
         {/* Trust Badge */}
-        {!compareMode && (
+        {!compareMode && !isHorizontal && (
           <div className="absolute top-3 left-3 z-10 max-w-[calc(100%-5.5rem)]">
             <TrustBadge
               badge={business.trustBadge}
@@ -155,12 +155,12 @@ export default function BusinessCard({
         )}
 
         {/* Price Range Pill */}
-        <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-md text-foreground-800 text-xs font-semibold shadow-sm whitespace-nowrap z-10">
+        <div className={`absolute top-3 right-3 px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-md text-foreground-800 text-xs font-semibold shadow-sm whitespace-nowrap z-10 ${isHorizontal ? "hidden md:block" : ""}`}>
           {priceRangeKey[business.priceRange] ? t(priceRangeKey[business.priceRange]) : business.priceRange}
         </div>
 
         {/* Category Badge */}
-        <div className="absolute bottom-3 left-3 z-10">
+        <div className={`absolute bottom-3 left-3 z-10 ${isHorizontal ? "hidden md:block" : ""}`}>
           <span className="px-3 py-1 rounded-full bg-foreground-950/80 backdrop-blur-md text-white text-xs font-medium shadow-sm whitespace-nowrap flex items-center gap-1.5">
             <i className="ri-bookmark-3-fill text-[11px] text-primary-400" />
             {business.subcategory
@@ -171,10 +171,19 @@ export default function BusinessCard({
       </div>
 
       {/* Content Container */}
-      <div className="p-5 md:p-6 flex flex-col flex-1 justify-between min-w-0">
+      <div className={`${isHorizontal ? "p-3" : "p-5"} md:p-6 flex flex-col flex-1 justify-between min-w-0`}>
         <div>
+          {isHorizontal && (
+            <div className="mb-2 space-y-1">
+              {!compareMode && <TrustBadge badge={business.trustBadge} business={business} size="sm" />}
+              <p className="text-xs text-foreground-500 break-words md:hidden">
+                {business.subcategory ? getBusinessSubcategoryLabel(business.subcategory, t) : getBusinessCategoryLabel(business.category, t, business.category)}
+                {" · "}{priceRangeKey[business.priceRange] ? t(priceRangeKey[business.priceRange]) : business.priceRange}
+              </p>
+            </div>
+          )}
           {/* Header Row: Title & Rating */}
-          <div className="flex items-start justify-between gap-3 mb-2">
+          <div className={`flex items-start justify-between gap-3 mb-2 ${isHorizontal ? "flex-wrap" : ""}`}>
             <h3 className="font-heading text-lg md:text-xl font-bold text-foreground-900 leading-snug group-hover:text-primary-600 transition-colors line-clamp-1">
               {business.name}
             </h3>
@@ -223,7 +232,7 @@ export default function BusinessCard({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center gap-2 pt-3 border-t border-background-100 mt-auto">
+        <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-background-100 mt-auto">
           {phone && (
             <a
               href={phone}

@@ -10,6 +10,8 @@ FRONTEND_INDEX_PATH="${PROJECT_ROOT}/frontend/index.html"
 
 ruby - "${WORKFLOW_PATH}" "${NGINX_PATH}" "${FRONTEND_INDEX_PATH}" <<'RUBY'
 require "yaml"
+require "open3"
+require "json"
 
 workflow_path = ARGV.fetch(0)
 nginx_path = ARGV.fetch(1)
@@ -66,6 +68,12 @@ csp_headers = nginx.scan(/add_header Content-Security-Policy "(?<policy>[^"]+)" 
 check(failures, csp_headers.length == 2, "nginx keeps exactly two effective CSP header copies")
 frame_sources = csp_headers.map { |policy| policy[/frame-src\s+([^;]+);/, 1] }
 maps_frame_origins = %w[https://maps.google.com https://www.google.com]
+%w[script-src connect-src].each do |directive|
+  check(failures, csp_headers.all? do |policy|
+    sources = policy[/#{directive}\s+([^;]+);/, 1]&.split || []
+    %w[https://maps.googleapis.com https://maps.gstatic.com].all? { |origin| sources.include?(origin) }
+  end, "every effective #{directive} permits the Google Maps JavaScript API")
+end
 video_frame_origins = %w[https://www.youtube-nocookie.com https://player.vimeo.com]
 check(
   failures,
@@ -132,7 +140,7 @@ verify_schema = function_body(script, "verify_schema_readiness", failures)
 check(failures, verify_schema.match?(/exec -T backend\s+node/), "schema readiness runs through the backend container")
 check(failures, verify_schema.include?("SUPABASE_URL"), "schema readiness uses the backend Supabase URL")
 check(failures, verify_schema.include?("SUPABASE_SERVICE_ROLE_KEY"), "schema readiness uses the backend service-role key")
-check(failures, verify_schema.include?("/rest/v1/business_account_applications"), "schema readiness queries the required relation")
+check(failures, verify_schema.include?("/business_account_applications?select=id&limit=0"), "schema readiness queries the required relation without rows")
 check(failures, verify_schema.include?("apikey") && verify_schema.include?("Authorization"), "schema readiness authenticates as the service role")
 check(
   failures,
@@ -169,8 +177,9 @@ check(
 )
 check(
   failures,
-  !verify_schema.match?(/response\.(?:text|json|arrayBuffer|blob)\s*\(/),
-  "schema readiness never reads or prints the raw response body",
+  verify_schema.match?(/if \(path === "\/"\).*?response\.json\(\)/m) &&
+    !verify_schema.match?(/console\.(?:log|error|warn)\([^)]*(?:schema|response)\s*[,)]/m),
+  "schema readiness reads only OpenAPI metadata and never prints response payloads",
 )
 
 verify_post_deploy = function_body(script, "verify_post_deploy", failures)
@@ -185,14 +194,14 @@ check(
 )
 
 schema_preflight = script.index("if ! verify_schema_readiness; then")
-first_deploy = script.index(/^deploy_stack$/)
+first_deploy = script.index(/^if ! deploy_stack; then$/)
 check(
   failures,
   !schema_preflight.nil? && !first_deploy.nil? && schema_preflight < first_deploy,
   "schema readiness is a fail-closed preflight before the first stack mutation",
 )
 preflight_block = if schema_preflight && first_deploy
-  script[schema_preflight...first_deploy]
+  script[schema_preflight...script.index('PREVIOUS_COMMIT=')]
 else
   ""
 end
@@ -201,6 +210,49 @@ check(
   preflight_block.include?("exit 1") && !preflight_block.match?(/rollback/i),
   "schema preflight failure exits without entering rollback",
 )
+
+# Execute the actual preflight and inline Node probe against metadata-only fakes.
+# Missing moderation schema must stop before any git reset or stack mutation.
+%w[ready missing_profile missing_column missing_rpc old_rpc_signature].each do |scenario|
+  mock = <<~JS
+    const calls = [];
+    global.fetch = async (url, options) => {
+      if (options.method && options.method !== "GET") throw new Error("Probe attempted mutation");
+      const path = new URL(url).pathname;
+      calls.push(url);
+      if (#{scenario.to_json} === "missing_profile" && path.endsWith("/profile_public_revisions")) return {ok:false,status:404};
+      if (#{scenario.to_json} === "missing_column" && path.endsWith("/forum_comments")) return {ok:false,status:400};
+      if (path !== "/rest/v1/") {
+        if (new URL(url).searchParams.get("limit") !== "0") throw new Error("Probe attempted row read");
+        return {ok:true,json:async()=>{throw new Error("Probe read table rows");}};
+      }
+      const properties = Object.fromEntries(["p_id","p_revision","p_actor","p_approve","p_reason","p_table"].map(key=>[key,{}]));
+      const paths = Object.fromEntries(["review_public_content","review_blog_submission"].map(name=>[
+        "/rpc/"+name,{post:{parameters:[{in:"body",schema:{properties:{...properties}}}]}}
+      ]));
+      if (#{scenario.to_json} === "missing_rpc") delete paths["/rpc/review_blog_submission"];
+      if (#{scenario.to_json} === "old_rpc_signature") delete paths["/rpc/review_blog_submission"].post.parameters[0].schema.properties.p_revision;
+      return {ok:true,json:async()=>({paths})};
+    };
+  JS
+  harness = <<~SH
+    set -e
+    verify_schema_readiness() {
+    #{verify_schema}
+    }
+    docker() { local code="${@: -1}"; node -e "$PROBE_MOCK$code"; }
+    #{preflight_block}
+    echo STACK_MUTATION
+  SH
+  output, status = Open3.capture2e(
+    {"SUPABASE_URL"=>"https://schema.test", "SUPABASE_SERVICE_ROLE_KEY"=>"dummy-schema-key", "PROBE_MOCK"=>mock},
+    "bash", "-c", harness,
+  )
+  expected = scenario == "ready"
+  check(failures, status.success? == expected && output.include?("STACK_MUTATION") == expected,
+    "#{scenario} schema preflight #{expected ? 'permits' : 'blocks'} stack mutation")
+  check(failures, !output.include?("dummy-schema-key"), "#{scenario} probe does not expose credentials")
+end
 check(
   failures,
   script.scan(/\bverify_schema_readiness\b/).length == 2,
@@ -208,8 +260,53 @@ check(
 )
 check(failures, script.include?("if ! verify_post_deploy; then"), "post-deploy verification failure enters the rollback path")
 check(failures, script.include?('git reset --hard "$PREVIOUS_COMMIT"'), "rollback still restores the previous commit")
-check(failures, script.scan(/^\s*deploy_stack\s*$/).length >= 2, "rollback still redeploys the restored stack")
+rollback_body = function_body(script, "rollback", failures)
+check(failures, rollback_body.include?("deploy_stack || return 1"), "rollback still redeploys the restored stack")
 check(failures, script.include?("if verify_health; then"), "rollback still verifies restored service health")
+
+# Execute the actual deployment entry and functions with fake external commands.
+# A failed container update must reach rollback, including with shell errexit on.
+entry = script[/^verify_post_deploy\(\) \{.*?^\}\n(?<entry>.*?)^# Obtain real/m, :entry]
+check(failures, !entry.nil?, "deployment entry can be exercised without certificate operations")
+if entry
+  functions = script.scan(/^\w+\(\) \{\n.*?^\}/m).join("\n")
+  %w[build nginx rollback none].each do |failure|
+    harness = <<~SH
+      set -e
+      #{functions}
+      PREVIOUS_COMMIT=previous
+      TARGET_COMMIT=target
+      updates=0
+      recreates=0
+      docker() {
+        case "$*" in
+          *"up -d --build"*)
+            updates=$((updates + 1))
+            echo "UPDATE:$updates"
+            if [ "#{failure}" = rollback ] || { [ "#{failure}" = build ] && [ "$updates" -eq 1 ]; }; then return 1; fi
+            ;;
+          *"--force-recreate"*)
+            recreates=$((recreates + 1))
+            if [ "#{failure}" = nginx ] && [ "$recreates" -eq 1 ]; then return 1; fi
+            ;;
+        esac
+        return 0
+      }
+      git() { echo "GIT:$*"; }
+      verify_health() { echo HEALTH; return 0; }
+      #{entry}
+    SH
+    output, status = Open3.capture2e("bash", "-c", harness)
+    if failure == "none"
+      check(failures, status.success? && output.include?("UPDATE:1") && !output.include?("GIT:"),
+        "successful deployment does not roll back")
+    else
+      check(failures, !status.success? && output.include?("GIT:reset --hard previous") &&
+        output.include?("UPDATE:2"), "#{failure} failure attempts rollback and reports a failed release")
+    end
+    check(failures, !output.include?("Rollback successful"), "failed rollback is never reported as successful") if failure == "rollback"
+  end
+end
 
 if failures.any?
   warn "#{failures.length} production deployment contract assertion(s) failed"

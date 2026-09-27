@@ -1,9 +1,12 @@
+import { mockAdminQueuePages } from './queue-page-fixture';
+import { apiClient } from '@/lib/api-client';
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import AdminDashboardPage from "../page";
 import { adminService } from "@/api-services/admin.service";
 import { businessApplicationsService } from "@/api-services/business-applications.service";
+import { ordersService } from "@/api-services/orders.service";
 
 vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({
@@ -39,6 +42,17 @@ vi.mock("recharts", async () => {
 });
 
 describe("AdminDashboardPage (4-Tab Control Center)", () => {
+  it("loads the admin order list from the product orders tab", async () => {
+    const adminLoad = vi.spyOn(ordersService, "getAdminOrders").mockResolvedValue([
+      { id: 3, status: "cancelled", items: [{ product_name: "Seller's towel" }] },
+    ]);
+    const sellerLoad = vi.spyOn(ordersService, "getSellerOrders");
+    render(<MemoryRouter><AdminDashboardPage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("tab", { name: /Product orders/i }));
+    expect(await screen.findByText("Seller's towel")).toBeInTheDocument();
+    expect(adminLoad).toHaveBeenCalledTimes(1);
+    expect(sellerLoad).not.toHaveBeenCalled();
+  });
   const mockListings = [
     {
       id: "l-101",
@@ -195,6 +209,8 @@ describe("AdminDashboardPage (4-Tab Control Center)", () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    mockAdminQueuePages();
+    vi.spyOn(apiClient, 'get').mockResolvedValue({ pendingListings: 1, pendingClaims: 1, pendingContent: 1, pendingReports: 0, newEnquiries: 1, pendingBookings: 0, pendingReviews: 0 });
     vi.spyOn(adminService, "getModerationListings").mockResolvedValue(mockListings);
     vi.spyOn(adminService, "getClaimsQueue").mockResolvedValue(mockClaims);
     vi.spyOn(adminService, "getContentSubmissions").mockResolvedValue(mockContentSubmissions);
@@ -309,7 +325,7 @@ describe("AdminDashboardPage (4-Tab Control Center)", () => {
     fireEvent.click(approveBtn);
 
     await waitFor(() => {
-      expect(adminService.approveListing).toHaveBeenCalledWith("l-101");
+      expect(adminService.approveListing).toHaveBeenCalledWith("l-101", 1);
     });
   });
 

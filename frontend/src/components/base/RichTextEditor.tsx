@@ -277,6 +277,16 @@ export default function RichTextEditor({
     ];
     const sourceModules = initialModulesRef.current || { toolbar: defaultToolbar };
     const modules: Record<string, unknown> = { ...sourceModules };
+    modules.uploader = {
+      mimetypes: ['image/jpeg', 'image/png', 'image/webp'],
+      handler: async (range: { index: number }, files: File[]) => {
+        if (uploadPendingRef.current) return;
+        for (const [offset, file] of files.entries()) {
+          mediaInsertIndexRef.current = range.index + offset;
+          await handleImageFile(file);
+        }
+      },
+    };
     const toolbar = modules.toolbar;
     if (Array.isArray(toolbar)) {
       modules.toolbar = {
@@ -362,7 +372,7 @@ export default function RichTextEditor({
         container.innerHTML = '';
       }
     };
-  }, [ariaLabel, handleImageUpload, handleVideoUpload, inputId, placeholder]);
+  }, [ariaLabel, handleImageFile, handleImageUpload, handleVideoUpload, inputId, placeholder]);
 
   useEffect(() => {
     isMountedRef.current = true;

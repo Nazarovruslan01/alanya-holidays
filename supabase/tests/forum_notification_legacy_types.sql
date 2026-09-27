@@ -21,13 +21,17 @@ VALUES
   ('38000000-0000-4000-8000-000000000003', 'forum-replier@example.test', 'Forum Replier', 'user')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.forum_posts (id, title, slug, body, author_id)
+-- Notification compatibility is exercised on reviewed publications. Pending
+-- comment suppression is covered by public_content_review.sql separately.
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+SELECT set_config('app.content_review', 'approved', true);
+INSERT INTO public.forum_posts (id, title, slug, body, author_id, moderation_status)
 VALUES (
   '39000000-0000-4000-8000-000000000001',
   'Legacy notification types regression',
   'legacy-notification-types-regression',
   'Forum notification trigger regression fixture',
-  '38000000-0000-4000-8000-000000000001'
+  '38000000-0000-4000-8000-000000000001', 'approved'
 );
 
 -- Recreate the obsolete production constraint inside this transaction so the
@@ -44,12 +48,12 @@ DECLARE
   failure_constraint text;
 BEGIN
   BEGIN
-    INSERT INTO public.forum_comments (id, post_id, author_id, body)
+    INSERT INTO public.forum_comments (id, post_id, author_id, body, moderation_status)
     VALUES (
       '3a000000-0000-4000-8000-000000000001',
       '39000000-0000-4000-8000-000000000001',
       '38000000-0000-4000-8000-000000000002',
-      'This source row must be rolled back with its rejected notification'
+      'This source row must be rolled back with its rejected notification', 'approved'
     );
     RAISE EXCEPTION 'legacy notification CHECK unexpectedly accepted FORUM_COMMENT';
   EXCEPTION
@@ -79,21 +83,21 @@ $$;
 \ir ../migrations/20260908020000_fix_legacy_notification_types.sql
 \endif
 
-INSERT INTO public.forum_comments (id, post_id, author_id, body)
+INSERT INTO public.forum_comments (id, post_id, author_id, body, moderation_status)
 VALUES (
   '3a000000-0000-4000-8000-000000000010',
   '39000000-0000-4000-8000-000000000001',
   '38000000-0000-4000-8000-000000000002',
-  'Cross-author top-level comment'
+  'Cross-author top-level comment', 'approved'
 );
 
-INSERT INTO public.forum_comments (id, post_id, author_id, parent_id, body)
+INSERT INTO public.forum_comments (id, post_id, author_id, parent_id, body, moderation_status)
 VALUES (
   '3a000000-0000-4000-8000-000000000011',
   '39000000-0000-4000-8000-000000000001',
   '38000000-0000-4000-8000-000000000003',
   '3a000000-0000-4000-8000-000000000010',
-  'Cross-author reply'
+  'Cross-author reply', 'approved'
 );
 
 INSERT INTO public.forum_post_likes (post_id, user_id)
@@ -109,12 +113,12 @@ VALUES (
 );
 
 -- Same-author activity persists but must not notify the actor.
-INSERT INTO public.forum_comments (id, post_id, author_id, body)
+INSERT INTO public.forum_comments (id, post_id, author_id, body, moderation_status)
 VALUES (
   '3a000000-0000-4000-8000-000000000012',
   '39000000-0000-4000-8000-000000000001',
   '38000000-0000-4000-8000-000000000001',
-  'Post author self-comment'
+  'Post author self-comment', 'approved'
 );
 
 INSERT INTO public.forum_post_likes (post_id, user_id)
@@ -128,6 +132,9 @@ VALUES (
   '3a000000-0000-4000-8000-000000000010',
   '38000000-0000-4000-8000-000000000002'
 );
+
+SELECT set_config('app.content_review', '', true);
+SELECT set_config('request.jwt.claims', '{}', true);
 
 DO $$
 BEGIN

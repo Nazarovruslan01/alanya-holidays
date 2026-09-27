@@ -27,34 +27,38 @@
 
 ## Project setup
 
+This package belongs to the pnpm workspace. Install from the repository root;
+the root `pnpm-lock.yaml` is the only dependency lockfile. Run the commands below
+for starting and testing the backend from `backend/`.
+
 ```bash
-$ npm install
+$ pnpm install --frozen-lockfile
 ```
 
 ## Compile and run the project
 
 ```bash
 # development
-$ npm run start
+$ pnpm start
 
 # watch mode
-$ npm run start:dev
+$ pnpm start:dev
 
 # production mode
-$ npm run start:prod
+$ pnpm start:prod
 ```
 
 ## Run tests
 
 ```bash
 # unit tests
-$ npm run test
+$ pnpm test
 
 # e2e tests
-$ npm run test:e2e
+$ pnpm test:e2e
 
 # test coverage
-$ npm run test:cov
+$ pnpm test:cov
 ```
 
 ## Deployment

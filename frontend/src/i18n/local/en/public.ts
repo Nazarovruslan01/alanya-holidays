@@ -1,4 +1,8 @@
 export default {
+  "public.planPendingReview": "Plan submitted for approval. It will appear in the community after review.",
+  "public.threadPendingReview": "Your discussion was submitted for admin approval in",
+  "public.threadPendingVisibility": "It will become public after approval.",
+  "public.previewYourThread": "Preview your discussion",
   "listing.priceBudget": "$ (Budget Friendly)",
   "listing.priceModerate": "$$ (Moderate)",
   "listing.pricePremium": "$$$ (Premium / Luxury)",
@@ -1550,4 +1554,11 @@ export default {
   "public.search.failed": "This section could not be loaded. Please try again.",
   "public.search.retry": "Try again",
   "public.search.more": "Load more",
+  "guides.tag.first-timer": "First-Timer",
+  "guides.tag.food-and-dining": "Food & Dining",
+  "guides.tag.day-trips": "Day Trips",
+  "guides.tag.expat-living": "Expat Living",
+  "guides.tag.beaches": "Beaches",
+  "guides.tag.nightlife": "Nightlife",
+  "guides.tag.general": "General",
 };

@@ -245,7 +245,7 @@ export default function ThreadForm() {
           {t("public.discussionCreated")}
         </h3>
         <p className="text-sm md:text-base text-foreground-600 mb-8 max-w-md mx-auto">
-          {t("public.threadPostedTo")}{" "}
+          {t("public.threadPendingReview", "Your discussion was submitted for admin approval in")}{" "}
           <span className="font-medium text-foreground-900">
             {selectedCategory?.name}
           </span>
@@ -257,7 +257,7 @@ export default function ThreadForm() {
           ) : (
             ""
           )}{" "}
-              {" "}{t("public.categoryConversation")}
+              {" "}{t("public.threadPendingVisibility", "It will become public after approval.")}
         </p>
         <div className="flex items-center justify-center gap-3 flex-wrap">
           {createdThread && (
@@ -265,7 +265,7 @@ export default function ThreadForm() {
               to={`/thread/${createdThread.slug || createdThread.id}`}
               className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-primary-500 text-background-50 text-sm font-medium hover:bg-primary-600 transition-colors whitespace-nowrap"
             >
-              {t("public.viewYourThread")}
+              {t("public.previewYourThread", "Preview your discussion")}
               <i className="ri-arrow-right-line"></i>
             </Link>
           )}

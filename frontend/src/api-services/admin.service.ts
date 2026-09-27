@@ -37,6 +37,7 @@ export interface SubmitEnquiryPayload {
 }
 
 export interface ModerationListing {
+  moderation_revision?: number;
   id: string;
   name: string;
   slug?: string | null;
@@ -169,12 +170,15 @@ function mutationSucceeded(response: unknown): boolean {
 }
 
 class AdminService {
+  getQueuePage<T>(params: { type: 'listings' | 'claims' | 'enquiries' | 'submissions' | 'articles' | 'events'; page: number; status?: string; category?: string; search?: string }) {
+    return apiClient.get<{ data: T[]; total: number; totalPages: number }>('/admin/queue', { params: { ...params, limit: 20 } });
+  }
   /**
    * Fetches all concierge enquiries for admin dashboard and analytics.
    */
   async getEnquiries(options?: AdminFetchOptions): Promise<ConciergeEnquiry[]> {
     try {
-      const response = await apiClient.get<ConciergeEnquiry[] | { data: ConciergeEnquiry[] }>("/admin/enquiries");
+      const response = await apiClient.get<ConciergeEnquiry[]>("/admin/enquiries");
       if (Array.isArray(response)) {
         return response;
       }
@@ -259,10 +263,7 @@ class AdminService {
       if (params?.category && params.category !== "all") queryParams.category = params.category;
       if (params?.query?.trim()) queryParams.query = params.query.trim();
 
-      const response = await apiClient.get<ModerationListing[] | { data: ModerationListing[] }>(
-        "/directory/admin/listings",
-        { params: queryParams }
-      );
+      const response = await apiClient.get<ModerationListing[]>("/directory/admin/listings", { params: queryParams });
 
       if (Array.isArray(response)) return response;
       if (
@@ -284,10 +285,11 @@ class AdminService {
   /**
    * Approves a listing.
    */
-  async approveListing(id: string): Promise<boolean> {
+  async approveListing(id: string, revision?: number): Promise<boolean> {
     try {
-      const response = await apiClient.post(`/directory/admin/${id}/approve`);
-      return mutationSucceeded(response);
+      if (!revision) throw new Error('Reload the listing review before approving');
+      await apiClient.patch('/admin/public-content/review', { type: 'directory_listings', id, revision, approve: true });
+      return true;
     } catch (err) {
       logger.error("Failed to approve listing:", err);
       return false;
@@ -297,10 +299,11 @@ class AdminService {
   /**
    * Rejects a listing with a mandatory reason.
    */
-  async rejectListing(id: string, reason: string): Promise<boolean> {
+  async rejectListing(id: string, reason: string, revision?: number): Promise<boolean> {
     try {
-      const response = await apiClient.post(`/directory/admin/${id}/reject`, { reason });
-      return mutationSucceeded(response);
+      if (!revision) throw new Error('Reload the listing review before rejecting');
+      await apiClient.patch('/admin/public-content/review', { type: 'directory_listings', id, revision, approve: false, reason });
+      return true;
     } catch (err) {
       logger.error("Failed to reject listing:", err);
       return false;
@@ -326,7 +329,7 @@ class AdminService {
    */
   async getClaimsQueue(status?: string, options?: AdminFetchOptions): Promise<DirectoryClaim[]> {
     try {
-      const response = await apiClient.get<DirectoryClaim[] | { data: DirectoryClaim[] }>("/directory/admin/claims");
+      const response = await apiClient.get<DirectoryClaim[]>("/directory/admin/claims");
       let list: DirectoryClaim[] = [];
       if (Array.isArray(response)) {
         list = response;
@@ -433,12 +436,8 @@ class AdminService {
       const queryParams: Record<string, string | number> = {};
       if (restParams.status && restParams.status !== "all") queryParams.status = restParams.status;
       if (restParams.search?.trim()) queryParams.search = restParams.search.trim();
-      if (restParams.limit) queryParams.limit = restParams.limit;
-      if (restParams.page) queryParams.page = restParams.page;
 
-      const response = await apiClient.get<
-        BlogSubmissionAdminItem[] | { data: BlogSubmissionAdminItem[] }
-      >("/blog/submissions/admin", { params: queryParams });
+      const response = await apiClient.get<BlogSubmissionAdminItem[]>("/blog/submissions/admin", { params: queryParams });
 
       if (Array.isArray(response)) return response;
       if (
@@ -460,9 +459,10 @@ class AdminService {
   /**
    * Approves a creator content submission.
    */
-  async approveContentSubmission(id: string): Promise<boolean> {
+  async approveContentSubmission(id: string, revision?: number): Promise<boolean> {
     try {
-      const response = await apiClient.patch(`/blog/submissions/${id}/approve`);
+      if (!revision) throw new Error('Reviewed revision required');
+      const response = await apiClient.patch(`/blog/submissions/${id}/approve`, { revision });
       return mutationSucceeded(response);
     } catch (err) {
       logger.error("Failed to approve content submission:", err);
@@ -473,9 +473,10 @@ class AdminService {
   /**
    * Rejects a creator content submission with mandatory reason.
    */
-  async rejectContentSubmission(id: string, reason: string): Promise<boolean> {
+  async rejectContentSubmission(id: string, reason: string, revision?: number): Promise<boolean> {
     try {
-      const response = await apiClient.patch(`/blog/submissions/${id}/reject`, { reason });
+      if (!revision) throw new Error('Reviewed revision required');
+      const response = await apiClient.patch(`/blog/submissions/${id}/reject`, { reason, revision });
       return mutationSucceeded(response);
     } catch (err) {
       logger.error("Failed to reject content submission:", err);
@@ -486,8 +487,8 @@ class AdminService {
   /**
    * Batch approves directory listings concurrently.
    */
-  async batchApproveListings(ids: string[]): Promise<{ successful: string[]; failed: string[] }> {
-    const results = await Promise.allSettled(ids.map((id) => this.approveListing(id)));
+  async batchApproveListings(ids: string[], revisions: Record<string, number | undefined> = {}): Promise<{ successful: string[]; failed: string[] }> {
+    const results = await Promise.allSettled(ids.map((id) => this.approveListing(id, revisions[id])));
     const successful: string[] = [];
     const failed: string[] = [];
     results.forEach((res, idx) => {
@@ -505,9 +506,10 @@ class AdminService {
    */
   async batchRejectListings(
     ids: string[],
-    reason: string
+    reason: string,
+    revisions: Record<string, number | undefined> = {},
   ): Promise<{ successful: string[]; failed: string[] }> {
-    const results = await Promise.allSettled(ids.map((id) => this.rejectListing(id, reason)));
+    const results = await Promise.allSettled(ids.map((id) => this.rejectListing(id, reason, revisions[id])));
     const successful: string[] = [];
     const failed: string[] = [];
     results.forEach((res, idx) => {
@@ -561,9 +563,9 @@ class AdminService {
    * Batch approves creator content submissions.
    */
   async batchApproveContentSubmissions(
-    ids: string[]
+    ids: string[], revisions: Record<string, number> = {}
   ): Promise<{ successful: string[]; failed: string[] }> {
-    const results = await Promise.allSettled(ids.map((id) => this.approveContentSubmission(id)));
+    const results = await Promise.allSettled(ids.map((id) => this.approveContentSubmission(id, revisions[id])));
     const successful: string[] = [];
     const failed: string[] = [];
     results.forEach((res, idx) => {
@@ -581,10 +583,10 @@ class AdminService {
    */
   async batchRejectContentSubmissions(
     ids: string[],
-    reason: string
+    reason: string, revisions: Record<string, number> = {}
   ): Promise<{ successful: string[]; failed: string[] }> {
     const results = await Promise.allSettled(
-      ids.map((id) => this.rejectContentSubmission(id, reason))
+      ids.map((id) => this.rejectContentSubmission(id, reason, revisions[id]))
     );
     const successful: string[] = [];
     const failed: string[] = [];
@@ -992,10 +994,11 @@ class AdminService {
   /**
    * Approves a pending review.
    */
-  async approveReview(id: string): Promise<boolean> {
+  async approveReview(id: string, revision?: number): Promise<boolean> {
     try {
-      const response = await apiClient.patch(`/reviews/${id}/approve`);
-      return mutationSucceeded(response);
+      if (!revision) throw new Error('Reload the review before approving');
+      await apiClient.patch('/admin/public-content/review', { type: 'listing_reviews', id, revision, approve: true });
+      return true;
     } catch (err) {
       logger.error(`Failed to approve review ${id}:`, err);
       return false;
@@ -1005,10 +1008,11 @@ class AdminService {
   /**
    * Rejects a review.
    */
-  async rejectReview(id: string): Promise<boolean> {
+  async rejectReview(id: string, revision?: number): Promise<boolean> {
     try {
-      const response = await apiClient.patch(`/reviews/${id}/reject`);
-      return mutationSucceeded(response);
+      if (!revision) throw new Error('Reload the review before rejecting');
+      await apiClient.patch('/admin/public-content/review', { type: 'listing_reviews', id, revision, approve: false, reason: 'Rejected by administrator after reviewing the content.' });
+      return true;
     } catch (err) {
       logger.error(`Failed to reject review ${id}:`, err);
       return false;
@@ -1170,6 +1174,7 @@ export interface ForumRemovedCommentItem {
 
 export interface BlogSubmissionAdminItem {
   id: string;
+  moderation_revision?: number;
   user_id: string;
   title: string;
   content: string;
@@ -1219,6 +1224,7 @@ export interface AdminBookingItem {
 }
 
 export interface AdminReviewItem {
+  moderation_revision?: number;
   id: string;
   listing_id?: string | null;
   rating?: number | null;

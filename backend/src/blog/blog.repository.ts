@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { SupabaseClient } from '@supabase/supabase-js';
 import {
   BlogComment,
   BlogPost,
@@ -27,6 +28,27 @@ export class BlogRepository {
     return this.supabaseService.getClient();
   }
 
+  async reviewSubmission(
+    id: string,
+    revision: number,
+    actor: string,
+    approve: boolean,
+    reason?: string,
+  ): Promise<BlogPost> {
+    const result = await this.client.rpc('review_blog_submission', {
+      p_id: id,
+      p_revision: revision,
+      p_actor: actor,
+      p_approve: approve,
+      p_reason: reason ?? null,
+    });
+    if (result.error?.code === '40001')
+      throw new ConflictException(result.error.message);
+    if (result.error) throw new Error(result.error.message);
+    const data: unknown = result.data;
+    return data as BlogPost;
+  }
+
   async getSlugs(seed: string): Promise<string[]> {
     const escapePostgREST = (value: string) =>
       value
@@ -37,8 +59,9 @@ export class BlogRepository {
     const { data, error } = await this.client
       .from('blog_posts')
       .select('slug')
-      .eq('slug', seed)
-      .or(`slug.like.${escapePostgREST(seed)}-%`);
+      .or(
+        `slug.eq.${escapePostgREST(seed)},slug.like.${escapePostgREST(seed)}-%`,
+      );
     if (error) throw new Error(error.message);
     return ((data as unknown as Array<{ slug: string }>) || []).map(
       (r) => r.slug,
@@ -71,7 +94,9 @@ export class BlogRepository {
         query = query.eq('status', filters.status);
       }
     } else {
-      query = query.eq('status', 'published');
+      query = query
+        .eq('status', 'published')
+        .eq('moderation_status', 'approved');
     }
 
     if (filters.category === 'Guides') {
@@ -81,7 +106,10 @@ export class BlogRepository {
     }
     if (filters.content_type) {
       query = query.eq('content_type', filters.content_type);
-    } else if (userRole !== 'admin') {
+    } else if (
+      userRole !== 'admin' &&
+      !(requestUserId && filters.authorId === requestUserId)
+    ) {
       query = query.eq('content_type', 'blog');
     }
     if (filters.tag) query = query.eq('tags.tag_id', filters.tag);
@@ -116,6 +144,7 @@ export class BlogRepository {
         `id, title, slug, excerpt, cover_image_url, category, published_at, author:profiles!blog_posts_author_id_fkey(full_name, avatar_url)`,
       )
       .eq('is_featured', true)
+      .eq('moderation_status', 'approved')
       .eq('status', 'published')
       .eq('content_type', 'blog')
       .order('published_at', { ascending: false, nullsFirst: false })
@@ -195,6 +224,7 @@ export class BlogRepository {
           'id, title, slug, excerpt, cover_image_url, category, published_at, author:profiles!blog_posts_author_id_fkey(full_name, avatar_url)',
         )
         .eq('status', 'published')
+        .eq('moderation_status', 'approved')
         .eq('content_type', 'blog');
       if (isUuid) query = query.neq('id', postId);
       if (categoryFilter) query = query.eq('category', categoryFilter);
@@ -442,16 +472,38 @@ export class BlogRepository {
     offset: number,
     userId?: string,
   ): Promise<BlogComment[]> {
+    const { data: parent } = await this.client
+      .from('blog_posts')
+      .select('id')
+      .eq('id', postId)
+      .eq('status', 'published')
+      .eq('moderation_status', 'approved')
+      .maybeSingle();
+    if (!parent) return [];
     const { data, error } = await this.client
       .from('blog_comments')
       .select(
         '*, author:profiles!blog_comments_user_id_fkey(full_name, avatar_url)',
       )
       .eq('post_id', postId)
+      .eq('is_removed', false)
+      .eq('moderation_status', 'approved')
       .order('created_at', { ascending: true })
       .range(offset, offset + limit - 1);
     if (error) throw new Error(error.message);
-    const comments = (data as unknown as BlogComment[]) || [];
+    const rows = (data as unknown as BlogComment[]) || [];
+    const visibility = await (this.client as SupabaseClient).rpc(
+      'review_visible_comment_ids',
+      {
+        p_table: 'blog_comments',
+        p_ids: rows.map((row) => row.id),
+      },
+    );
+    if (visibility.error) throw new Error(visibility.error.message);
+    const visibleIds: unknown = visibility.data;
+    const comments = rows.filter((row) =>
+      (visibleIds as string[] | null)?.includes(row.id),
+    );
 
     if (!userId || comments.length === 0) {
       return comments.map((c) => ({ ...c, isLiked: false }));

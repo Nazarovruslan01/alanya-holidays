@@ -127,7 +127,10 @@ export class BlogService {
     const data = await this.blogRepository.getBlogPostBySlug(slug);
     if (!data) throw new NotFoundException('Blog post not found');
 
-    if (data.status !== 'published') {
+    if (
+      data.status !== 'published' ||
+      (data.moderation_status && data.moderation_status !== 'approved')
+    ) {
       const role = userId
         ? await this.userRolesRepo.getRole(userId)
         : undefined;
@@ -203,6 +206,13 @@ export class BlogService {
         tag_id: tagId,
       }));
       await this.blogRepository.insertBlogPostTags(tagRows);
+      // Child writes advance the revision. Require a fresh review instead of
+      // fetching a newer aggregate that could contain another author's edit.
+      return {
+        ...post,
+        moderation_status: 'pending',
+        moderation_revision: undefined,
+      };
     }
     return post;
   }
@@ -278,6 +288,11 @@ export class BlogService {
         }));
         await this.blogRepository.insertBlogPostTags(tagRows);
       }
+      return {
+        ...post,
+        moderation_status: 'pending',
+        moderation_revision: undefined,
+      };
     }
     return post;
   }
@@ -562,6 +577,7 @@ export class BlogService {
   async approveBlogSubmission(
     submissionId: string,
     userId: string,
+    revision?: number,
   ): Promise<BlogPost> {
     await this.checkAdmin(userId);
     const submission =
@@ -569,59 +585,14 @@ export class BlogService {
     if (!submission || submission.status !== 'pending_review')
       throw new BadRequestException('Invalid submission');
 
-    const updatedSubRows = await this.blogRepository.updateBlogSubmissionStatus(
+    if (!revision) throw new BadRequestException('Reviewed revision required');
+    const post = await this.blogRepository.reviewSubmission(
       submissionId,
-      'approved',
-      'pending_review',
+      revision,
+      userId,
+      true,
     );
-
-    if (!updatedSubRows || updatedSubRows.length === 0)
-      throw new BadRequestException('Already processed');
-
-    const coverImageUrl = submission.media_urls?.[0] || null;
-    let post: BlogPost | undefined;
-    let uniqueSlug = '';
-
-    try {
-      uniqueSlug = await this.resolveSlug(slugify(submission.title));
-      post = await this.blogRepository.insertBlogPost({
-        title: submission.title,
-        slug: uniqueSlug,
-        content: submission.content,
-        excerpt: generateExcerpt(submission.content),
-        category: submission.category || null,
-        video_url: submission.video_url,
-        cover_image_url: coverImageUrl,
-        author_id: submission.user_id,
-        status: 'published',
-        is_featured: false,
-        content_type: submission.content_type || 'blog',
-        published_at: new Date().toISOString(),
-      });
-
-      if (submission.tag_ids && submission.tag_ids.length > 0) {
-        await this.blogRepository.insertBlogPostTags(
-          submission.tag_ids.map((tagId) => ({
-            post_id: post!.id,
-            tag_id: tagId,
-          })),
-        );
-      }
-    } catch (err) {
-      if (post?.id) {
-        await this.blogRepository.deleteBlogPost(post.id);
-      }
-      await this.blogRepository.updateBlogSubmissionStatus(
-        submissionId,
-        'pending_review',
-        'approved',
-      );
-      throw err;
-    }
-
-    if (!post) {
-      throw new BadRequestException('Failed to publish submission');
-    }
+    const uniqueSlug = post.slug;
 
     const authorProfile = await this.blogRepository.getProfileForNotification(
       submission.user_id,
@@ -669,6 +640,7 @@ export class BlogService {
     submissionId: string,
     reason: string,
     userId: string,
+    revision?: number,
   ): Promise<SuccessResponse> {
     await this.checkAdmin(userId);
     if (!reason || reason.trim().length < 10)
@@ -679,11 +651,13 @@ export class BlogService {
     if (!submission || submission.status !== 'pending_review')
       throw new BadRequestException('Invalid submission');
 
-    await this.blogRepository.updateBlogSubmissionStatus(
+    if (!revision) throw new BadRequestException('Reviewed revision required');
+    await this.blogRepository.reviewSubmission(
       submissionId,
-      'rejected',
-      'pending_review',
-      { rejection_reason: reason },
+      revision,
+      userId,
+      false,
+      reason,
     );
 
     const authorProfile = await this.blogRepository.getProfileForNotification(

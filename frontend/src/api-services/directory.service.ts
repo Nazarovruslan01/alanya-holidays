@@ -286,8 +286,8 @@ export function mapBackendListingToBusiness(
     image:
       item.gallery?.[0] ||
       `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || "Business")}&size=800&background=2C6E49&color=fff`,
-    gallery: item.gallery,
     tags: [],
+    gallery: item.gallery ?? [],
     featured: Boolean(item.is_featured),
     priceRange,
     status: item.status,

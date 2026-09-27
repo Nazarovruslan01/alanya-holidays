@@ -368,7 +368,7 @@ export default function PlannerPage() {
         // ignore
       }
       setShowShareModal(false);
-      showToast("Plan shared to the community! Others can now copy it as a template.");
+      showToast(t('public.planPendingReview'));
     } catch {
       showToast("Could not share this plan. Please try again.");
     }

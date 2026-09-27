@@ -117,7 +117,7 @@ BEGIN
   RESET ROLE;
 
   SET LOCAL ROLE service_role;
-  UPDATE public.profiles SET role = 'seller' WHERE id = v_applicant_id;
+  UPDATE public.profiles SET role = 'artisan' WHERE id = v_applicant_id;
   RESET ROLE;
   SET LOCAL ROLE supabase_admin;
   UPDATE public.profiles SET role = 'guest' WHERE id = v_applicant_id;
@@ -129,9 +129,9 @@ BEGIN
 
   PERFORM set_config('request.jwt.claims', jsonb_build_object('sub', v_admin_id, 'role', 'authenticated')::TEXT, true);
   SET LOCAL ROLE authenticated;
-  UPDATE public.profiles SET role = 'seller' WHERE id = v_applicant_id;
+  UPDATE public.profiles SET role = 'artisan' WHERE id = v_applicant_id;
   RESET ROLE;
-  IF (SELECT role FROM public.profiles WHERE id = v_applicant_id) <> 'seller' THEN
+  IF (SELECT role FROM public.profiles WHERE id = v_applicant_id) <> 'artisan' THEN
     RAISE EXCEPTION 'Authenticated profile admin could not change a profile role';
   END IF;
 

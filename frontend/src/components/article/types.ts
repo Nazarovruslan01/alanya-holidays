@@ -8,7 +8,7 @@ export type ArticleBlockNode =
   | { type: "paragraph"; content: string }
   | { type: "heading"; level: 2 | 3 | 4; content: string }
   | { type: "venue"; venueId: string; layout?: "card" | "compact" }
-  | { type: "cta"; category: string; label: string; subtext?: string }
+  | { type: "cta"; category: string; label: string; subtext?: string; href?: string }
   | {
       type: "video";
       src: string;

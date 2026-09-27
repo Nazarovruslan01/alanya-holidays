@@ -98,6 +98,7 @@ describe('BlogService', () => {
       incrementBlogViews: jest.fn(),
       getRelatedPosts: jest.fn(),
       insertBlogPost: jest.fn(),
+      reviewSubmission: jest.fn(),
       insertBlogPostTags: jest.fn(),
       getBlogPostById: jest.fn(),
       updateBlogPost: jest.fn(),
@@ -333,10 +334,20 @@ describe('BlogService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('should generate unique slug and insert post with tags', async () => {
+    it('creates tagged content pending a fresh preview without returning a later revision', async () => {
+      mockRepository.getBlogPostById.mockResolvedValueOnce({
+        ...mockBlogPost,
+        content: 'CONCURRENT OWNER EDIT NEVER PREVIEWED',
+        moderation_revision: 3,
+        moderation_status: 'pending',
+      });
       mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
       mockRepository.getSlugs.mockResolvedValueOnce([]);
-      mockRepository.insertBlogPost.mockResolvedValueOnce(mockBlogPost);
+      mockRepository.insertBlogPost.mockResolvedValueOnce({
+        ...mockBlogPost,
+        moderation_status: 'approved',
+        moderation_revision: 1,
+      });
 
       const dto: CreateBlogPostDto = {
         title: 'New Post',
@@ -349,6 +360,10 @@ describe('BlogService', () => {
       const result = await service.createBlogPost(dto, 'author-1');
 
       expect(result.id).toBe('post-1');
+      expect(result.moderation_revision).toBeUndefined();
+      expect(result.moderation_status).toBe('pending');
+      expect(result.content).not.toBe('CONCURRENT OWNER EDIT NEVER PREVIEWED');
+      expect(mockRepository.getBlogPostById).not.toHaveBeenCalled();
       expect(mockRepository.insertBlogPost).toHaveBeenCalledWith(
         expect.objectContaining({
           title: 'New Post',
@@ -367,9 +382,13 @@ describe('BlogService', () => {
     it('should sanitize post content and excerpt before insertion', async () => {
       mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
       mockRepository.getSlugs.mockResolvedValueOnce([]);
-      mockRepository.insertBlogPost.mockResolvedValueOnce(mockBlogPost);
+      mockRepository.insertBlogPost.mockResolvedValueOnce({
+        ...mockBlogPost,
+        moderation_revision: 2,
+        moderation_status: 'pending',
+      });
 
-      await service.createBlogPost(
+      const saved = await service.createBlogPost(
         {
           title: 'Safe Post',
           content:
@@ -378,6 +397,8 @@ describe('BlogService', () => {
         },
         'author-1',
       );
+      expect(saved.moderation_revision).toBe(2);
+      expect(mockRepository.getBlogPostById).not.toHaveBeenCalled();
 
       expect(mockRepository.insertBlogPost).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -530,17 +551,25 @@ describe('BlogService', () => {
       expect(mockRepository.updateBlogPost).not.toHaveBeenCalled();
     });
 
-    it('should allow admin to update post, featured status and update tags', async () => {
+    it('requires a fresh preview after tagged admin edits even when another owner edit intervenes', async () => {
       mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');
       mockRepository.getBlogPostById.mockResolvedValueOnce({
         author_id: 'other-user',
         status: 'draft',
         slug: 'old-slug',
       });
+      mockRepository.getBlogPostById.mockResolvedValueOnce({
+        ...mockBlogPost,
+        title: 'CONCURRENT OWNER EDIT NEVER PREVIEWED',
+        moderation_revision: 4,
+        moderation_status: 'pending',
+      });
       mockRepository.getSlugs.mockResolvedValueOnce([]);
       mockRepository.updateBlogPost.mockResolvedValueOnce({
         ...mockBlogPost,
         title: 'New Title',
+        moderation_status: 'approved',
+        moderation_revision: 2,
       });
 
       const dto: UpdateBlogPostDto = {
@@ -553,6 +582,9 @@ describe('BlogService', () => {
       const result = await service.updateBlogPost('post-1', dto, 'admin-1');
 
       expect(result.title).toBe('New Title');
+      expect(result.moderation_revision).toBeUndefined();
+      expect(result.moderation_status).toBe('pending');
+      expect(mockRepository.getBlogPostById).toHaveBeenCalledTimes(1);
       expect(mockRepository.updateBlogPost).toHaveBeenCalledWith(
         'post-1',
         expect.objectContaining({
@@ -943,234 +975,78 @@ describe('BlogService', () => {
   });
 
   describe('approveBlogSubmission', () => {
-    it('persists a guide submission through approval and guide-filtered listing', async () => {
-      const guideSubmission = {
-        id: 'guide-submission-1',
-        user_id: 'author-1',
-        title: 'Hidden Alanya Guide',
-        content: 'Detailed guide content',
-        content_type: 'guide' as const,
-        status: 'pending_review',
-        tag_ids: [],
-      };
-      mockRepository.checkBlogSubmissionLimit.mockResolvedValueOnce(true);
-      mockRepository.insertBlogSubmission.mockResolvedValueOnce(
-        guideSubmission,
-      );
+    const submission = {
+      id: 'sub-1',
+      user_id: 'author-1',
+      title: 'Guide',
+      content: 'Guide content',
+      status: 'pending_review',
+      content_type: 'guide',
+    };
 
-      await service.createBlogSubmission(
-        {
-          title: guideSubmission.title,
-          content: guideSubmission.content,
-          content_type: 'guide',
-        },
-        guideSubmission.user_id,
-      );
-
-      expect(mockRepository.insertBlogSubmission).toHaveBeenCalledWith(
-        expect.objectContaining({ content_type: 'guide' }),
-      );
-
-      mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');
-      mockRepository.getBlogSubmissionById.mockResolvedValueOnce(
-        guideSubmission,
-      );
-      mockRepository.updateBlogSubmissionStatus.mockResolvedValueOnce([
-        { id: guideSubmission.id },
-      ]);
-      mockRepository.getSlugs.mockResolvedValueOnce([]);
-      mockRepository.insertBlogPost.mockResolvedValueOnce({
-        id: 'guide-post-1',
-        title: guideSubmission.title,
-        slug: 'hidden-alanya-guide',
-        content_type: 'guide',
-      });
-      mockRepository.getProfileForNotification.mockResolvedValueOnce(null);
-
-      await service.approveBlogSubmission(guideSubmission.id, 'admin-1');
-
-      expect(mockRepository.insertBlogPost).toHaveBeenCalledWith(
-        expect.objectContaining({ content_type: 'guide' }),
-      );
-
-      mockRepository.getBlogPosts.mockResolvedValueOnce({
-        data: [
-          {
-            id: 'guide-post-1',
-            title: guideSubmission.title,
-            content_type: 'guide',
-            tags: [],
-          },
-        ],
-        count: 1,
-      });
-
+    it('requires administrator authority', async () => {
+      mockUserRolesRepo.getRole.mockResolvedValueOnce('guest');
       await expect(
-        service.getBlogPosts({ content_type: 'guide' }),
-      ).resolves.toMatchObject({
-        data: [{ id: 'guide-post-1', content_type: 'guide' }],
-        total: 1,
-      });
-      expect(mockRepository.getBlogPosts).toHaveBeenCalledWith(
-        expect.objectContaining({ content_type: 'guide' }),
-        10,
-        0,
-        'anon',
-        undefined,
-      );
-    });
-
-    it('should throw UnauthorizedException if non-admin attempts approval', async () => {
-      mockUserRolesRepo.getRole.mockResolvedValueOnce('user');
-
-      await expect(
-        service.approveBlogSubmission('sub-1', 'user-1'),
+        service.approveBlogSubmission('sub-1', 'owner', 4),
       ).rejects.toThrow(UnauthorizedException);
+      expect(mockRepository.reviewSubmission).not.toHaveBeenCalled();
     });
 
-    it('should approve submission, create post, and send notification', async () => {
+    it('requires the revision inspected by the administrator', async () => {
       mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');
-      mockRepository.getBlogSubmissionById.mockResolvedValueOnce({
-        id: 'sub-1',
-        user_id: 'author-1',
-        title: 'Submitted Title',
-        content: 'Submitted Content',
-        status: 'pending_review',
-        media_urls: ['https://example.com/cover.jpg'],
-      });
-      mockRepository.updateBlogSubmissionStatus.mockResolvedValueOnce([
-        { id: 'sub-1' },
-      ]);
-      mockRepository.getSlugs.mockResolvedValueOnce([]);
-      mockRepository.insertBlogPost.mockResolvedValueOnce({
+      mockRepository.getBlogSubmissionById.mockResolvedValueOnce(submission);
+      await expect(
+        service.approveBlogSubmission('sub-1', 'admin'),
+      ).rejects.toThrow('Reviewed revision required');
+      expect(mockRepository.reviewSubmission).not.toHaveBeenCalled();
+    });
+
+    it('publishes through one atomic snapshot operation before notification', async () => {
+      mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');
+      mockRepository.getBlogSubmissionById.mockResolvedValueOnce(submission);
+      const post = {
         id: 'post-1',
-        title: 'Submitted Title',
-        slug: 'submitted-title',
-      });
+        slug: 'guide-1',
+        content_type: 'guide',
+        moderation_status: 'approved',
+      };
+      mockRepository.reviewSubmission.mockResolvedValueOnce(post);
       mockRepository.getProfileForNotification.mockResolvedValueOnce({
-        email: 'author@test.com',
-        full_name: 'Author Name',
+        email: 'author@example.test',
+        full_name: 'Author',
       });
-
-      const result = await service.approveBlogSubmission('sub-1', 'admin-1');
-
-      expect(result.id).toBe('post-1');
+      await expect(
+        service.approveBlogSubmission('sub-1', 'admin', 4),
+      ).resolves.toEqual(post);
+      expect(mockRepository.reviewSubmission).toHaveBeenCalledWith(
+        'sub-1',
+        4,
+        'admin',
+        true,
+      );
+      expect(mockRepository.insertBlogPost).not.toHaveBeenCalled();
+      expect(mockRepository.updateBlogSubmissionStatus).not.toHaveBeenCalled();
       expect(notificationsService.notifyUser).toHaveBeenCalledWith(
         'author-1',
-        expect.objectContaining({
-          title: 'Blog Post Published!',
-          type: 'success',
-        }),
+        expect.objectContaining({ title: 'Blog Post Published!' }),
       );
       expect(emailOutbox.enqueue).toHaveBeenCalledWith(
-        expect.objectContaining({
-          to: 'author@test.com',
-          type: 'blog_submission_approved',
-        }),
+        expect.objectContaining({ type: 'blog_submission_approved' }),
       );
     });
 
-    it('should persist submission category in insertBlogPost during approval', async () => {
+    it('does not notify or attempt partial rollback when the locked revision changed', async () => {
       mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');
-      mockRepository.getBlogSubmissionById.mockResolvedValueOnce({
-        id: 'sub-category-1',
-        user_id: 'author-1',
-        title: 'Food Guide Story',
-        content: 'Delicious food in Alanya',
-        category: 'Food & Drink',
-        status: 'pending_review',
-        media_urls: ['https://example.com/food.jpg'],
-      });
-      mockRepository.updateBlogSubmissionStatus.mockResolvedValueOnce([
-        { id: 'sub-category-1' },
-      ]);
-      mockRepository.getSlugs.mockResolvedValueOnce([]);
-      mockRepository.insertBlogPost.mockResolvedValueOnce({
-        id: 'post-food-1',
-        title: 'Food Guide Story',
-        slug: 'food-guide-story',
-        category: 'Food & Drink',
-      });
-      mockRepository.getProfileForNotification.mockResolvedValueOnce({
-        email: 'author@test.com',
-        full_name: 'Foodie Author',
-      });
-
-      await service.approveBlogSubmission('sub-category-1', 'admin-1');
-
-      expect(mockRepository.insertBlogPost).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'Food Guide Story',
-          category: 'Food & Drink',
-        }),
+      mockRepository.getBlogSubmissionById.mockResolvedValueOnce(submission);
+      mockRepository.reviewSubmission.mockRejectedValueOnce(
+        new Error('Submission changed; reload the preview'),
       );
-    });
-
-    it('should attach submission tags to the published post', async () => {
-      mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');
-      mockRepository.getBlogSubmissionById.mockResolvedValueOnce({
-        id: 'sub-tags-1',
-        user_id: 'author-1',
-        title: 'Tagged Story',
-        content: 'Tagged content',
-        category: 'Beaches',
-        tag_ids: [
-          '11111111-1111-4111-8111-111111111111',
-          '22222222-2222-4222-8222-222222222222',
-        ],
-        status: 'pending_review',
-      });
-      mockRepository.updateBlogSubmissionStatus.mockResolvedValueOnce([
-        { id: 'sub-tags-1' },
-      ]);
-      mockRepository.getSlugs.mockResolvedValueOnce([]);
-      mockRepository.insertBlogPost.mockResolvedValueOnce({
-        id: 'post-tags-1',
-        title: 'Tagged Story',
-        slug: 'tagged-story',
-      });
-      mockRepository.getProfileForNotification.mockResolvedValueOnce(null);
-
-      await service.approveBlogSubmission('sub-tags-1', 'admin-1');
-
-      expect(mockRepository.insertBlogPostTags).toHaveBeenCalledWith([
-        {
-          post_id: 'post-tags-1',
-          tag_id: '11111111-1111-4111-8111-111111111111',
-        },
-        {
-          post_id: 'post-tags-1',
-          tag_id: '22222222-2222-4222-8222-222222222222',
-        },
-      ]);
-    });
-
-    it('should rollback submission status if post insertion fails', async () => {
-      mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');
-      mockRepository.getBlogSubmissionById.mockResolvedValueOnce({
-        id: 'sub-1',
-        user_id: 'author-1',
-        title: 'Submitted Title',
-        content: 'Submitted Content',
-        status: 'pending_review',
-      });
-      mockRepository.updateBlogSubmissionStatus.mockResolvedValueOnce([
-        { id: 'sub-1' },
-      ]);
-      mockRepository.getSlugs.mockResolvedValueOnce([]);
-      mockRepository.insertBlogPost.mockRejectedValueOnce(
-        new Error('DB Insert Error'),
-      );
-
       await expect(
-        service.approveBlogSubmission('sub-1', 'admin-1'),
-      ).rejects.toThrow('DB Insert Error');
-
-      expect(mockRepository.updateBlogSubmissionStatus).toHaveBeenCalledWith(
-        'sub-1',
-        'pending_review',
-        'approved',
-      );
+        service.approveBlogSubmission('sub-1', 'admin', 4),
+      ).rejects.toThrow('Submission changed');
+      expect(notificationsService.notifyUser).not.toHaveBeenCalled();
+      expect(emailOutbox.enqueue).not.toHaveBeenCalled();
+      expect(mockRepository.updateBlogSubmissionStatus).not.toHaveBeenCalled();
     });
   });
 
@@ -1204,14 +1080,16 @@ describe('BlogService', () => {
         'sub-1',
         'Content is not related to Alanya tourism.',
         'admin-1',
+        4,
       );
 
       expect(res.success).toBe(true);
-      expect(mockRepository.updateBlogSubmissionStatus).toHaveBeenCalledWith(
+      expect(mockRepository.reviewSubmission).toHaveBeenCalledWith(
         'sub-1',
-        'rejected',
-        'pending_review',
-        { rejection_reason: 'Content is not related to Alanya tourism.' },
+        4,
+        'admin-1',
+        false,
+        'Content is not related to Alanya tourism.',
       );
       expect(notificationsService.notifyUser).toHaveBeenCalledWith(
         'author-1',

@@ -7,6 +7,17 @@ import {
 import { apiClient } from "@/lib/api-client";
 
 describe("products.service (Clean Architecture)", () => {
+  it("preserves guest access on direct product checkout", async () => {
+    const token = "a".repeat(43);
+    const post = vi.spyOn(apiClient, "post").mockResolvedValue({ success: true, orderId: 1 });
+    await productsService.createProductOrder({
+      requestId: "11111111-1111-4111-8111-111111111111", guestAccessToken: token,
+      currency: "EUR", subtotal: 10,
+      recipient: { name: "Guest", email: "guest@example.com", phone: "+905551234567", contact_method: "email" },
+      items: [{ productId: 1, productName: "Item", quantity: 1, unitPrice: 10, finalPrice: 10, subtotal: 10 }],
+    });
+    expect(post).toHaveBeenCalledWith("/products/orders", expect.objectContaining({ guestAccessToken: token }));
+  });
   beforeEach(() => {
     vi.restoreAllMocks();
   });

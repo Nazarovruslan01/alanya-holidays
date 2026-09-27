@@ -94,7 +94,8 @@ export class SupabaseServicesRepository implements IServicesRepository {
       .select('*, provider:profiles(full_name, company_name)', {
         count: 'exact',
       })
-      .eq('status', 'approved');
+      .eq('status', 'approved')
+      .eq('moderation_status', 'approved');
     if (type && type !== 'all') query = query.eq('type', type);
 
     const from = (page - 1) * limit;
@@ -115,6 +116,8 @@ export class SupabaseServicesRepository implements IServicesRepository {
       .from('services')
       .select('*')
       .eq('provider_id', providerId)
+      .eq('status', 'approved')
+      .eq('moderation_status', 'approved')
       .order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
     return data || [];
@@ -127,7 +130,11 @@ export class SupabaseServicesRepository implements IServicesRepository {
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
         id,
       );
-    let query = this.client.from('services').select('*');
+    let query = this.client
+      .from('services')
+      .select('*')
+      .eq('status', 'approved')
+      .eq('moderation_status', 'approved');
     query = isUUID ? query.eq('id', id) : query.eq('service_ref', parseInt(id));
 
     const { data, error } = await query.single();
@@ -137,6 +144,8 @@ export class SupabaseServicesRepository implements IServicesRepository {
         .from('services')
         .select('*')
         .eq('service_ref', parseInt(id))
+        .eq('status', 'approved')
+        .eq('moderation_status', 'approved')
         .maybeSingle();
       if (found) return { data: found, error: null };
     }
@@ -266,6 +275,8 @@ export class SupabaseServicesRepository implements IServicesRepository {
     const { data, error } = await this.client
       .from('services')
       .select('*, provider:profiles(full_name)')
+      .eq('status', 'approved')
+      .eq('moderation_status', 'approved')
       .eq('type', type)
       .contains('features', { brand, model });
     if (error) throw new Error(error.message);

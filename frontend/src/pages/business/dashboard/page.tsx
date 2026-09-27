@@ -57,6 +57,11 @@ export type DashboardTab =
   | "claims";
 
 export default function MerchantDashboardPage() {
+  const { user } = useAuth();
+  return <MerchantDashboard key={user?.id ?? "anonymous"} />;
+}
+
+function MerchantDashboard() {
   const { t } = useTranslation();
   const {
     user,

@@ -266,30 +266,13 @@ describe('ReviewsService', () => {
       expect(mockRedisService.delByPattern).not.toHaveBeenCalled();
     });
 
-    it('should call repository updateReviewStatus when caller is admin', async () => {
+    it('requires a reviewed revision without writing or invalidating cache', async () => {
       mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');
-
-      const res = await service.approveReview(validReviewId, validAdminId);
-      expect(res).toEqual({ success: true });
-      expect(mockRepository.updateReviewStatus).toHaveBeenCalledWith(
-        validReviewId,
-        'approved',
-      );
-      expect(mockRedisService.delByPattern).toHaveBeenCalledWith('directory:*');
-      expect(
-        mockRepository.updateReviewStatus.mock.invocationCallOrder[0],
-      ).toBeLessThan(mockRedisService.delByPattern.mock.invocationCallOrder[0]);
-    });
-
-    it('does not invalidate cache or report success when approval persistence fails', async () => {
-      mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');
-      mockRepository.updateReviewStatus.mockRejectedValueOnce(
-        new Error('write failed'),
-      );
 
       await expect(
         service.approveReview(validReviewId, validAdminId),
-      ).rejects.toThrow('write failed');
+      ).rejects.toThrow('reviewed revision');
+      expect(mockRepository.updateReviewStatus).not.toHaveBeenCalled();
       expect(mockRedisService.delByPattern).not.toHaveBeenCalled();
     });
 
@@ -315,27 +298,13 @@ describe('ReviewsService', () => {
       expect(mockRedisService.delByPattern).not.toHaveBeenCalled();
     });
 
-    it('should call repository updateReviewStatus with rejected when caller is admin', async () => {
+    it('requires a reviewed revision without writing or invalidating cache', async () => {
       mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');
-
-      const res = await service.rejectReview(validReviewId, validAdminId);
-      expect(res).toEqual({ success: true });
-      expect(mockRepository.updateReviewStatus).toHaveBeenCalledWith(
-        validReviewId,
-        'rejected',
-      );
-      expect(mockRedisService.delByPattern).toHaveBeenCalledWith('directory:*');
-    });
-
-    it('does not invalidate cache or report success when rejection persistence fails', async () => {
-      mockUserRolesRepo.getRole.mockResolvedValueOnce('admin');
-      mockRepository.updateReviewStatus.mockRejectedValueOnce(
-        new Error('write failed'),
-      );
 
       await expect(
         service.rejectReview(validReviewId, validAdminId),
-      ).rejects.toThrow('write failed');
+      ).rejects.toThrow('reviewed revision');
+      expect(mockRepository.updateReviewStatus).not.toHaveBeenCalled();
       expect(mockRedisService.delByPattern).not.toHaveBeenCalled();
     });
 

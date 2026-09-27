@@ -2,9 +2,12 @@ import {
   Injectable,
   BadRequestException,
   UnauthorizedException,
+  ForbiddenException,
+  Optional,
 } from '@nestjs/common';
 import { ProductsRepository } from './products.repository';
 import { UserRolesRepository } from '../common/auth/user-roles.repository';
+import { BillingService } from '../billing/billing.service';
 import {
   PublishProductDraftDto,
   SaveProductDraftDto,
@@ -16,6 +19,7 @@ export class ProductDraftsService {
   constructor(
     private readonly productsRepository: ProductsRepository,
     private readonly userRolesRepo: UserRolesRepository,
+    @Optional() private readonly billingService?: BillingService,
   ) {}
 
   async saveProductDraft(
@@ -63,6 +67,15 @@ export class ProductDraftsService {
     }
 
     await this.assertOwner(id, userId);
+
+    if (
+      (await this.userRolesRepo.getRole(userId)) !== 'admin' &&
+      !(await this.billingService?.hasActivePremiumAccess(userId))
+    ) {
+      throw new ForbiddenException(
+        'Premium access is required to publish products',
+      );
+    }
 
     const safeUpdates = this.mapProductFields(updates);
     safeUpdates.status = 'active';

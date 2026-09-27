@@ -1,3 +1,4 @@
+import QueuePagination from './QueuePagination';
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   adminService,
@@ -96,10 +97,13 @@ export default function ConciergeTab({
   const { t } = useTranslation();
   const [enquiries, setEnquiries] = useState<ConciergeEnquiry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, totalPages: 0 });
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [enquiryTypeFilter, setEnquiryTypeFilter] = useState<EnquiryTypeFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  useEffect(() => { setPage(1); }, [statusFilter, enquiryTypeFilter, searchQuery]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const onEnquiriesCountUpdateRef = React.useRef(onEnquiriesCountUpdate);
@@ -111,7 +115,9 @@ export default function ConciergeTab({
     if (!background) setLoading(true);
     setError(null);
     try {
-      const data = await adminService.getEnquiries({ throwOnError: true });
+      const result = await adminService.getQueuePage<ConciergeEnquiry>({ type: 'enquiries', page, status: statusFilter, category: enquiryTypeFilter, search: searchQuery });
+      const data = result.data;
+      setPagination(result);
       setEnquiries(data || []);
       if (onEnquiriesCountUpdateRef.current) {
         const newCount = (data || []).filter((e) => e.status === "new").length;
@@ -123,7 +129,7 @@ export default function ConciergeTab({
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [statusFilter, enquiryTypeFilter, searchQuery, page, t]);
 
   useEffect(() => {
     void fetchEnquiries();
@@ -209,6 +215,7 @@ export default function ConciergeTab({
 
   return (
     <div className="space-y-6">
+      <QueuePagination page={page} {...pagination} busy={loading} onChange={setPage} />
       {/* Top Stat Pills */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <button

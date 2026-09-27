@@ -1,3 +1,4 @@
+import { mockAdminQueuePages } from '@/pages/admin/__tests__/queue-page-fixture';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminContentLibraryTab from '../components/AdminContentLibraryTab';
@@ -32,6 +33,7 @@ vi.mock('@/components/base/RichTextEditor', () => ({
 describe('AdminContentLibraryTab', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    mockAdminQueuePages();
     vi.clearAllMocks();
     vi.spyOn(adminContentService, 'listArticles').mockResolvedValue([
       { id: 'post-1', title: 'Alanya Guide', slug: 'alanya-guide', content: '<p>Guide body</p>' },

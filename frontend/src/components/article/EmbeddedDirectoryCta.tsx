@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 
 export interface EmbeddedDirectoryCtaProps {
   category: string;
+  href?: string;
   label: string;
   subtext?: string;
   icon?: string;
@@ -34,6 +35,7 @@ function formatCategoryName(category: string): string {
 
 export default function EmbeddedDirectoryCta({
   category,
+  href,
   label,
   subtext,
   icon,
@@ -46,7 +48,9 @@ export default function EmbeddedDirectoryCta({
   };
 
   const resolvedIcon = icon || categoryInfo.icon;
-  const targetUrl = `/explore?category=${encodeURIComponent(category)}`;
+  const targetUrl = href && /^\/(?!\/)[^\\\s]*$/.test(href)
+    ? href
+    : `/explore?category=${encodeURIComponent(category)}`;
 
   return (
     <div

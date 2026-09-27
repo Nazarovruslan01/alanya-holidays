@@ -24,64 +24,6 @@ const priceRangeLabel: Record<string, string> = {
   "$$$": "business.pricePremium",
 };
 
-const businessGalleryImages: Record<string, string[]> = {
-  "biz-001": [
-    "/images/placeholder-business.svg",
-    "/images/placeholder-business.svg",
-  ],
-  "biz-002": [
-    "/images/placeholder-business.svg",
-    "/images/placeholder-business.svg",
-  ],
-  "biz-003": [
-    "/images/placeholder-business.svg",
-    "/images/placeholder-business.svg",
-  ],
-  "biz-004": [
-    "/images/placeholder-business.svg",
-    "/images/placeholder-business.svg",
-  ],
-  "biz-005": [
-    "/images/placeholder-business.svg",
-    "/images/placeholder-business.svg",
-  ],
-  "biz-006": [
-    "/images/placeholder-business.svg",
-    "/images/placeholder-business.svg",
-  ],
-  "biz-007": [
-    "/images/placeholder-business.svg",
-    "/images/placeholder-business.svg",
-  ],
-  "biz-008": [
-    "/images/placeholder-business.svg",
-    "/images/placeholder-business.svg",
-  ],
-  "biz-009": [
-    "/images/placeholder-business.svg",
-    "/images/placeholder-business.svg",
-  ],
-  "biz-010": [
-    "/images/placeholder-business.svg",
-    "/images/placeholder-business.svg",
-  ],
-  "biz-011": [
-    "/images/placeholder-business.svg",
-    "/images/placeholder-business.svg",
-  ],
-  "biz-012": [
-    "/images/placeholder-business.svg",
-    "/images/placeholder-business.svg",
-  ],
-  "biz-013": [
-    "/images/placeholder-business.svg",
-    "/images/placeholder-business.svg",
-  ],
-  "biz-024": [
-    "/images/placeholder-business.svg",
-    "/images/placeholder-business.svg",
-  ],
-};
 
 function StarRating({ rating, size = "sm" }: { rating: number; size?: "sm" | "lg" }) {
   const fullStars = Math.floor(rating);
@@ -114,12 +56,6 @@ function buildMapUrl(business: Business): string {
   return `https://maps.google.com/maps?q=${query}&z=16&output=embed`;
 }
 
-function getGalleryForBusiness(businessId: string): string[] {
-  return businessGalleryImages[businessId] || [
-    "/images/placeholder-business.svg",
-    "/images/placeholder-business.svg",
-  ];
-}
 
 export default function BusinessDetailPage() {
   const { t } = useTranslation();
@@ -271,7 +207,7 @@ export default function BusinessDetailPage() {
   const categoryIcon = getCategoryIcon(business.category);
   const mapUrl = buildMapUrl(business);
   const website = business.website.trim();
-  const galleryExtras = getGalleryForBusiness(business.id);
+  const galleryExtras = business.gallery?.slice(1) ?? [];
   const hasGoogleRating =
     typeof business.googleRating === "number" &&
     Number.isFinite(business.googleRating) &&
@@ -492,14 +428,14 @@ export default function BusinessDetailPage() {
                     </div>
                     <div className="rounded-xl overflow-hidden aspect-[4/3]">
                       <img
-                        src={galleryExtras[0]}
+                        src={galleryExtras[0] || business.image}
                         alt={t("business.photoAlt", { name: business.name, number: 2 })}
                         className="w-full h-full object-cover object-top hover:scale-105 transition-transform duration-500"
                       />
                     </div>
                     <div className="rounded-xl overflow-hidden aspect-[4/3]">
                       <img
-                        src={galleryExtras[1]}
+                        src={galleryExtras[1] || business.image}
                         alt={t("business.photoAlt", { name: business.name, number: 3 })}
                         className="w-full h-full object-cover object-top hover:scale-105 transition-transform duration-500"
                       />

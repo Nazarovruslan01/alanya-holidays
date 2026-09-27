@@ -80,6 +80,23 @@ describe('ApiClient', () => {
     await expect(client.get('/network-fail')).rejects.toThrow(ApiError);
   });
 
+  it.each([
+    ['Gift card sales are temporarily unavailable', 'Gift card sales are temporarily unavailable'],
+    [['email must be an email', 'name should not be empty'], 'email must be an email; name should not be empty'],
+  ])('preserves nested server error messages: %j', async (message, expected) => {
+    const payload = { success: false, error: { message } };
+    mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(payload), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+
+    await expect(client.post('/products/orders', {}, { skipAuth: true })).rejects.toMatchObject({
+      message: expected,
+      status: 400,
+      data: payload,
+    });
+  });
+
   it('should allow offline fallback for network and 5xx errors only', () => {
     expect(shouldUseOfflineFallback(new Error('Offline'))).toBe(true);
     expect(

@@ -18,6 +18,9 @@ import {
 import { useAuth, type UserProfile } from "@/context/AuthContext";
 import { useTranslation } from "react-i18next";
 import { uploadAvatarImage } from "@/api-services/storage.service";
+import { apiClient } from '@/lib/api-client';
+
+type PublicRevision = { changes: Partial<UserProfile>; moderation_status: string; moderation_reason: string | null };
 
 export interface ProfileTabProps {
   profile: UserProfile | null;
@@ -76,6 +79,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [publicRevision, setPublicRevision] = useState<PublicRevision | null>(null);
   const avatarUploadTokenRef = useRef(0);
   const avatarObjectUrlRef = useRef<string | null>(null);
   const profileIdentityRef = useRef(profileIdentity);
@@ -142,6 +146,16 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
       return;
     }
     populateFromProfile(profile);
+    let current = true;
+    setPublicRevision(null);
+    void apiClient.get<PublicRevision | null>('/users/me/public-revision').then((revision) => {
+      if (!current) return;
+      setPublicRevision(revision);
+      if (revision && revision.moderation_status !== 'approved' && profile) {
+        populateFromProfile({ ...profile, ...revision.changes });
+      }
+    }).catch(() => { /* The approved profile remains editable if status loading fails. */ });
+    return () => { current = false; };
   }, [profile, populateFromProfile, invalidateAvatarUpload, profileIsReady]);
 
   useEffect(() => () => {
@@ -216,7 +230,9 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
     const newErrors: Record<string, string> = {};
 
     if (!fullName.trim()) {
-      newErrors.fullName = t("settings.nameRequired");
+      newErrors.fullName = t('settings.nameRequired');
+    } else if (fullName.trim().length < 3) {
+      newErrors.fullName = t('settings.nameTooShort');
     }
 
     if (bio.length > 500) {
@@ -268,7 +284,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
         return;
       }
 
-      setSuccessMessage(t("settings.profileSaved"));
+      setSuccessMessage(t("settings.profileSubmitted", "Public profile changes were submitted for admin approval."));
       if (result.profile && onProfileUpdated) {
         onProfileUpdated(result.profile);
       }
@@ -293,6 +309,12 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ profile, onProfileUpdate
       className="space-y-8"
     >
       <form onSubmit={handleSubmit} className="space-y-8">
+        {publicRevision && publicRevision.moderation_status !== 'approved' && <div role="status" className="rounded-xl border p-4">
+          <p>{publicRevision.moderation_status === 'rejected'
+            ? t('settings.profileRejected', 'Your public profile changes were rejected. You can edit and resubmit them.')
+            : t('settings.profilePending', 'Your public profile changes are awaiting admin approval. Your last approved profile remains public.')}</p>
+          {publicRevision.moderation_reason && <p>{publicRevision.moderation_reason}</p>}
+        </div>}
         {/* Status Alerts */}
         {successMessage && (
           <div

@@ -63,7 +63,13 @@ export class ItinerariesService {
     userId?: string,
   ): Promise<SavedItineraryRow> {
     const itinerary = await this.itinerariesRepository.findById(id);
-    if (!itinerary || (!itinerary.is_public && itinerary.user_id !== userId)) {
+    if (
+      !itinerary ||
+      ((!itinerary.is_public ||
+        (itinerary.moderation_status &&
+          itinerary.moderation_status !== 'approved')) &&
+        itinerary.user_id !== userId)
+    ) {
       throw new NotFoundException(`Itinerary with ID ${id} not found`);
     }
     return itinerary;

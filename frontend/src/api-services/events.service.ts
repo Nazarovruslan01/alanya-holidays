@@ -23,6 +23,7 @@ export interface ForumEvent {
   hostId?: string | null;
   createdBy?: string | null;
   isPublished?: boolean;
+  moderationStatus?: 'pending' | 'approved' | 'rejected';
   videoUrl?: string;
 }
 
@@ -70,6 +71,7 @@ export interface EventAttendee {
 }
 
 export interface BackendForumEvent {
+  moderation_status?: 'pending' | 'approved' | 'rejected';
   id: string;
   title: string;
   slug?: string;
@@ -198,6 +200,7 @@ export function mapBackendEventToForumEvent(event: BackendForumEvent): ForumEven
     hostId: event.host_id || null,
     createdBy: event.created_by || null,
     isPublished: event.is_published !== false,
+    moderationStatus: event.moderation_status,
   };
 }
 

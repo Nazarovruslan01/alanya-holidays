@@ -1,4 +1,5 @@
 export default {
+  "admin.productOrders": "Заказы товаров",
   "admin.currency": "Валюта",
   "admin.active": "Активен",
   "admin.inactive": "Неактивен",

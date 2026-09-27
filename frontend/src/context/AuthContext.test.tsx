@@ -4,6 +4,7 @@ import { render, screen, act, waitFor } from '@testing-library/react';
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { AuthProvider, useAuth } from './AuthContext';
 import { supabase } from '../lib/supabase';
+import { apiClient } from '../lib/api-client';
 
 const authStateHarness = vi.hoisted(() => ({
   initialRecoveryIntent: false,
@@ -60,7 +61,7 @@ vi.mock('../lib/supabase', () => {
 });
 
 vi.mock('../lib/api-client', () => ({
-  apiClient: { post: vi.fn().mockResolvedValue({}) },
+  apiClient: { post: vi.fn().mockResolvedValue({}), put: vi.fn().mockResolvedValue({ success: true }) },
 }));
 
 const TestConsumer: React.FC = () => {
@@ -608,7 +609,7 @@ describe('AuthContext', () => {
     expect(supabase.auth.signOut).not.toHaveBeenCalled();
   });
 
-  it('updates profile and reactively updates state', async () => {
+  it('submits public profile edits while retaining the approved canonical state', async () => {
     const mockUser = {
       id: 'usr_123',
       email: 'alex@example.com',
@@ -695,8 +696,9 @@ describe('AuthContext', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId('profile-name')).toHaveTextContent('Alex Rivera Updated');
-      expect(screen.getByTestId('profile-bio')).toHaveTextContent('Living in Alanya');
+      expect(apiClient.put).toHaveBeenCalledWith('/users/usr_123', expect.objectContaining({ full_name: 'Alex Rivera Updated', bio: 'Living in Alanya' }));
+      expect(screen.getByTestId('profile-name')).toHaveTextContent('Alex Rivera');
+      expect(screen.getByTestId('profile-bio')).not.toHaveTextContent('Living in Alanya');
     });
   });
 });

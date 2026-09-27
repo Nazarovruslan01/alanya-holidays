@@ -149,9 +149,17 @@ BEGIN
 END;
 $$;
 
-UPDATE public.listing_reviews
-SET status = 'approved'
-WHERE id = '43000000-0000-4000-8000-000000000002';
+-- Use the reviewed-revision contract rather than a legacy status-only write.
+ALTER TABLE public.profiles DISABLE TRIGGER protect_profile_privileges;
+UPDATE public.profiles SET role='admin'
+WHERE id='41000000-0000-4000-8000-000000000003';
+ALTER TABLE public.profiles ENABLE TRIGGER protect_profile_privileges;
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+SELECT public.review_public_content(
+  'listing_reviews', '43000000-0000-4000-8000-000000000002', 1, true, NULL,
+  '41000000-0000-4000-8000-000000000003'
+);
+SELECT set_config('request.jwt.claims', '{}', true);
 
 DO $$
 BEGIN

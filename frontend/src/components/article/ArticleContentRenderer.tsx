@@ -258,6 +258,7 @@ export default function ArticleContentRenderer({
               <EmbeddedDirectoryCta
                 key={`cta-${node.category}-${index}`}
                 category={node.category}
+                href={node.href}
                 label={node.label}
                 subtext={node.subtext}
               />

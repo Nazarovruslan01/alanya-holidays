@@ -74,7 +74,7 @@ const createFallbackProfile = (authUser: User): UserProfile => {
     email: authUser.email ?? null,
     full_name: derivedName,
     avatar_url: (authUser.user_metadata?.avatar_url as string | undefined) || null,
-    role: (authUser.user_metadata?.role as string | undefined) || "user",
+    role: "guest",
     phone: null,
     company_name: null,
     iban: null,
@@ -393,18 +393,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .update(updates)
-          .eq("id", user.id)
-          .select()
-          .single();
-
-        if (error) {
-          return { profile: null, error: new Error(error.message) };
-        }
-
-        const updatedProfile = data as UserProfile;
+        await apiClient.put(`/users/${encodeURIComponent(user.id)}`, updates);
+        const updatedProfile = await fetchProfile(user.id, user);
         setProfile(updatedProfile);
         return { profile: updatedProfile, error: null };
       } catch (err: unknown) {
@@ -412,7 +402,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { profile: null, error: errObj };
       }
     },
-    [user]
+    [user, fetchProfile]
   );
 
   const updatePassword = useCallback(async (newPassword: string) => {

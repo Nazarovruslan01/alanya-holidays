@@ -1,4 +1,8 @@
 export default {
+  "public.planPendingReview": "Plan onaya gönderildi. İncelemeden sonra toplulukta görünecektir.",
+  "public.threadPendingReview": "Tartışmanız yönetici onayına gönderildi:",
+  "public.threadPendingVisibility": "Onaylandıktan sonra herkese açık olacaktır.",
+  "public.previewYourThread": "Tartışmayı önizle",
   "listing.priceBudget": "$ (Ekonomik)",
   "listing.priceModerate": "$$ (Orta)",
   "listing.pricePremium": "$$$ (Premium / Lüks)",
@@ -1550,4 +1554,11 @@ export default {
   "public.search.failed": "Bu bölüm yüklenemedi. Lütfen tekrar deneyin.",
   "public.search.retry": "Tekrar dene",
   "public.search.more": "Daha fazla göster",
+  "guides.tag.first-timer": "İlk ziyaret",
+  "guides.tag.food-and-dining": "Yeme içme",
+  "guides.tag.day-trips": "Günübirlik geziler",
+  "guides.tag.expat-living": "Alanya'da yaşam",
+  "guides.tag.beaches": "Plajlar",
+  "guides.tag.nightlife": "Gece hayatı",
+  "guides.tag.general": "Genel",
 };

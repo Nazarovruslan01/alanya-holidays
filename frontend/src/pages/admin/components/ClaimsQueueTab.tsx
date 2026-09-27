@@ -1,3 +1,4 @@
+import QueuePagination from './QueuePagination';
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import toast from "react-hot-toast";
 import {
@@ -41,9 +42,12 @@ export default function ClaimsQueueTab({
   const { t } = useTranslation();
   const [claims, setClaims] = useState<DirectoryClaim[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, totalPages: 0 });
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<ClaimStatusFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  useEffect(() => { setPage(1); }, [statusFilter, searchQuery]);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   // Multi-selection state
@@ -64,10 +68,9 @@ export default function ClaimsQueueTab({
     if (!background) setLoading(true);
     setError(null);
     try {
-      const data = await adminService.getClaimsQueue(
-        statusFilter !== "all" ? statusFilter : undefined,
-        { throwOnError: true }
-      );
+      const result = await adminService.getQueuePage<DirectoryClaim>({ type: 'claims', page, status: statusFilter, search: searchQuery });
+      const data = result.data;
+      setPagination(result);
       setClaims(data || []);
 
       if (onClaimCountUpdateRef.current) {
@@ -79,7 +82,7 @@ export default function ClaimsQueueTab({
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, t]);
+  }, [statusFilter, searchQuery, page, t]);
 
   useEffect(() => {
     void fetchClaims();
@@ -261,6 +264,7 @@ export default function ClaimsQueueTab({
 
   return (
     <div className="space-y-6">
+      <QueuePagination page={page} {...pagination} busy={loading} onChange={setPage} />
       {/* Filter & Search Bar */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 shadow-xs border border-secondary-200/80 dark:border-slate-800 space-y-4 transition-colors">
         <div className="flex flex-wrap gap-2">

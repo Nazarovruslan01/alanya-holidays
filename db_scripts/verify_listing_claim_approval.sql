@@ -63,6 +63,10 @@ BEGIN
     email = EXCLUDED.email,
     role = EXCLUDED.role;
 
+  -- Historical claim fixtures are already-reviewed publications; the RPC below
+  -- runs through the same service-role context as the backend, without bypass.
+  PERFORM set_config('request.jwt.claims', '{"role":"service_role"}', true);
+  PERFORM set_config('app.content_review', 'approved', true);
   INSERT INTO public.directory_listings (
     id,
     name,
@@ -78,6 +82,7 @@ BEGIN
     (v_rejected_listing_id, 'Rejected Listing', 'Rejected Listing', 'claim-rejected-test', 'approved', 'admin', 'Rejected location', 'Rejected description'),
     (v_historical_listing_id, 'Historical Listing', 'Historical Listing', 'claim-historical-test', 'approved', 'admin', 'Historical location', 'Historical description');
 
+  PERFORM set_config('app.content_review', '', true);
   INSERT INTO public.listing_claims (
     id,
     listing_id,

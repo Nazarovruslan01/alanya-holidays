@@ -10,6 +10,9 @@ import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 
 @Injectable()
 export class UsersService {
+  getOwnPublicRevision(userId: string) {
+    return this.usersRepository.getPublicRevision(userId);
+  }
   constructor(
     private readonly usersRepository: UsersRepository,
     @Optional() private readonly userRolesRepo?: UserRolesRepository,
@@ -52,6 +55,16 @@ export class UsersService {
     const safeUpdates: Partial<UpdateUserProfileDto> = { ...updates };
     if (role !== 'admin') {
       delete safeUpdates.role;
+    }
+    if (
+      requestUserId === id &&
+      role === 'admin' &&
+      safeUpdates.role &&
+      safeUpdates.role !== 'admin'
+    ) {
+      throw new UnauthorizedException(
+        'Ask another administrator to change your administrator role',
+      );
     }
 
     await this.usersRepository.updateUserProfile(id, safeUpdates);

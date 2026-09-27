@@ -4,6 +4,7 @@ import { CreateItineraryDto } from './dto/create-itinerary.dto';
 import { UpdateItineraryDto } from './dto/update-itinerary.dto';
 
 export interface SavedItineraryRow {
+  moderation_status?: string;
   id: string;
   user_id: string;
   title: string;
@@ -84,6 +85,7 @@ export class ItinerariesRepository {
       .from('saved_itineraries')
       .select('*')
       .eq('is_public', true)
+      .eq('moderation_status', 'approved')
       .order('created_at', { ascending: false })
       .limit(limit);
 

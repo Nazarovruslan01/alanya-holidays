@@ -53,6 +53,9 @@ SET role = 'admin'
 WHERE id = '35000000-0000-4000-8000-000000000001';
 ALTER TABLE public.profiles ENABLE TRIGGER protect_profile_privileges;
 
+-- These fixtures represent already-reviewed, claimable publications.
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+SELECT set_config('app.content_review', 'approved', true);
 INSERT INTO public.directory_listings (
   id,
   name,
@@ -119,6 +122,9 @@ VALUES
     'Existing import location',
     'Existing import description'
   );
+
+SELECT set_config('app.content_review', '', true);
+SELECT set_config('request.jwt.claims', '{}', true);
 
 INSERT INTO public.listing_claims (
   id,
@@ -212,6 +218,9 @@ VALUES
     true
   );
 
+-- The backend calls this private RPC with its service-role client and explicit
+-- admin actor. Keep review bypass disabled while exercising the actual writes.
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
 DO $$
 DECLARE
   failure_state text;

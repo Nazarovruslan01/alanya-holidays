@@ -347,6 +347,11 @@ describe('ForumDiscussionService', () => {
 
   describe('Comments & Likes', () => {
     it('passes exact comment pagination to the repository', async () => {
+      mockRepository.getPostById.mockResolvedValueOnce({
+        id: postId,
+        moderation_status: 'approved',
+        is_removed: false,
+      });
       mockRepository.getComments.mockResolvedValueOnce([{ id: commentId }]);
 
       await service.getForumComments(

@@ -11,6 +11,7 @@ import {
   Patch,
 } from '@nestjs/common';
 import { BlogService } from './blog.service';
+import { ReviewBlogSubmissionDto } from './dto/review-blog-submission.dto';
 import { AuthGuard } from '../auth/auth.guard';
 import { OptionalAuthGuard } from '../auth/optional-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -151,9 +152,10 @@ export class BlogController {
   @RequireRole('admin')
   async approveBlogSubmission(
     @Param('id') id: string,
+    @Body() body: ReviewBlogSubmissionDto,
     @CurrentUser() user: AuthUser,
   ): Promise<BlogPost> {
-    return this.blogService.approveBlogSubmission(id, user.id);
+    return this.blogService.approveBlogSubmission(id, user.id, body.revision);
   }
 
   @Patch('submissions/:id/reject')
@@ -161,14 +163,19 @@ export class BlogController {
   @RequireRole('admin')
   async rejectBlogSubmission(
     @Param('id') id: string,
-    @Body() body: RejectBlogSubmissionDto | { reason: string },
+    @Body() body: RejectBlogSubmissionDto,
     @CurrentUser() user: AuthUser,
   ): Promise<SuccessResponse> {
     const reason =
       typeof body === 'object' && body !== null && 'reason' in body
         ? body.reason
         : '';
-    return this.blogService.rejectBlogSubmission(id, reason, user.id);
+    return this.blogService.rejectBlogSubmission(
+      id,
+      reason,
+      user.id,
+      body.revision,
+    );
   }
 
   @Get('post/:slug')

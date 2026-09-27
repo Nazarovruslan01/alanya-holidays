@@ -11,6 +11,7 @@ import {
 import { ApiError } from "@/lib/api-client";
 import { logger } from "@/lib/logger";
 import i18n from "@/i18n";
+import { useAuth } from '@/context/AuthContext';
 
 type EditableContent =
   | { kind: "post"; item: BlogPostItem }
@@ -31,6 +32,9 @@ const contentError = (error: unknown) => {
 
 export function MyContentTab() {
   const { t } = useTranslation();
+  const { user } = useAuth();
+  const [mediaPending, setMediaPending] = useState(false);
+  const [page, setPage] = useState(1);
   const [posts, setPosts] = useState<BlogPostItem[]>([]);
   const [submissions, setSubmissions] = useState<BlogSubmissionItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +42,6 @@ export function MyContentTab() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<EditableContent | null>(null);
   const [search, setSearch] = useState("");
-  const [mediaUploadPending, setMediaUploadPending] = useState(false);
   const [form, setForm] = useState({ title: "", content: "", category: "" });
 
   const loadContent = useCallback(async () => {
@@ -46,8 +49,8 @@ export function MyContentTab() {
     setError(null);
     try {
       const [myPosts, mySubmissions] = await Promise.all([
-        blogService.getMyPosts(),
-        blogService.getMySubmissions(),
+        blogService.getMyPosts(page),
+        blogService.getMySubmissions(page),
       ]);
       setPosts(myPosts);
       setSubmissions(mySubmissions);
@@ -57,7 +60,7 @@ export function MyContentTab() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page]);
 
   useEffect(() => {
     void loadContent();
@@ -194,8 +197,8 @@ export function MyContentTab() {
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h4 className="font-bold text-secondary-900 dark:text-white">{post.title}</h4>
-                  <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-800">{contentType(post.category, t)}</span>
-                  <span className="rounded-full bg-secondary-100 px-2 py-0.5 text-xs font-semibold capitalize text-secondary-700 dark:bg-slate-800 dark:text-slate-300">{post.status || "draft"}</span>
+                  <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-800">{post.content_type === 'guide' ? t('merchant.guide') : t('merchant.blog')}</span>
+                  <span className="rounded-full bg-secondary-100 px-2 py-0.5 text-xs font-semibold capitalize text-secondary-700 dark:bg-slate-800 dark:text-slate-300">{post.moderation_status && post.moderation_status !== 'approved' ? t(post.moderation_status === 'rejected' ? 'merchant.rejected' : 'merchant.pendingReview') : post.status || "draft"}</span>
                 </div>
                 <p className="mt-1 line-clamp-2 text-sm text-secondary-500 dark:text-slate-400">{post.excerpt || post.content}</p>
               </div>
@@ -239,6 +242,11 @@ export function MyContentTab() {
         ))}
       </section>
 
+      <nav aria-label="My content pages" className="flex items-center gap-4">
+        <button disabled={page === 1} onClick={() => setPage(page - 1)}>{t('common.previous')}</button>
+        <span>Page {page}</span>
+        <button disabled={posts.length < 50 && submissions.length < 50} onClick={() => setPage(page + 1)}>{t('common.next')}</button>
+      </nav>
       {editing && (
         <div role="dialog" aria-modal="true" aria-labelledby="content-editor-title" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
           <div className="w-full max-w-2xl space-y-4 rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900">
@@ -250,11 +258,11 @@ export function MyContentTab() {
               <input value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} maxLength={80} className="mt-1 w-full rounded-xl border border-secondary-200 bg-white px-3 py-2 text-secondary-900 dark:border-slate-700 dark:bg-slate-950 dark:text-white" />
             </label>
             <label className="block text-sm font-semibold text-secondary-700 dark:text-slate-300">{t("merchant.content")}
-              <RichTextEditor value={form.content} onChange={(value) => setForm((current) => ({ ...current, content: value }))} maxLength={100000} ariaLabel={t("merchant.content")} onUploadStateChange={setMediaUploadPending} />
+              <RichTextEditor value={form.content} onChange={(content) => setForm((current) => ({ ...current, content }))} maxLength={100000} userId={user?.id} onUploadStateChange={setMediaPending} ariaLabel={t('merchant.content')} />
             </label>
             <div className="flex justify-end gap-3">
               <button type="button" onClick={() => setEditing(null)} className="rounded-xl bg-secondary-100 px-4 py-2 text-sm font-semibold text-secondary-800 dark:bg-slate-800 dark:text-slate-200">{t("common.cancel")}</button>
-              <button type="button" disabled={saving || mediaUploadPending || !form.title.trim() || form.content.trim().length < 10} onClick={() => void saveEdit()} className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50">
+              <button type="button" disabled={saving || mediaPending || !form.title.trim() || form.content.trim().length < 10} onClick={() => void saveEdit()} className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50">
                 {saving && <Loader2 className="h-4 w-4 animate-spin" />} {t("merchant.saveChanges")}
               </button>
             </div>

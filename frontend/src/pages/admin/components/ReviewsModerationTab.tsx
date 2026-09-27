@@ -177,7 +177,7 @@ const ReviewsModerationTab: React.FC<{ onCountUpdate?: (c: { total: number; pend
                         <button
                           type="button"
                           disabled={isActing}
-                          onClick={() => act(review.id, () => adminService.approveReview(review.id))}
+                          onClick={() => act(review.id, () => adminService.approveReview(review.id, review.moderation_revision))}
                           className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500 hover:bg-emerald-400 text-white transition-colors disabled:opacity-50 cursor-pointer"
                         >
                         {t("admin.approve")}
@@ -185,7 +185,7 @@ const ReviewsModerationTab: React.FC<{ onCountUpdate?: (c: { total: number; pend
                         <button
                           type="button"
                           disabled={isActing}
-                          onClick={() => act(review.id, () => adminService.rejectReview(review.id))}
+                          onClick={() => act(review.id, () => adminService.rejectReview(review.id, review.moderation_revision))}
                           className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-500 hover:bg-rose-400 text-white transition-colors disabled:opacity-50 cursor-pointer"
                         >
                         {t("admin.reject")}

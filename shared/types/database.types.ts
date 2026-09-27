@@ -679,6 +679,8 @@ export type Database = {
       };
       forum_posts: {
         Row: {
+          moderation_status?: string;
+          moderation_revision?: number;
           id: string;
           title: string;
           slug: string;
@@ -751,6 +753,8 @@ export type Database = {
       };
       forum_events: {
         Row: {
+          moderation_status?: string;
+          moderation_revision?: number;
           id: string;
           title: string;
           slug: string;

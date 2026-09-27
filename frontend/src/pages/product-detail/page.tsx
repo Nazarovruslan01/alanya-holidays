@@ -174,16 +174,21 @@ export default function ProductDetailPage() {
     const price = hasVariants && selectedSku ? selectedSku.price : product.price;
     const label = hasVariants && selectedSku ? selectedSku.label : undefined;
     const displayVariant = label ? ` - ${label}` : "";
-    addToCart({
+    try { addToCart({
       name: product.name,
       productId: product.id,
+      quantity,
       price: formatPrice(price),
+      currency: product.currency,
       icon: getCategoryIcon(),
       variantLabel: label,
       skuId: selectedSku?.id ?? null,
       skuLabel: label ?? null,
       imageUrl: activeImageUrl,
-    });
+    }); } catch (error) {
+      showToast(t("product.addToCart"), error instanceof Error ? error.message : t("product.genericError"), "error");
+      return;
+    }
     showToast(
       t("product.addedToCart"),
       quantity > 1

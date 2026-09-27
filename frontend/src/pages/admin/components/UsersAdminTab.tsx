@@ -4,7 +4,7 @@ import { logger } from "@/lib/logger";
 import { useTranslation } from "react-i18next";
 import "@/i18n";
 
-const ROLE_FILTERS = ["all", "user", "host", "admin"] as const;
+const ROLE_FILTERS = ["all", "guest", "user", "host", "artisan", "admin"] as const;
 
 const ROLE_BADGES: Record<string, string> = {
   admin: "bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-800",
@@ -169,7 +169,7 @@ const UsersAdminTab: React.FC = () => {
                       aria-label={`Role for ${user.full_name || user.email}`}
                       className="px-2 py-1 rounded-lg border border-secondary-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-secondary-900 dark:text-white outline-none focus:border-accent-400"
                     >
-                      {["user", "host", "admin"].map((r) => (
+                      {["guest", "user", "host", "artisan", "admin"].map((r) => (
                         <option key={r} value={r}>
                           {r}
                         </option>

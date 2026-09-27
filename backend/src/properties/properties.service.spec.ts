@@ -248,6 +248,7 @@ describe('PropertiesService', () => {
       expect(res).toEqual({ success: true });
       expect(mockRepository.updateProperty).toHaveBeenCalledWith('prop-1', {
         title: 'New Title',
+        status: 'pending',
       });
       expect(mockRedisService.delByPattern).toHaveBeenCalledWith(
         'properties:*',

@@ -61,7 +61,9 @@ export class SupabasePropertiesRepository implements IPropertiesRepository {
     const { data, error } = await this.client
       .from('properties')
       .select('*, host:profiles(full_name, avatar_url)')
-      .in('id', ids);
+      .in('id', ids)
+      .eq('status', 'approved')
+      .eq('moderation_status', 'approved');
     if (error) throw new Error(error.message);
     return data ?? [];
   }
@@ -99,7 +101,8 @@ export class SupabasePropertiesRepository implements IPropertiesRepository {
       .select('*, host:profiles(full_name, avatar_url), reviews(count)', {
         count: 'exact',
       })
-      .eq('status', 'approved');
+      .eq('status', 'approved')
+      .eq('moderation_status', 'approved');
 
     if (allowedIds && allowedIds.length > 0) {
       query = query.in(
@@ -179,6 +182,8 @@ export class SupabasePropertiesRepository implements IPropertiesRepository {
         '*, host:profiles(full_name, avatar_url, email, phone, company_name)',
       )
       .eq('id', id)
+      .eq('status', 'approved')
+      .eq('moderation_status', 'approved')
       .single();
     if (error) return null;
     return data;
@@ -192,7 +197,10 @@ export class SupabasePropertiesRepository implements IPropertiesRepository {
     });
     if (res.error || !res.data || (res.data as unknown[]).length === 0)
       return null;
-    return (res.data as Record<string, unknown>[])[0] ?? null;
+    const property = (res.data as Record<string, unknown>[])[0];
+    return typeof property?.id === 'string'
+      ? this.getPropertyByUUID(property.id)
+      : null;
   }
 
   async getAvailableProperties(
@@ -204,7 +212,16 @@ export class SupabasePropertiesRepository implements IPropertiesRepository {
       check_out_date: checkOut,
     });
     if (res.error) throw new Error(res.error.message);
-    return (res.data as Record<string, unknown>[]) ?? [];
+    const rows = (res.data as Record<string, unknown>[]) ?? [];
+    const visible: Record<string, unknown>[] = [];
+    for (let offset = 0; offset < rows.length; offset += 100) {
+      const ids = rows
+        .slice(offset, offset + 100)
+        .map((row) => row.id)
+        .filter((id): id is string => typeof id === 'string');
+      if (ids.length) visible.push(...(await this.getPropertiesByIds(ids)));
+    }
+    return visible;
   }
 
   async getPropertiesByHost(
@@ -214,6 +231,8 @@ export class SupabasePropertiesRepository implements IPropertiesRepository {
       .from('properties')
       .select('*')
       .eq('host_id', hostId)
+      .eq('status', 'approved')
+      .eq('moderation_status', 'approved')
       .order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
     return data ?? [];
@@ -322,6 +341,8 @@ export class SupabasePropertiesRepository implements IPropertiesRepository {
       .select('*, host:profiles(full_name, avatar_url)', { count: 'exact' })
       .eq('type', type)
       .eq('location', location)
+      .eq('status', 'approved')
+      .eq('moderation_status', 'approved')
       .order('created_at', { ascending: false })
       .order('id', { ascending: true })
       .range(from, from + limit - 1);
@@ -458,6 +479,7 @@ export class SupabasePropertiesRepository implements IPropertiesRepository {
       .select('*, user:profiles(full_name, avatar_url)', { count: 'exact' })
       .eq('property_id', propertyId)
       .eq('is_hidden', false)
+      .eq('moderation_status', 'approved')
       .order('created_at', { ascending: false })
       .range(from, to);
     if (error) throw new Error(error.message);

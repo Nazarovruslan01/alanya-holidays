@@ -7,6 +7,26 @@ describe('adminContentService CRUD contracts', () => {
 
   beforeEach(() => vi.restoreAllMocks());
 
+  it('requires a fresh preview when a tagged save deliberately omits an approvable revision', async () => {
+    const pending = { id: 'post-1', content: 'Admin submitted content', status: 'published', moderation_status: 'pending' };
+    vi.spyOn(apiClient, 'post').mockResolvedValue(pending);
+    vi.spyOn(apiClient, 'put').mockResolvedValue(pending);
+    const get = vi.spyOn(apiClient, 'get').mockResolvedValue({ ...pending, content: 'OWNER EDIT NEVER PREVIEWED', moderation_revision: 5 });
+    const approve = vi.spyOn(apiClient, 'patch');
+    const input = { title: 'Tagged article', content: pending.content, status: 'published' as const };
+    await expect(adminContentService.createArticle(input)).rejects.toThrow('fresh preview');
+    await expect(adminContentService.updateArticle('post-1', input)).rejects.toThrow('fresh preview');
+    expect(get).not.toHaveBeenCalled();
+    expect(approve).not.toHaveBeenCalled();
+  });
+
+  it('preserves automatic approval of the exact returned revision for a normal no-tag save', async () => {
+    vi.spyOn(apiClient, 'put').mockResolvedValue({ id: 'post-1', moderation_status: 'pending', moderation_revision: 3 });
+    const approve = vi.spyOn(apiClient, 'patch').mockResolvedValue({ id: 'post-1', moderation_status: 'approved', moderation_revision: 3 });
+    await adminContentService.updateArticle('post-1', { title: 'Reviewed article', content: 'Reviewed content', status: 'published' });
+    expect(approve).toHaveBeenCalledWith('/admin/public-content/review', { type: 'blog_posts', id: 'post-1', revision: 3, approve: true });
+  });
+
   it('uses the current blog content model for article and guide CRUD', async () => {
     vi.spyOn(apiClient, 'get').mockResolvedValue({ data: [] });
     vi.spyOn(apiClient, 'post').mockResolvedValue({ id: 'post-1' });
@@ -19,7 +39,7 @@ describe('adminContentService CRUD contracts', () => {
     await adminContentService.updateArticle('post-1', input);
     await adminContentService.deleteArticle('post-1');
 
-    expect(apiClient.get).toHaveBeenCalledWith('/blog/posts', { params: { limit: 50, content_type: 'guide' } });
+    expect(apiClient.get).toHaveBeenCalledWith('/blog/posts', { params: { content_type: 'guide' } });
     expect(apiClient.post).toHaveBeenCalledWith('/blog', input);
     expect(apiClient.put).toHaveBeenCalledWith('/blog/post-1', input);
     expect(apiClient.delete).toHaveBeenCalledWith('/blog/post-1');
@@ -27,8 +47,8 @@ describe('adminContentService CRUD contracts', () => {
 
   it('dispatches complete event, listing, and product CRUD through admin-protected routes', async () => {
     vi.spyOn(apiClient, 'get').mockResolvedValue([]);
-    vi.spyOn(apiClient, 'post').mockResolvedValue({});
-    vi.spyOn(apiClient, 'put').mockResolvedValue({ success: true });
+    vi.spyOn(apiClient, 'post').mockResolvedValue({ id: 'created', moderation_status: 'pending', moderation_revision: 1 });
+    vi.spyOn(apiClient, 'put').mockResolvedValue({ id: 'updated', moderation_status: 'pending', moderation_revision: 2 });
     vi.spyOn(apiClient, 'patch').mockResolvedValue({});
     vi.spyOn(apiClient, 'delete').mockResolvedValue(undefined);
 

@@ -101,7 +101,7 @@ export default function SettingsPage() {
             <ProfileTab
               profile={profile}
               onProfileUpdated={() => {
-                showToast(t("settings.profileUpdatedTitle", "Profile Updated"), t("settings.profileUpdatedDescription", "Your changes have been saved to your account."), "success");
+                showToast(t("settings.profileSubmittedTitle", "Submitted for review"), t("settings.profileSubmitted", "Public profile changes were submitted for admin approval."), "success");
               }}
             />
           )}

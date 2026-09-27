@@ -123,13 +123,15 @@ describe('ItinerariesRepository privacy', () => {
   it('filters the community feed to explicitly public itineraries', async () => {
     const limit = jest.fn().mockResolvedValue({ data: [], error: null });
     const order = jest.fn().mockReturnValue({ limit });
-    const eq = jest.fn().mockReturnValue({ order });
+    const eq = jest.fn();
+    eq.mockReturnValue({ eq, order });
     const select = jest.fn().mockReturnValue({ eq });
     client.from.mockReturnValue({ select });
 
     await repository.findCommunity(12);
 
     expect(eq).toHaveBeenCalledWith('is_public', true);
+    expect(eq).toHaveBeenCalledWith('moderation_status', 'approved');
     expect(limit).toHaveBeenCalledWith(12);
   });
 

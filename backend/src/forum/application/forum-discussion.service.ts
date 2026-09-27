@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -342,7 +343,10 @@ export class ForumDiscussionService {
       : await this.forumRepository.getPostBySlug(slugOrId);
     if (!data) return null;
 
-    if (data.is_removed) {
+    if (
+      data.is_removed ||
+      (data.moderation_status && data.moderation_status !== 'approved')
+    ) {
       const role = userId
         ? await this.userRolesRepo?.getRole(userId)
         : undefined;
@@ -559,6 +563,14 @@ export class ForumDiscussionService {
     options: ForumCommentsFilter,
     userId?: string,
   ): Promise<ForumComment[]> {
+    if (
+      options.includeRemoved &&
+      (!userId || (await this.userRolesRepo?.getRole(userId)) !== 'admin')
+    ) {
+      throw new ForbiddenException('Administrator access required');
+    }
+    const parent = await this.getForumPost(postId, userId);
+    if (!parent) return [];
     const data = await this.forumRepository.getComments(
       postId,
       !!options.includeRemoved,

@@ -346,16 +346,22 @@ describe('BlogController', () => {
     });
 
     it('should delegate approveBlogSubmission', async () => {
-      const res = await controller.approveBlogSubmission('sub-1', mockUser);
+      const res = await controller.approveBlogSubmission(
+        'sub-1',
+        { revision: 3 },
+        mockUser,
+      );
       expect(res.id).toBe('post-1');
       expect(mockService.approveBlogSubmission).toHaveBeenCalledWith(
         'sub-1',
         'user-1',
+        3,
       );
     });
 
     it('should delegate rejectBlogSubmission', async () => {
       const dto: RejectBlogSubmissionDto = {
+        revision: 3,
         reason: 'Content does not meet guidelines',
       };
       const res = await controller.rejectBlogSubmission('sub-1', dto, mockUser);
@@ -364,6 +370,7 @@ describe('BlogController', () => {
         'sub-1',
         dto.reason,
         'user-1',
+        3,
       );
     });
   });

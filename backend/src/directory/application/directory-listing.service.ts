@@ -159,7 +159,10 @@ export class DirectoryListingService {
       cacheKey,
       async () => {
         const data = await this.directoryRepository.getDirectoryListingById(id);
-        if (data && data.status && data.status !== 'approved') {
+        if (
+          data &&
+          (data.status !== 'approved' || data.moderation_status !== 'approved')
+        ) {
           return null;
         }
         return data;
@@ -177,7 +180,10 @@ export class DirectoryListingService {
       async () => {
         const data =
           await this.directoryRepository.getDirectoryListingBySlug(slug);
-        if (data && data.status && data.status !== 'approved') {
+        if (
+          data &&
+          (data.status !== 'approved' || data.moderation_status !== 'approved')
+        ) {
           return null;
         }
         return data;
@@ -385,7 +391,18 @@ export class DirectoryListingService {
   ): Promise<DirectoryListingRecord> {
     if (locationIds?.length) validateUUIDs(locationIds);
 
-    const tier = (listing.tier as string) || 'explorer';
+    const existing =
+      draftId && UUID_RE.test(draftId)
+        ? await this.directoryRepository.getDirectoryListingOwner(draftId)
+        : null;
+    if (
+      draftId &&
+      UUID_RE.test(draftId) &&
+      (!existing || existing.owner_user_id !== userId)
+    ) {
+      throw new UnauthorizedException('Not authorized to update this draft');
+    }
+    const tier = existing?.tier || 'explorer';
     const gallery = Array.isArray(listing.gallery) ? listing.gallery : [];
     validatePhotoLimit(tier, gallery);
 
@@ -418,11 +435,12 @@ export class DirectoryListingService {
     let data: DirectoryListingRecord;
 
     if (draftId && UUID_RE.test(draftId)) {
-      const existing =
-        await this.directoryRepository.getDirectoryListingOwner(draftId);
-      if (!existing || existing.owner_user_id !== userId) {
-        throw new UnauthorizedException('Not authorized to update this draft');
-      }
+      for (const field of [
+        ...Object.keys(DEFAULT_UNPRIVILEGED_LISTING_FLAGS),
+        'tier',
+        'base_score',
+      ])
+        delete safeData[field];
       data = await this.directoryRepository.updateDirectoryListing(
         draftId,
         safeData,
@@ -512,14 +530,17 @@ export class DirectoryListingService {
       throw new Error('Valid email is required to publish');
     }
 
-    const tier = (updates.tier as string) || 'explorer';
+    const tier = existing.tier || 'explorer';
     const gallery = Array.isArray(updates.gallery) ? updates.gallery : [];
     validatePhotoLimit(tier, gallery);
 
     if (locationIds?.length) validateUUIDs(locationIds);
 
     const stripped = normalizeListingUpdateAliases(
-      stripProtectedFields(updates as Record<string, unknown>),
+      stripProtectedFields(updates as Record<string, unknown>, [
+        'tier',
+        'is_premium',
+      ]),
     );
 
     const safeUpdates: Record<string, unknown> = {
@@ -530,7 +551,6 @@ export class DirectoryListingService {
       short_description: rawDesc.slice(0, 500),
       location: rawAddress,
       email: rawEmail,
-      tier,
       gallery,
       status: 'pending',
       rejection_reason: null,
@@ -576,7 +596,7 @@ export class DirectoryListingService {
   ): Promise<DirectoryListingRecord> {
     if (locationIds?.length) validateUUIDs(locationIds);
 
-    const tier = (listing.tier as string) || 'explorer';
+    const tier = 'explorer';
     const gallery = Array.isArray(listing.gallery) ? listing.gallery : [];
     validatePhotoLimit(tier, gallery);
 
@@ -594,7 +614,7 @@ export class DirectoryListingService {
       video_url: normalized.video_url,
       ...DEFAULT_UNPRIVILEGED_LISTING_FLAGS,
       tier,
-      base_score: listing.base_score ?? 0,
+      base_score: 0,
       descriptions: normalized.descriptions ?? {},
       status: 'pending',
       owner_user_id: userId,
@@ -652,8 +672,14 @@ export class DirectoryListingService {
     if (locationIds?.length) validateUUIDs(locationIds);
 
     const safeUpdates = normalizeListingUpdateAliases(
-      stripProtectedFields(updates as Record<string, unknown>, ['status']),
+      stripProtectedFields(updates as Record<string, unknown>, [
+        'status',
+        'tier',
+        'is_premium',
+      ]),
     );
+
+    if (role !== 'admin') safeUpdates.status = 'pending';
 
     if (safeUpdates.price_level !== undefined) {
       const normalizedPrice = normalizePriceLevel(safeUpdates.price_level);
@@ -864,22 +890,9 @@ export class DirectoryListingService {
     const role = await this.userRolesRepo.getRole(userId);
     if (role !== 'admin') throw new UnauthorizedException('Not authorized');
 
-    const listing = await this.directoryRepository.updateListingStatus(id, {
-      status: 'approved',
-    });
-    if (!listing) throw new NotFoundException('Listing not found');
-    await this.redisService.delByPattern('directory:*');
-
-    if (listing?.owner_user_id) {
-      void this.directoryRepository.invokeFunction('send-email', {
-        body: {
-          type: 'listing_approved',
-          userId: listing.owner_user_id,
-          data: { title: listing.name ?? '' },
-        },
-      });
-    }
-    return { success: true };
+    throw new BadRequestException(
+      'Use the public content review queue to approve the reviewed revision.',
+    );
   }
 
   async rejectDirectoryListing(
@@ -894,23 +907,9 @@ export class DirectoryListingService {
       throw new Error('Rejection reason must be 1000 characters or fewer');
     }
 
-    const listing = await this.directoryRepository.updateListingStatus(id, {
-      status: 'rejected',
-      rejection_reason: reason,
-    });
-    if (!listing) throw new NotFoundException('Listing not found');
-    await this.redisService.delByPattern('directory:*');
-
-    if (listing?.owner_user_id) {
-      void this.directoryRepository.invokeFunction('send-email', {
-        body: {
-          type: 'listing_rejected',
-          userId: listing.owner_user_id,
-          data: { title: listing.name ?? '', reason },
-        },
-      });
-    }
-    return { success: true };
+    throw new BadRequestException(
+      'Use the public content review queue to reject the reviewed revision.',
+    );
   }
 
   // ---------------------------------------------------------------------------

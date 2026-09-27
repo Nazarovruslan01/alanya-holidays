@@ -82,6 +82,16 @@ describe('RichTextEditor Component (React 19 Native Quill)', () => {
     textChangeCallbacks = [];
   });
 
+  it('uploads pasted and dropped images through the server uploader without data URLs', async () => {
+    mockUploadForumImage.mockResolvedValue('https://cdn.example.test/image.webp');
+    render(<RichTextEditor value="" onChange={vi.fn()} userId="owner" />);
+    const file = new File([new Uint8Array(80000)], 'pasted.png', { type: 'image/png' });
+    await act(async () => { await lastQuillOptions.modules.uploader.handler({ index: 4 }, [file]); });
+    expect(mockUploadForumImage).toHaveBeenCalledWith(file);
+    expect(lastQuillInstance.insertEmbed).toHaveBeenCalledWith(4, 'image', 'https://cdn.example.test/image.webp', 'user');
+    expect(JSON.stringify(lastQuillInstance.insertEmbed.mock.calls)).not.toContain('data:');
+  });
+
   it('instantiates native Quill editor with placeholder and initial value', () => {
     const handleChange = vi.fn();
     render(

@@ -1,8 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 @Injectable()
 export class UsersRepository {
+  async getPublicRevision(userId: string) {
+    const { data, error } = await (this.client as SupabaseClient)
+      .from('profile_public_revisions')
+      .select('changes,moderation_status,moderation_revision,moderation_reason')
+      .eq('id', userId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  }
   private readonly logger = new Logger(UsersRepository.name);
 
   constructor(private readonly supabaseService: SupabaseService) {}
@@ -109,7 +119,8 @@ export class UsersRepository {
       .from('forum_posts')
       .select('id', { count: 'exact', head: true })
       .eq('author_id', id)
-      .eq('is_removed', false);
+      .eq('is_removed', false)
+      .eq('moderation_status', 'approved');
 
     return { ...data, post_count: count ?? 0 };
   }
@@ -118,7 +129,8 @@ export class UsersRepository {
     const { data, error } = await this.client
       .from('forum_posts')
       .select('author_id')
-      .eq('is_removed', false);
+      .eq('is_removed', false)
+      .eq('moderation_status', 'approved');
 
     if (error) throw new Error(error.message);
     return data || [];

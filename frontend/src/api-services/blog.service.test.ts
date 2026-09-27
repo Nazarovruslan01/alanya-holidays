@@ -291,10 +291,10 @@ describe("blog.service", () => {
         expect.objectContaining({ id: "submission-1" }),
       ]);
       expect(apiClient.get).toHaveBeenNthCalledWith(1, "/blog/posts/me", {
-        params: { limit: 50 },
+        params: { limit: 50, offset: 0 },
       });
       expect(apiClient.get).toHaveBeenNthCalledWith(2, "/blog/submissions/me", {
-        params: { limit: 50 },
+        params: { limit: 50, offset: 0 },
       });
     });
 

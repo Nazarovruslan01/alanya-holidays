@@ -1,3 +1,4 @@
+import { mockAdminQueuePages } from '@/pages/admin/__tests__/queue-page-fixture';
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -37,6 +38,7 @@ const enquiry: ConciergeEnquiry = {
 describe("Admin mutation failure feedback", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    mockAdminQueuePages();
   });
 
   it("shows an actionable error when review approval is unsuccessful", async () => {

@@ -1,4 +1,9 @@
 export default {
+  "settings.profileSubmittedTitle": "Отправлено на проверку",
+  "settings.profileSubmitted": "Изменения публичного профиля отправлены администратору на проверку.",
+  "settings.profilePending": "Изменения публичного профиля ожидают одобрения. Другим пользователям видна последняя одобренная версия.",
+  "settings.profileRejected": "Изменения публичного профиля отклонены. Исправьте их и отправьте снова.",
+  "settings.nameTooShort": "Имя должно содержать не менее 3 символов.",
   "settings.avatarEmptyError": "Файл изображения не должен быть пустым",
   "settings.member": "Участник",
   "settings.memberName": "Участник Alanya Holidays",

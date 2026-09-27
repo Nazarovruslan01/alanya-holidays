@@ -1,3 +1,4 @@
+import QueuePagination from './QueuePagination';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import "@/i18n";
@@ -20,14 +21,18 @@ export default function ContentModerationTab({
   const { t } = useTranslation();
   const [submissions, setSubmissions] = useState<BlogSubmissionAdminItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, totalPages: 0 });
   const [statusFilter, setStatusFilter] = useState<SubmissionStatusFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  useEffect(() => { setPage(1); }, [statusFilter, searchQuery]);
   const [selectedSubmission, setSelectedSubmission] = useState<BlogSubmissionAdminItem | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Multi-selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const selectedRevisions = useRef<Record<string, number>>({});
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const [isBulkRejectModalOpen, setIsBulkRejectModalOpen] = useState(false);
 
@@ -39,11 +44,9 @@ export default function ContentModerationTab({
   const fetchSubmissions = useCallback(async (background = false) => {
     if (!background) setLoading(true);
     try {
-      const data = await adminService.getContentSubmissions({
-        status: statusFilter !== "all" ? statusFilter : undefined,
-        search: searchQuery.trim() || undefined,
-        throwOnError: true,
-      });
+      const result = await adminService.getQueuePage<BlogSubmissionAdminItem>({ type: 'submissions', page, status: statusFilter, search: searchQuery });
+      const data = result.data;
+      setPagination(result);
       setSubmissions(data || []);
 
       if (onContentCountUpdateRef.current) {
@@ -56,7 +59,7 @@ export default function ContentModerationTab({
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, searchQuery, t]);
+  }, [statusFilter, searchQuery, page, t]);
 
   useEffect(() => {
     void fetchSubmissions();
@@ -87,6 +90,8 @@ export default function ContentModerationTab({
 
   // Multi-selection handlers
   const toggleSelect = (id: string) => {
+    const revision = submissions.find((item) => item.id === id)?.moderation_revision;
+    if (revision) selectedRevisions.current[id] = revision;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -99,6 +104,7 @@ export default function ContentModerationTab({
   };
 
   const selectAllFiltered = () => {
+    selectedRevisions.current = Object.fromEntries(filteredSubmissions.map((item) => [item.id, item.moderation_revision ?? 0]));
     setSelectedIds(new Set(filteredSubmissions.map((s) => s.id)));
   };
 
@@ -114,7 +120,7 @@ export default function ContentModerationTab({
   const handleApprove = async (id: string) => {
     setIsProcessing(true);
     try {
-      const success = await adminService.approveContentSubmission(id);
+      const success = await adminService.approveContentSubmission(id, (selectedSubmission?.id === id ? selectedSubmission : submissions.find((item) => item.id === id))?.moderation_revision);
       if (success) {
         toast.success(t("adminQueue.approvedPublished"));
         setIsPreviewOpen(false);
@@ -140,7 +146,7 @@ export default function ContentModerationTab({
   const handleReject = async (id: string, reason: string) => {
     setIsProcessing(true);
     try {
-      const success = await adminService.rejectContentSubmission(id, reason);
+      const success = await adminService.rejectContentSubmission(id, reason, (selectedSubmission?.id === id ? selectedSubmission : submissions.find((item) => item.id === id))?.moderation_revision);
       if (success) {
         toast.success(t("adminQueue.rejectedFeedback"));
         setIsPreviewOpen(false);
@@ -177,7 +183,7 @@ export default function ContentModerationTab({
         prev.map((s) => (selectedIds.has(s.id) ? { ...s, status: "approved" } : s))
       );
 
-      const res = await adminService.batchApproveContentSubmissions(ids);
+      const res = await adminService.batchApproveContentSubmissions(ids, selectedRevisions.current);
       if (res.successful.length > 0) {
         toast.success(t("adminQueue.batchSubmissionsApproved", { count: res.successful.length }));
       }
@@ -209,7 +215,7 @@ export default function ContentModerationTab({
         )
       );
 
-      const res = await adminService.batchRejectContentSubmissions(ids, reason);
+      const res = await adminService.batchRejectContentSubmissions(ids, reason, selectedRevisions.current);
       if (res.successful.length > 0) {
         toast.success(t("adminQueue.batchSubmissionsRejected", { count: res.successful.length }));
       }
@@ -250,6 +256,7 @@ export default function ContentModerationTab({
 
   return (
     <div className="space-y-6">
+      <QueuePagination page={page} {...pagination} busy={loading} onChange={setPage} />
       {/* Control Bar: Filters & Search */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-secondary-200 dark:border-slate-800 shadow-xs transition-colors">
         {/* Status Filter Tabs */}

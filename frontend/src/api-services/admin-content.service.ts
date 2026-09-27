@@ -33,8 +33,8 @@ export interface AdminArticleInput {
   title: string;
   content: string;
   excerpt?: string;
-  category?: string;
-  cover_image_url?: string;
+  category?: string | null;
+  cover_image_url?: string | null;
   status?: 'draft' | 'published' | 'archived';
   is_featured?: boolean;
   content_type?: 'blog' | 'guide';
@@ -55,20 +55,29 @@ export interface AdminListingInput {
   creation_source?: 'admin' | 'merchant' | 'import';
 }
 
+async function publishReviewed<T>(request: Promise<T>, type: string, publish: boolean): Promise<T> {
+  const item = await request;
+  const row = item as { id?: string | number; moderation_status?: string; moderation_revision?: number };
+  if (publish && row.moderation_status !== 'approved') {
+    if (row.moderation_status !== 'pending' || row.id === undefined || row.moderation_revision === undefined) {
+      throw new Error('Saved, but publication needs a fresh preview in the public content review queue.');
+    }
+    return await apiClient.patch<T>('/admin/public-content/review', { type, id: String(row.id), revision: row.moderation_revision, approve: true });
+  }
+  return item;
+}
+
 class AdminContentService {
   async listArticles(contentType?: 'blog' | 'guide'): Promise<BackendBlogPostItem[]> {
-    const response = await apiClient.get<
-      BackendBlogPostItem[] | { data?: BackendBlogPostItem[] }
-    >('/blog/posts', { params: { limit: 50, content_type: contentType } });
-    return Array.isArray(response) ? response : response.data ?? [];
+    return apiClient.get<BackendBlogPostItem[]>('/blog/posts', { params: contentType ? { content_type: contentType } : {} });
   }
 
   createArticle(input: AdminArticleInput): Promise<BackendBlogPostItem> {
-    return apiClient.post('/blog', input);
+    return publishReviewed(apiClient.post('/blog', input), 'blog_posts', input.status === 'published');
   }
 
   updateArticle(id: string, input: AdminArticleInput): Promise<BackendBlogPostItem> {
-    return apiClient.put(`/blog/${id}`, input);
+    return publishReviewed(apiClient.put(`/blog/${id}`, input), 'blog_posts', input.status === 'published');
   }
 
   async deleteArticle(id: string): Promise<void> {
@@ -85,16 +94,16 @@ class AdminContentService {
     input: CreateEventPayload,
     idempotencyKey: string,
   ): Promise<BackendForumEvent> {
-    return apiClient.post('/forum/events', input, {
+    return publishReviewed(apiClient.post('/forum/events', input, {
       headers: { 'Idempotency-Key': idempotencyKey },
-    });
+    }), 'forum_events', input.is_published !== false);
   }
 
   updateEvent(
     id: string,
     input: Partial<CreateEventPayload>,
   ): Promise<BackendForumEvent> {
-    return apiClient.put(`/forum/events/${id}`, input);
+    return publishReviewed(apiClient.put(`/forum/events/${id}`, input), 'forum_events', input.is_published === true);
   }
 
   async deleteEvent(id: string): Promise<void> {
@@ -102,21 +111,18 @@ class AdminContentService {
   }
 
   async listListings(): Promise<DirectoryListingRecord[]> {
-    const response = await apiClient.get<
-      DirectoryListingRecord[] | { data?: DirectoryListingRecord[] }
-    >('/directory/admin/listings', { params: { status: 'all', limit: 100 } });
-    return Array.isArray(response) ? response : response.data ?? [];
+    return apiClient.get<DirectoryListingRecord[]>('/directory/admin/listings', { params: { status: 'all' } });
   }
 
   createListing(input: AdminListingInput): Promise<DirectoryListingRecord> {
-    return apiClient.post('/directory/admin/listings', input);
+    return publishReviewed(apiClient.post('/directory/admin/listings', input), 'directory_listings', input.status === 'approved');
   }
 
   updateListing(
     id: string,
     input: AdminListingInput,
   ): Promise<DirectoryListingRecord> {
-    return apiClient.patch(`/directory/admin/listings/${id}`, input);
+    return publishReviewed(apiClient.patch(`/directory/admin/listings/${id}`, input), 'directory_listings', input.status === 'approved');
   }
 
   async deleteListing(id: string): Promise<void> {
@@ -132,14 +138,14 @@ class AdminContentService {
   }
 
   createProduct(input: AdminProductInput): Promise<AdminProduct> {
-    return apiClient.post('/products/admin', input);
+    return publishReviewed(apiClient.post('/products/admin', input), 'product_items', input.status === 'active');
   }
 
   updateProduct(
     id: string,
     input: AdminProductInput,
   ): Promise<AdminProduct> {
-    return apiClient.put(`/products/admin/${id}`, input);
+    return publishReviewed(apiClient.put(`/products/admin/${id}`, input), 'product_items', input.status === 'active');
   }
 
   async deleteProduct(id: string): Promise<void> {

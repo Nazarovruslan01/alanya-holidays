@@ -111,15 +111,20 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON storage.objects TO authenticated;
 -- lightweight migration fixture creates forum_events before those defaults.
 GRANT SELECT ON public.forum_events TO service_role;
 
+-- Seed an already-reviewed publication, then call the owner RPC exactly as the
+-- backend service-role client does, without review bypass during the edit.
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+SELECT set_config('app.content_review', 'approved', true);
 INSERT INTO public.forum_events (
-  id, title, slug, event_date, host_id, created_by, is_published
+  id, title, slug, event_date, host_id, created_by, is_published, moderation_status
 ) VALUES (
   '60000000-0000-4000-8000-000000000001',
   'Published owner event', 'published-owner-event-test',
   '2026-09-20T18:00:00Z',
   '10000000-0000-4000-8000-000000000002',
-  '10000000-0000-4000-8000-000000000002', true
+  '10000000-0000-4000-8000-000000000002', true, 'approved'
 );
+SELECT set_config('app.content_review', '', true);
 
 SELECT public.update_forum_event_with_media(
   '10000000-0000-4000-8000-000000000002',
@@ -136,6 +141,8 @@ BEGIN
       AND title = 'Published owner event edited'
       AND host_id = '10000000-0000-4000-8000-000000000002'
       AND is_published
+      AND moderation_status = 'pending'
+      AND moderation_revision = 2
   ) THEN
     RAISE EXCEPTION 'published owner normal-field edit failed';
   END IF;
@@ -187,11 +194,15 @@ BEGIN
       AND title = 'Published owner event edited'
       AND host_id = '10000000-0000-4000-8000-000000000002'
       AND is_published
+      AND moderation_status = 'pending'
+      AND moderation_revision = 2
   ) THEN
     RAISE EXCEPTION 'protected event fields changed after rejected updates';
   END IF;
 END;
 $$;
+
+SELECT set_config('request.jwt.claims', '{}', true);
 
 DO $$
 BEGIN

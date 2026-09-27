@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { blogService } from "@/api-services/blog.service";
 import { MyContentTab } from "./MyContentTab";
 
+vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { id: "author-1" } }) }));
+
 const quillState = vi.hoisted(() => ({
   textChangeCallbacks: [] as Array<() => void>,
 }));

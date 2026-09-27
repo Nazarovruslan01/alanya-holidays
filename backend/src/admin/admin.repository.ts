@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { CreateEnquiryDto } from './dto/create-enquiry.dto';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  AdminQueuePageDto,
+  PublicContentQueueDto,
+  ReviewPublicContentDto,
+} from './dto/public-content-review.dto';
 
 export interface ConciergeEnquiryRecord {
   id: number;
@@ -84,6 +90,138 @@ export interface PlatformAnalyticsData {
 
 @Injectable()
 export class AdminRepository {
+  async getQueuePage(input: AdminQueuePageDto) {
+    const tables = {
+      listings: 'directory_listings',
+      claims: 'listing_claims',
+      enquiries: 'concierge_enquiries',
+      submissions: 'blog_submissions',
+      articles: 'blog_posts',
+      events: 'forum_events',
+    } as const;
+    const selects = {
+      listings: '*',
+      claims:
+        '*,directory_listing:directory_listings(id,name,slug,category_id,gallery,tier,status,location)',
+      enquiries: '*',
+      submissions:
+        '*,user:profiles!blog_submissions_user_id_fkey(full_name,email)',
+      articles: '*',
+      events: '*',
+    };
+    let query = (this.client as SupabaseClient)
+      .from(tables[input.type])
+      .select(selects[input.type], { count: 'exact' });
+    if (input.status && input.status !== 'all')
+      query = query.eq('status', input.status);
+    if (input.category && input.category !== 'all')
+      query = query.eq(
+        input.type === 'enquiries'
+          ? 'enquiry_type'
+          : input.type === 'articles'
+            ? 'content_type'
+            : 'category_id',
+        input.category,
+      );
+    if (input.search?.trim()) {
+      const text = input.search.trim().replace(/[,%_()]/g, ' ');
+      const fields = {
+        listings: ['name', 'short_description', 'location', 'email'],
+        claims: ['business_name', 'email', 'phone'],
+        enquiries: ['name', 'email', 'subject', 'message'],
+        submissions: ['title'],
+        articles: ['title'],
+        events: ['title', 'description'],
+      };
+      query = query.or(
+        fields[input.type].map((field) => `${field}.ilike.%${text}%`).join(','),
+      );
+    }
+    const from = (input.page - 1) * input.limit;
+    const { data, error, count } = await query
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(from, from + input.limit - 1);
+    if (error) throw new Error(error.message);
+    return {
+      data: data ?? [],
+      total: count ?? 0,
+      page: input.page,
+      totalPages: Math.ceil((count ?? 0) / input.limit),
+    };
+  }
+
+  async getQueueCounts() {
+    const filters = [
+      ['pendingListings', 'directory_listings', 'status', 'pending'],
+      ['pendingClaims', 'listing_claims', 'status', 'pending'],
+      ['pendingContent', 'blog_submissions', 'status', 'pending_review'],
+      ['pendingReports', 'forum_reports', 'resolved', false],
+      ['newEnquiries', 'concierge_enquiries', 'status', 'new'],
+      ['pendingBookings', 'bookings', 'status', 'pending'],
+      ['pendingReviews', 'listing_reviews', 'status', 'pending'],
+    ] as const;
+    const values = await Promise.all(
+      filters.map(async ([name, table, field, value]) => {
+        const { count, error } = await (this.client as SupabaseClient)
+          .from(table)
+          .select('id', { count: 'exact', head: true })
+          .eq(field, value);
+        if (error) throw new Error(error.message);
+        return [name, count ?? 0] as const;
+      }),
+    );
+    return Object.fromEntries(values);
+  }
+
+  async getPublicContentQueue(query: PublicContentQueueDto) {
+    const client = this.client as SupabaseClient;
+    const previewSelect: Partial<
+      Record<PublicContentQueueDto['type'], string>
+    > = {
+      products: '*,product_variants(*)',
+      product_items: '*,product_skus(*)',
+      blog_posts: '*,blog_post_tags(*,blog_tags(*))',
+      directory_listings: '*,listing_locations(*,locations(*))',
+      profile_public_revisions:
+        '*,profiles(full_name,avatar_url,bio,company_name,social_links,phone,email)',
+    };
+    let request = client
+      .from(query.type)
+      .select(previewSelect[query.type] ?? '*', { count: 'exact' })
+      .eq('moderation_status', query.status);
+    if (query.type === 'saved_itineraries')
+      request = request.eq('is_public', true);
+    const from = (query.page - 1) * query.limit;
+    const { data, error, count } = await request
+      .order('id', { ascending: true })
+      .range(from, from + query.limit - 1);
+    if (error) throw new Error(error.message);
+    return {
+      data: data ?? [],
+      total: count ?? 0,
+      page: query.page,
+      limit: query.limit,
+      totalPages: Math.ceil((count ?? 0) / query.limit),
+    };
+  }
+
+  async reviewPublicContent(input: ReviewPublicContentDto, actor: string) {
+    const result = await (this.client as SupabaseClient).rpc(
+      'review_public_content',
+      {
+        p_table: input.type,
+        p_id: input.id,
+        p_revision: input.revision,
+        p_approve: input.approve,
+        p_reason: input.reason ?? null,
+        p_actor: actor,
+      },
+    );
+    if (result.error) throw new Error(result.error.message);
+    const data: unknown = result.data;
+    return data as Record<string, unknown>;
+  }
   constructor(private readonly supabaseService: SupabaseService) {}
 
   private get client() {

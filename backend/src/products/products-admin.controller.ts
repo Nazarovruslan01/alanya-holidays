@@ -12,6 +12,7 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
+import { ProductOrdersService } from './product-orders.service';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { RequireRole } from '../auth/decorators/require-role.decorator';
@@ -27,7 +28,15 @@ import {
 @UseGuards(AuthGuard, RolesGuard)
 @RequireRole('admin')
 export class ProductsAdminController {
-  constructor(private readonly productsService: ProductsService) {}
+  constructor(
+    private readonly productsService: ProductsService,
+    private readonly productOrdersService: ProductOrdersService,
+  ) {}
+
+  @Get('orders')
+  async getOrders(@CurrentUser() user: AuthUser) {
+    return this.productOrdersService.getAdminOrders(user.id);
+  }
 
   @Get()
   async getProductsAdmin(@Query() query: AdminProductsQueryDto) {
